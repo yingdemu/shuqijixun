@@ -1,0 +1,34 @@
+# Compiled files
+*.o
+*.obj
+*.lst
+*.out
+*.elf
+*.hex
+*.bin
+*.axf
+
+# Keil MDK
+*.uvguix.*
+*.scvd
+*.dbgconf
+JLinkLog.txt
+JLinkSettings.ini
+RTE/
+
+# IAR
+Debug/
+Release/
+settings/
+
+# IDE
+.vs/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
