@@ -2,7 +2,7 @@
 * 文件名称          common_Mymenu
 * 功能描述          智能车摄像头扫描巡线 - 菜单内容定义与按键交互实现
 * 适用平台          MM32F327X_G8P
-* 说明              移植自 WwuSama 多级菜单 v5.0.0，改为 IPS114 屏幕 + 四键交互
+* 说明              移植自 WwuSama 多级菜单 v5.0.0，改为 IPS200 屏幕 + 四键交互
 *
 * 按键操作：
 *   KEY_1 → 光标上移 / 参数增大（编辑模式下长按=10倍快速增加）
@@ -10,7 +10,7 @@
 *   KEY_3 → 确认 / 进入子菜单 / 选中编辑 / 保存退出编辑
 *   KEY_4 → 返回上级 / 取消编辑 / 切换步进值 / 退出图像模式
 *
-* IPS114 屏幕布局（320×240，8×16字体）：
+* IPS200 屏幕布局（320×240，8×16字体）：
 *   第0行  (y=0)   ：标题栏（蓝底白字，显示当前路径）
 *   第1~13行       ：菜单项列表（-> 标记当前选中，参数值右对齐）
 *   第14行 (y=224) ：操作提示栏（绿底黑字，显示按键功能）
@@ -64,7 +64,7 @@ static uint8 SetupIndex = 3;                                                    
 //
 // 菜单结构：
 //   myMenu (根节点 "<Menu>")
-//     ├── image (文件夹，进入后IPS114显示摄像头图像)
+//     ├── image (文件夹，进入后IPS200显示摄像头图像)
 //     ├── servo_pid (文件夹)
 //     │   ├── servo_kp (float, 限幅 0.00~100.00)
 //     │   ├── servo_ki (float, 限幅 0.00~10.00)
@@ -78,7 +78,7 @@ static void my_create_Menus(void)
 {
     // ==================== 第一层：主菜单项 ====================
 
-    // image 文件夹 —— 进入后 IPS114 显示摄像头灰度图像
+    // image 文件夹 —— 进入后 IPS200 显示摄像头灰度图像
     Folder_Menu *image_folder = dynamicCreate_Menu_Folder(&myMenu, "image");
 
     // servo_pid 文件夹 —— 舵机PID参数子菜单
@@ -139,11 +139,11 @@ void menu_init(void)
     menu_in_image_mode = 0;
 }
 
-//==================================================== IPS114 菜单显示 ====================================================
+//==================================================== IPS200 菜单显示 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：Mymenu_show_title
-// 功能：在 IPS114 屏幕顶部绘制标题栏（蓝底白字，显示当前路径面包屑）
+// 功能：在 IPS200 屏幕顶部绘制标题栏（蓝底白字，显示当前路径面包屑）
 //
 // 路径构建：从根节点到当前节点的路径
 //   例如：<Menu> / servo_pid /
@@ -168,7 +168,7 @@ static void Mymenu_show_title(void)
     path_buf[0] = '\0';
     for(int8 i = depth - 1; i >= 0; i--)
     {
-        if(strlen(path_buf) + strlen(names[i]) + 3 < 30)
+        if(strlen(path_buf) + strlen(names[i]) + 3 < 34)
         {
             strcat(path_buf, names[i]);
             if(i > 0) strcat(path_buf, " / ");
@@ -176,10 +176,10 @@ static void Mymenu_show_title(void)
     }
 
     // ---- 绘制标题栏背景（蓝色填充，一整行） ----
-    ips114_set_color(RGB565_WHITE, RGB565_BLUE);
-    ips114_show_string(0, MENU_TITLE_Y, "                              ");        // 30个空格清空整行（240/8=30字）
-    ips114_show_string(2, MENU_TITLE_Y, path_buf);                              // 显示路径文字
-    ips114_set_color(RGB565_BLACK, RGB565_WHITE);                                // 恢复默认配色（黑字白底）
+    ips200_set_color(RGB565_WHITE, RGB565_BLUE);
+    ips200_show_string(0, MENU_TITLE_Y, "                                        ");  // 40个空格清空整行（320/8=40字）
+    ips200_show_string(2, MENU_TITLE_Y, path_buf);                              // 显示路径文字
+    ips200_set_color(RGB565_BLACK, RGB565_WHITE);                                // 恢复默认配色（黑字白底）
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -189,45 +189,45 @@ static void Mymenu_show_title(void)
 static void Mymenu_show_Setup(void)
 {
     char buf[12];
-    ips114_set_color(RGB565_WHITE, RGB565_BLUE);                                 // 蓝底白字（与标题栏一致）
+    ips200_set_color(RGB565_WHITE, RGB565_BLUE);                                 // 蓝底白字（与标题栏一致）
     if(SetupNumber[SetupIndex] < 1.0f)
         sprintf(buf, "stp:%.3f", SetupNumber[SetupIndex]);
     else
         sprintf(buf, "stp:%.0f ", SetupNumber[SetupIndex]);
-    ips114_show_string(155, MENU_TITLE_Y, buf);                                  // 显示在屏幕右侧（x=155，宽≤10字=80px，155+80=235<240）
-    ips114_set_color(RGB565_BLACK, RGB565_WHITE);
+    ips200_show_string(240, MENU_TITLE_Y, buf);                                  // 显示在屏幕右侧（IPS200 320宽）
+    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：Mymenu_show_footer
-// 功能：在 IPS114 底部绘制操作提示栏
+// 功能：在 IPS200 底部绘制操作提示栏
 // 说明：根据当前状态显示不同的按键功能提示
 //-------------------------------------------------------------------------------------------------------------------
 static void Mymenu_show_footer(void)
 {
-    ips114_set_color(RGB565_GREEN, RGB565_BLACK);
+    ips200_set_color(RGB565_GREEN, RGB565_BLACK);
 
     if(menu_is_editing)                                                         // 编辑模式（24字/192px < 240）
     {
-        ips114_show_string(0, MENU_FOOTER_Y,
+        ips200_show_string(0, MENU_FOOTER_Y,
             "K1:+ K2:- K3:Save K4:Cancel ");
     }
     else if(menu_in_image_mode)                                                 // 图像显示模式
     {
-        ips114_show_string(0, MENU_FOOTER_Y,
+        ips200_show_string(0, MENU_FOOTER_Y,
             "K4:Exit Image                ");
     }
     else                                                                        // 普通菜单模式
     {
-        ips114_show_string(0, MENU_FOOTER_Y,
+        ips200_show_string(0, MENU_FOOTER_Y,
             "K1:Up K2:Dn K3:OK K4:Back   ");
     }
-    ips114_set_color(RGB565_BLACK, RGB565_WHITE);
+    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：Mymenu_show_task
-// 功能：在 IPS114 上绘制当前层级的所有菜单项
+// 功能：在 IPS200 上绘制当前层级的所有菜单项
 // 说明：
 //   - 遍历当前父节点下的所有子节点（兄弟链表）
 //   - "->" 箭头标记当前选中的项
@@ -271,27 +271,27 @@ static void Mymenu_show_task(void)
             break;
 
         // ---- 清空该行 ----
-        ips114_set_color(RGB565_BLACK, RGB565_WHITE);
-        ips114_show_string(0, y_pos, "                              ");
+        ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+        ips200_show_string(0, y_pos, "                                        ");
 
         // ---- 光标指示和名称 ----
         if(disp_p == key_menu_p)                                                // 当前选中项
         {
-            ips114_set_color(RGB565_WHITE, RGB565_BLACK);                       // 反白显示（白字黑底）
-            ips114_show_string(0, y_pos, "->");
+            ips200_set_color(RGB565_WHITE, RGB565_BLACK);                       // 反白显示（白字黑底）
+            ips200_show_string(0, y_pos, "->");
         }
         else
         {
-            ips114_set_color(RGB565_BLACK, RGB565_WHITE);                       // 正常显示
-            ips114_show_string(0, y_pos, "  ");
+            ips200_set_color(RGB565_BLACK, RGB565_WHITE);                       // 正常显示
+            ips200_show_string(0, y_pos, "  ");
         }
 
         // ---- 显示菜单项内容 ----
-        char line_buf[30];                                                      // 行缓冲区（IPS114: 30字/行）
+        char line_buf[36];                                                      // 行缓冲区（IPS200: 40字/行）
 
         if(disp_p->kind == Normal_Folder)                                       // 文件夹类型
         {
-            sprintf(line_buf, "%-12s [%d]    ",
+            sprintf(line_buf, "%-16s [%d]            ",
                     disp_p->name, disp_p->sons_Count);
         }
         else                                                                    // 数据项类型
@@ -301,9 +301,9 @@ static void Mymenu_show_task(void)
                 case bool_Box:
                 {
                     if(*(uint8 *)disp_p->private_data)
-                        sprintf(line_buf, "%-12s: Y       ", disp_p->name);
+                        sprintf(line_buf, "%-16s : Y            ", disp_p->name);
                     else
-                        sprintf(line_buf, "%-12s: N       ", disp_p->name);
+                        sprintf(line_buf, "%-16s : N            ", disp_p->name);
                     break;
                 }
                 case float_Box:
@@ -314,49 +314,49 @@ static void Mymenu_show_task(void)
                     if(dec_part < 10)
                     {
                         if(disp_p->number_box_select)                           // 编辑中显示尖括号
-                            sprintf(line_buf, "%-10s:<%5d.0%d> ", disp_p->name, int_part, dec_part);
+                            sprintf(line_buf, "%-14s:<%5d.0%d>      ", disp_p->name, int_part, dec_part);
                         else
-                            sprintf(line_buf, "%-10s: %5d.0%d  ", disp_p->name, int_part, dec_part);
+                            sprintf(line_buf, "%-14s: %5d.0%d       ", disp_p->name, int_part, dec_part);
                     }
                     else
                     {
                         if(disp_p->number_box_select)
-                            sprintf(line_buf, "%-10s:<%5d.%d> ", disp_p->name, int_part, dec_part);
+                            sprintf(line_buf, "%-14s:<%5d.%d>      ", disp_p->name, int_part, dec_part);
                         else
-                            sprintf(line_buf, "%-10s: %5d.%d  ", disp_p->name, int_part, dec_part);
+                            sprintf(line_buf, "%-14s: %5d.%d       ", disp_p->name, int_part, dec_part);
                     }
                     break;
                 }
                 case int_Box:
                 {
                     if(disp_p->number_box_select)
-                        sprintf(line_buf, "%-10s:<%7d>  ", disp_p->name, *(int *)disp_p->private_data);
+                        sprintf(line_buf, "%-14s:<%8d>       ", disp_p->name, *(int *)disp_p->private_data);
                     else
-                        sprintf(line_buf, "%-10s: %7d   ", disp_p->name, *(int *)disp_p->private_data);
+                        sprintf(line_buf, "%-14s: %8d        ", disp_p->name, *(int *)disp_p->private_data);
                     break;
                 }
                 case uint8_Box:
                 {
                     if(disp_p->number_box_select)
-                        sprintf(line_buf, "%-10s:<%7u>  ", disp_p->name, *(uint8 *)disp_p->private_data);
+                        sprintf(line_buf, "%-14s:<%8u>       ", disp_p->name, *(uint8 *)disp_p->private_data);
                     else
-                        sprintf(line_buf, "%-10s: %7u   ", disp_p->name, *(uint8 *)disp_p->private_data);
+                        sprintf(line_buf, "%-14s: %8u        ", disp_p->name, *(uint8 *)disp_p->private_data);
                     break;
                 }
                 case uint16_Box:
                 {
                     if(disp_p->number_box_select)
-                        sprintf(line_buf, "%-10s:<%7u>  ", disp_p->name, *(uint16 *)disp_p->private_data);
+                        sprintf(line_buf, "%-14s:<%8u>       ", disp_p->name, *(uint16 *)disp_p->private_data);
                     else
-                        sprintf(line_buf, "%-10s: %7u   ", disp_p->name, *(uint16 *)disp_p->private_data);
+                        sprintf(line_buf, "%-14s: %8u        ", disp_p->name, *(uint16 *)disp_p->private_data);
                     break;
                 }
                 case uint32_Box:
                 {
                     if(disp_p->number_box_select)
-                        sprintf(line_buf, "%-10s:<%7lu> ", disp_p->name, *(uint32 *)disp_p->private_data);
+                        sprintf(line_buf, "%-14s:<%8lu>      ", disp_p->name, *(uint32 *)disp_p->private_data);
                     else
-                        sprintf(line_buf, "%-10s: %7lu  ", disp_p->name, *(uint32 *)disp_p->private_data);
+                        sprintf(line_buf, "%-14s: %8lu       ", disp_p->name, *(uint32 *)disp_p->private_data);
                     break;
                 }
                 default:
@@ -368,16 +368,16 @@ static void Mymenu_show_task(void)
         }
 
         // ---- 在屏幕上显示该行 ----
-        ips114_show_string(FONT_W * 2, y_pos, line_buf);
+        ips200_show_string(FONT_W * 2, y_pos, line_buf);
 
         // ---- 恢复默认配色 ----
-        ips114_set_color(RGB565_BLACK, RGB565_WHITE);
+        ips200_set_color(RGB565_BLACK, RGB565_WHITE);
     }
 }
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：menu_show_All
-// 功能：在 IPS114 上绘制完整的菜单界面
+// 功能：在 IPS200 上绘制完整的菜单界面
 // 说明：清屏后依次绘制标题栏、步进值、菜单项列表、底部操作提示
 //-------------------------------------------------------------------------------------------------------------------
 void menu_show_All(void)
@@ -385,7 +385,7 @@ void menu_show_All(void)
     if(menu_in_image_mode)                                                      // 图像显示模式下不绘制菜单
         return;
 
-    ips114_clear();                                                             // 清屏（白色背景）
+    ips200_clear();                                                             // 清屏（白色背景）
 
     Mymenu_show_title();                                                        // 标题栏
     Mymenu_show_Setup();                                                        // 步进值显示
@@ -650,7 +650,7 @@ void Menu_downFuntion(uint8 is_long_press)
 //
 // 逻辑：
 //   - 文件夹类型 → 进入子菜单
-//   - "image" 文件夹 → 进入图像显示模式（IPS114显示摄像头）
+//   - "image" 文件夹 → 进入图像显示模式（IPS200显示摄像头）
 //   - bool_Box → 切换 true/false
 //   - 数值类型未编辑 → 进入编辑模式（选中该参数）
 //   - 数值类型已在编辑 → 退出编辑模式（保存当前值）
@@ -673,7 +673,7 @@ void Menu_enterFuntion(void)
             // ---- 特殊处理：进入 "image" 文件夹 → 图像显示模式 ----
             if(strcmp(key_menu_p->name, "image") == 0)
             {
-                ips114_clear();
+                ips200_clear();
                 menu_in_image_mode = 1;
                 return;
             }
@@ -716,9 +716,10 @@ void Menu_quitFuntion(void)
     if(menu_in_image_mode)
     {
         menu_in_image_mode = 0;
-        ips114_clear();
+        ips200_clear();
         menu_need_refresh = 1;
         return;
+        
     }
 
     // // ---- 编辑模式（参数被选中） → 取消编辑 ----
@@ -762,9 +763,8 @@ void Menu_quitFuntion(void)
 // 函数名称：menu_image_display_process
 // 功能：图像显示模式处理（在主循环中调用）
 // 说明：
-//   1. 检测 mt9v03x_finish_flag，有新图像帧时在 IPS114 上显示
-//   2. 图像原始尺寸 80×60，在 IPS114 上按 2 倍放大显示为 160×120
-//      （IPS114 横屏 240×135，2倍缩放后居中显示）
+//   1. 检测 mt9v03x_finish_flag，有新图像帧时在 IPS200 上显示
+//   2. 图像原始尺寸 80×60，在 IPS200 上按 3 倍放大显示为 240×180
 //   3. 在屏幕底部显示退出提示
 //   4. 检测 KEY_4 退出图像模式
 //-------------------------------------------------------------------------------------------------------------------
@@ -773,13 +773,13 @@ void menu_image_display_process(void)
     // ---- 检测是否有新图像帧 ----
     if(mt9v03x_finish_flag)
     {
-        // ---- 在 IPS114 上显示摄像头灰度图像（160×120 二倍放大） ----
-        ips114_displayimage03x((const uint8 *)mt9v03x_image, 160, 120);
+        // ---- 在 IPS200 上显示摄像头灰度图像（240×180 三倍放大） ----
+        ips200_displayimage03x((const uint8 *)mt9v03x_image, 240, 180);
 
         // ---- 屏幕底部显示退出提示 ----
-        ips114_set_color(RGB565_GREEN, RGB565_BLACK);
-        ips114_show_string(0, MENU_FOOTER_Y, "K4:Exit Image                ");
-        ips114_set_color(RGB565_BLACK, RGB565_WHITE);
+        ips200_set_color(RGB565_GREEN, RGB565_BLACK);
+        ips200_show_string(0, MENU_FOOTER_Y, "K4:Exit Image                ");
+        ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
         // ---- 清除图像采集完成标志 ----
         mt9v03x_finish_flag = 0;
@@ -790,7 +790,7 @@ void menu_image_display_process(void)
     {
         key_clear_state(KEY_4);
         menu_in_image_mode = 0;
-        ips114_clear();
+        ips200_clear();
         menu_need_refresh = 1;
     }
 }

@@ -30,22 +30,22 @@
 #define __COMMON_MYMENU_H_
 
 #include "common_menu.h"
-#include "zf_device_ips114.h"
+#include "zf_device_ips200.h"
 #include "zf_device_key.h"
 
 //==================================================== 显示格式配置 ====================================================
 
-// IPS114 屏幕分辨率 240×135（横屏模式 CROSSWISE），使用 8×16 字体
-// 240/8=30字/行，135/16≈8行可用（第0行标题，第1-6行菜单项，第7行底部提示）
+// IPS200 屏幕分辨率 320×240，使用 8×16 字体
+// 320/8=40字/行，240/16=15行可用（第0行标题，第1-13行菜单项，第14行底部提示）
 #define FONT_W                  (8)                                             // 字体宽度（像素）
 #define FONT_H                  (16)                                            // 字体高度（像素）
 #define MENU_TITLE_Y            (0)                                             // 标题栏 Y 坐标（第0行）
 #define MENU_START_Y            (16)                                            // 菜单项起始 Y 坐标（第1行，跳过标题）
-#define MENU_FOOTER_LINE        (7)                                             // 底部提示栏所在行号（135/16≈8行，最后一行=7）
-#define MENU_FOOTER_Y           (MENU_FOOTER_LINE * FONT_H)                     // 底部提示栏 Y 坐标 = 112
-#define MENU_MAX_DISPLAY_ITEMS  (MENU_FOOTER_LINE - 1)                          // 最大可显示的菜单项数（6行）
-#define FOLDER_NAME_LEN         (12)                                            // 菜单项名称最大显示长度
-#define FOLDER_NUMBER_LEN       (7)                                             // 参数值最大显示长度
+#define MENU_FOOTER_LINE        (14)                                            // 底部提示栏所在行号（240/16=15行，最后一行=14）
+#define MENU_FOOTER_Y           (MENU_FOOTER_LINE * FONT_H)                     // 底部提示栏 Y 坐标 = 224
+#define MENU_MAX_DISPLAY_ITEMS  (MENU_FOOTER_LINE - 1)                          // 最大可显示的菜单项数（13行）
+#define FOLDER_NAME_LEN         (14)                                            // 菜单项名称最大显示长度
+#define FOLDER_NUMBER_LEN       (8)                                             // 参数值最大显示长度
 
 //==================================================== 步进值配置 ====================================================
 

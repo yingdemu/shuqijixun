@@ -7,19 +7,19 @@
 * 修改记录
 * 日期              作者                备注
 * 2022-08-10        Teternal            first version
-* 2024-07-14        yingdemu            智能车摄像头扫描巡线 - 按键菜单 + IPS114显示
+* 2024-07-14        yingdemu            智能车摄像头扫描巡线 - 按键菜单 + IPS200显示
 ********************************************************************************************************************/
 
 // ==================== 智能车摄像头扫描巡线程序说明 ====================
 //
 // 【硬件连接】
 //   摄像头：总钻风 MT9V03X 灰度摄像头（接主板摄像头接口）
-//   显示屏：2寸 IPS114 模块（SPI或并口，接主板屏幕接口）
+//   显示屏：2寸 IPS200 模块（SPI或并口，接主板屏幕接口）
 //   按键：  主板上的 KEY1~KEY4
 //
 // 【程序架构】
 //   1. 菜单系统（common_menu + common_Mymenu）
-//      - 纯数据结构（链表树）+ IPS114 文字显示
+//      - 纯数据结构（链表树）+ IPS200 文字显示
 //      - KEY_1~KEY_4 四键操作，无需串口
 //
 //   2. 图像处理管线（image_process）
@@ -46,7 +46,7 @@
 //
 // 【菜单结构】
 //   Main Menu
-//     ├── image      → IPS114 显示摄像头灰度图像
+//     ├── image      → IPS200 显示摄像头灰度图像
 //     ├── servo_pid  → servo_kp / servo_ki / servo_kd
 //     └── motor_pid  → motor_kp / motor_ki / motor_kd
 //
@@ -60,6 +60,8 @@
 
 
 
+#define IPS200_TYPE                 (IPS200_TYPE_SPI)                     // 双排排针并口 → IPS200_TYPE_PARALLEL8
+                                                                                // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号 在 mm32f3277gx.h 头文件中查看 IRQn_Type 枚举体
 
@@ -82,36 +84,37 @@ int main(void)
     interrupt_set_priority(PIT_PRIORITY, 0);                                    // 设置 PIT 对周期中断的中断优先级为 0
 
 
-    // ---- 第3步：初始化 IPS114 显示屏（SPI 驱动，无需参数） ----
-    ips114_init();
-    ips114_clear();
+    // ---- 第3步：初始化 IPS200 显示屏 ----
+    ips200_init(IPS200_TYPE);
+    ips200_set_dir(IPS200_CROSSWISE);                                           // 横屏模式 320×240（默认竖屏 240×320 会导致x溢出）
+    ips200_clear();
 
     // ---- 第4步：显示启动画面 ----
-    ips114_set_color(RGB565_BLACK, RGB565_WHITE);
-    ips114_show_string(0, 0 * 16, "Smart Car Init...");
-    ips114_show_string(0, 1 * 16, "Platform: MM32F327X");
-    ips114_show_string(0, 2 * 16, "Camera:  MT9V03X");
-    ips114_show_string(0, 3 * 16, "Display: IPS114");
+    ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+    ips200_show_string(0, 0 * 16, "Smart Car Init...");
+    ips200_show_string(0, 1 * 16, "Platform: MM32F327X");
+    ips200_show_string(0, 2 * 16, "Camera:  MT9V03X");
+    ips200_show_string(0, 3 * 16, "Display: IPS200");
 
     // ---- 第5步：初始化 MT9V03X 总钻风摄像头 ----
-    ips114_show_string(0, 4 * 16, "Init Camera...");
+    ips200_show_string(0, 4 * 16, "Init Camera...");
     while(1)
     {
         if(mt9v03x_init())                                                      // 失败返回非0
         {
-            ips114_show_string(0, 5 * 16, "Retry...");
+            ips200_show_string(0, 5 * 16, "Retry...");
             system_delay_ms(500);
         }
         else
         {
-            ips114_show_string(0, 5 * 16, "Camera OK!     ");
+            ips200_show_string(0, 5 * 16, "Camera OK!     ");
             break;
         }
     }
 
     // ---- 第6步：初始化按键模块（5ms扫描周期） ----
     key_init(5);
-    ips114_show_string(0, 6 * 16, "Keys OK!       ");
+    ips200_show_string(0, 6 * 16, "Keys OK!       ");
 
     // ---- 第7步：初始化巡线模块 ----
     line_follow_init();
@@ -132,7 +135,7 @@ int main(void)
         // ==================== 图像显示模式处理 ====================
         if(menu_in_image_mode)
         {
-            // ---- IPS114 显示摄像头图像 ----
+            // ---- IPS200 显示摄像头图像 ----
             menu_image_display_process();
         }
         else
