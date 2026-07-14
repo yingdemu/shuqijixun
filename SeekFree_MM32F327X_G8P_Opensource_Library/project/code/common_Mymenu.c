@@ -721,14 +721,14 @@ void Menu_quitFuntion(void)
         return;
     }
 
-    // ---- 编辑模式（参数被选中） → 取消编辑 ----
-    if(menu_is_editing && key_menu_p->number_box_select == 1)
-    {
-        menu_is_editing = 0;
-        menu_function_unselect();
-        menu_need_refresh = 1;
-        return;
-    }
+    // // ---- 编辑模式（参数被选中） → 取消编辑 ----
+    // if(menu_is_editing && key_menu_p->number_box_select == 1)
+    // {
+    //     menu_is_editing = 0;
+    //     menu_function_unselect();
+    //     menu_need_refresh = 1;
+    //     return;
+    // }
 
     // ---- 文件夹或未编辑状态 → 返回上级 ----
     switch(key_menu_p->kind)
@@ -743,6 +743,11 @@ void Menu_quitFuntion(void)
 
         default:                                                                // 数值类型（未编辑）
         {
+            if(key_menu_p->number_box_select==0){
+                menu_function_quit();
+                menu_need_refresh = 1;
+                break;
+            }
             // 如果光标在数值项上但未进入编辑 → 切换步进值
             MenuNumber_SetupCtrl_Plus();
             menu_need_refresh = 1;

@@ -57,6 +57,12 @@
 #include "common_Mymenu.h"
 #include "line_follow.h"
 
+
+
+
+#define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
+#define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号 在 mm32f3277gx.h 头文件中查看 IRQn_Type 枚举体
+
 // ==================== 主函数 ====================
 
 int main(void)
@@ -66,6 +72,15 @@ int main(void)
 
     // ---- 第2步：初始化调试串口（仅用于 printf 调试输出，不用于菜单交互） ----
     debug_init();
+
+
+
+
+    //------配置中断-----------------------------------
+    pit_ms_init(PIT, 5);                                                     // 初始化 PIT 为周期中断 1000ms 周期
+
+    interrupt_set_priority(PIT_PRIORITY, 0);                                    // 设置 PIT 对周期中断的中断优先级为 0
+
 
     // ---- 第3步：初始化 IPS114 显示屏（SPI 驱动，无需参数） ----
     ips114_init();
@@ -112,7 +127,7 @@ int main(void)
     while(1)
     {
         // ==================== 按键扫描 ====================
-        key_scanner();
+        
 
         // ==================== 图像显示模式处理 ====================
         if(menu_in_image_mode)
@@ -182,4 +197,12 @@ int main(void)
             // }
         }
     }
+}
+
+
+
+
+void pit_handler (void)
+{
+        key_scanner();
 }
