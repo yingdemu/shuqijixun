@@ -121,6 +121,9 @@ void line_follow_process(void)
             line_data_ready = 1;                                                // 中线数据可供读取
             line_state = LINE_STATE_DONE;                                       // 转入完成状态
             break;
+
+
+            
         }
 
         // ==================== 状态3：处理完成 ====================

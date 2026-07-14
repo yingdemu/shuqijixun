@@ -60,7 +60,7 @@
 
 
 
-#define IPS200_TYPE                 (IPS200_TYPE_SPI)                     // 双排排针并口 → IPS200_TYPE_PARALLEL8
+#define IPS200_TYPE             (IPS200_TYPE_SPI)                     // 双排排针并口 → IPS200_TYPE_PARALLEL8
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号 在 mm32f3277gx.h 头文件中查看 IRQn_Type 枚举体
@@ -126,69 +126,34 @@ int main(void)
     // ---- 短暂延时让用户看到启动信息 ----
     system_delay_ms(300);
 
+    //-------启动定时器（用来调试）
+        // timer_init(TIM_2, TIMER_US);  
+        //             timer_start(TIM_2);                                                         // 启动定时
+ 
     // ==================== 主循环 ====================
     while(1)
     {
-        // ==================== 按键扫描 ====================
-        
+        // ---- 清屏处理（由中断中的 menu_key_process 触发） ----
+        if(menu_need_clear)
+        {
+            ips200_clear();
+            menu_need_clear = 0;
+        }
 
-        // ==================== 图像显示模式处理 ====================
+        // ---- 菜单刷新（由中断中的 menu_key_process 触发） ----
+        if(menu_need_refresh && !menu_in_image_mode)
+        {
+            menu_show_All();
+        }
+
+        // ==================== 图像显示模式 ====================
         if(menu_in_image_mode)
         {
-            // ---- IPS200 显示摄像头图像 ----
             menu_image_display_process();
         }
         else
         {
-            // ==================== 菜单按键处理 ====================
-            // 在非图像模式下，根据按键状态执行菜单操作
-
-            // ---- KEY_1：上 / 增大参数 ----
-            if(key_get_state(KEY_1) == KEY_SHORT_PRESS)
-            {
-                key_clear_state(KEY_1);
-                Menu_upFuntion(0);                                              // 短按
-            }
-            else if(key_get_state(KEY_1) == KEY_LONG_PRESS)
-            {
-                key_clear_state(KEY_1);
-                Menu_upFuntion(1);                                              // 长按（编辑模式下10倍快速调节）
-            }
-
-            // ---- KEY_2：下 / 减小参数 ----
-            if(key_get_state(KEY_2) == KEY_SHORT_PRESS)
-            {
-                key_clear_state(KEY_2);
-                Menu_downFuntion(0);                                            // 短按
-            }
-            else if(key_get_state(KEY_2) == KEY_LONG_PRESS)
-            {
-                key_clear_state(KEY_2);
-                Menu_downFuntion(1);                                            // 长按（编辑模式下10倍快速调节）
-            }
-
-            // ---- KEY_3：确认 / 进入 / 选中编辑 ----
-            if(key_get_state(KEY_3) == KEY_SHORT_PRESS)
-            {
-                key_clear_state(KEY_3);
-                Menu_enterFuntion();
-            }
-
-            // ---- KEY_4：返回 / 取消编辑 / 切换步进 ----
-            if(key_get_state(KEY_4) == KEY_SHORT_PRESS)
-            {
-                key_clear_state(KEY_4);
-                Menu_quitFuntion();
-            }
-
-            // ---- 刷新菜单显示 ----
-            if(menu_need_refresh)
-            {
-                menu_show_All();
-            }
-
             // ==================== 巡线处理 ====================
-            // 非图像模式下执行巡线（图像处理管线消费 mt9v03x_finish_flag）
             line_follow_process();
 
             // ---- 后续 PID 控制可在此添加 ----
@@ -202,10 +167,11 @@ int main(void)
     }
 }
 
-
-
-
+//-------------------------------------------------------------------------------------------------------------------
+// 函数简介     PIT 周期中断回调（5ms），按键扫描 + 菜单按键处理
+//-------------------------------------------------------------------------------------------------------------------
 void pit_handler (void)
 {
-        key_scanner();
+    key_scanner();
+    menu_key_process();
 }

@@ -17,6 +17,7 @@
 *********************************************************************************************************************/
 
 #include "common_Mymenu.h"
+#include "image_process.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -43,6 +44,7 @@ Folder_Menu myMenu;                                                             
 Folder_Menu *key_menu_p = NULL;                                                 // 当前光标所在的菜单节点
 uint8 menu_in_image_mode = 0;                                                   // 图像显示模式标志
 uint8 menu_need_refresh = 1;                                                    // 菜单刷新标志
+uint8 menu_need_clear = 0;                                                      // 清屏标志（主循环执行 ips200_clear）
 
 //==================================================== 编辑模式变量 ====================================================
 
@@ -673,7 +675,7 @@ void Menu_enterFuntion(void)
             // ---- 特殊处理：进入 "image" 文件夹 → 图像显示模式 ----
             if(strcmp(key_menu_p->name, "image") == 0)
             {
-                ips200_clear();
+                menu_need_clear = 1;                                            // 主循环会执行 ips200_clear()
                 menu_in_image_mode = 1;
                 return;
             }
@@ -716,10 +718,11 @@ void Menu_quitFuntion(void)
     if(menu_in_image_mode)
     {
         menu_in_image_mode = 0;
-        ips200_clear();
+        menu_need_clear = 1;                                                    // 主循环执行 ips200_clear()
         menu_need_refresh = 1;
+
+        menu_function_quit();                                                        // 返回上级菜单//===================================自己加的======================================
         return;
-        
     }
 
     // // ---- 编辑模式（参数被选中） → 取消编辑 ----
@@ -770,27 +773,92 @@ void Menu_quitFuntion(void)
 //-------------------------------------------------------------------------------------------------------------------
 void menu_image_display_process(void)
 {
-    // ---- 检测是否有新图像帧 ----
+    // ---- 检测是否有新图像帧（按键退出由中断中的 menu_key_process 统一处理） ----
     if(mt9v03x_finish_flag)
     {
-        // ---- 在 IPS200 上显示摄像头灰度图像（240×180 三倍放大） ----
-        ips200_displayimage03x((const uint8 *)mt9v03x_image, 240, 180);
+        mt9v03x_finish_flag = 0;
+
+        // ---- 执行完整图像处理管线（大津法→二值化→画框→爬线→ABCD→补线→中线） ----
+        image_process_pipeline();
+
+        // ---- 在 IPS200 上显示处理后的二值化图像（240×180 三倍放大） ----
+        ips200_show_gray_image(0, 0, (const uint8 *)binary_image,
+                               IMG_W, IMG_H,              // 源图 80×60
+                               240, 180,                   // 显示 240×180（三倍放大）
+                               1);                         // 二值化阈值=1
 
         // ---- 屏幕底部显示退出提示 ----
         ips200_set_color(RGB565_GREEN, RGB565_BLACK);
-        ips200_show_string(0, MENU_FOOTER_Y, "K4:Exit Image                ");
+        ips200_show_string(0, MENU_FOOTER_Y, "K4:Exit Image                ");                        //===============================================================主循环中不要打印ips以防止超时
         ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+    }
+}
 
-        // ---- 清除图像采集完成标志 ----
-        mt9v03x_finish_flag = 0;
+//==================================================== 按键处理（中断中调用） ====================================================
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：menu_key_process
+// 功能：统一按键处理（放在中断中与 key_scanner 同频调用）
+// 说明：
+//   本函数只修改菜单数据结构和状态标志，不执行任何 SPI 显示操作。
+//   显示更新（ips200_clear / menu_show_All）由主循环根据标志位执行。
+//
+//   按键映射：
+//     KEY_1 → 光标上移 / 参数增大（长按=10倍快调）
+//     KEY_2 → 光标下移 / 参数减小（长按=10倍快调）
+//     KEY_3 → 确认 / 进入子菜单 / 选中编辑 / 保存退出编辑
+//     KEY_4 → 返回上级 / 取消编辑 / 切换步进 / 退出图像模式
+//-------------------------------------------------------------------------------------------------------------------
+void menu_key_process(void)
+{
+    // ---- 图像显示模式：只响应 KEY_4 退出 ----
+    if(menu_in_image_mode)
+    {
+        if(key_get_state(KEY_4) == KEY_SHORT_PRESS)
+        {
+            key_clear_state(KEY_4);
+            menu_in_image_mode = 0;
+            menu_need_clear = 1;                                                // 主循环执行 ips200_clear()
+            menu_need_refresh = 1;
+        }
+        return;                                                                 // 图像模式下不处理其他按键
     }
 
-    // ---- 检测 KEY_4 短按退出图像模式 ----
+    // ---- KEY_1：上 / 增大参数 ----
+    if(key_get_state(KEY_1) == KEY_SHORT_PRESS)
+    {
+        key_clear_state(KEY_1);
+        Menu_upFuntion(0);
+    }
+    else if(key_get_state(KEY_1) == KEY_LONG_PRESS)
+    {
+        key_clear_state(KEY_1);
+        Menu_upFuntion(1);
+    }
+
+    // ---- KEY_2：下 / 减小参数 ----
+    if(key_get_state(KEY_2) == KEY_SHORT_PRESS)
+    {
+        key_clear_state(KEY_2);
+        Menu_downFuntion(0);
+    }
+    else if(key_get_state(KEY_2) == KEY_LONG_PRESS)
+    {
+        key_clear_state(KEY_2);
+        Menu_downFuntion(1);
+    }
+
+    // ---- KEY_3：确认 / 进入 / 选中编辑 ----
+    if(key_get_state(KEY_3) == KEY_SHORT_PRESS)
+    {
+        key_clear_state(KEY_3);
+        Menu_enterFuntion();
+    }
+
+    // ---- KEY_4：返回 / 取消编辑 / 切换步进 ----
     if(key_get_state(KEY_4) == KEY_SHORT_PRESS)
     {
         key_clear_state(KEY_4);
-        menu_in_image_mode = 0;
-        ips200_clear();
-        menu_need_refresh = 1;
+        Menu_quitFuntion();
     }
 }
