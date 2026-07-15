@@ -818,6 +818,15 @@ void menu_image_display_process(void)
                                240, 100,                   // 显示 240×100
                                0);                         // 阈值=0=灰度模式
 
+        // ---- 灰度图下方显示大津法阈值（定位在 footer 上方一行） ----
+        {
+            char thresh_buf[24];
+            sprintf(thresh_buf, "OTSU:%3u  last:%3u", otsu_threshold, last_threshold);
+            ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
+            ips200_show_string(0, MENU_FOOTER_Y - 16, thresh_buf);
+            ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+        }
+
         // ---- 屏幕底部显示退出提示 ----
         ips200_set_color(RGB565_GREEN, RGB565_BLACK);
         ips200_show_string(0, MENU_FOOTER_Y, "K4:Exit Image                ");

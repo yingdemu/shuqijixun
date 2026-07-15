@@ -57,6 +57,7 @@
 #include "common_Mymenu.h"
 #include "line_follow.h"
 #include "control.h"
+#include "bluetooth.h"
 
 
 
@@ -111,14 +112,18 @@ int main(void)
     key_init(5);
     ips200_show_string(0, 6 * 16, "Keys OK!       ");
 
-    // ---- 第7步：初始化巡线模块 ----
+    // ---- 第7步：初始化 HC-04 蓝牙模块 ----
+    bluetooth_init();
+    ips200_show_string(0, 7 * 16, "Bluetooth OK!   ");
+
+    // ---- 第8步：初始化巡线模块 ----
     line_follow_init();
 
-    // ---- 第8步：初始化控制模块（舵机 PWM + 双电机 GPIO/PWM） ----
+    // ---- 第9步：初始化控制模块（舵机 PWM + 双电机 GPIO/PWM） ----
     control_init();
-    ips200_show_string(0, 7 * 16, "Control OK!     ");
+    ips200_show_string(0, 8 * 16, "Control OK!     ");
 
-    // ---- 第9步：初始化菜单系统（创建菜单树 + 绘制初始界面） ----
+    // ---- 第10步：初始化菜单系统（创建菜单树 + 绘制初始界面） ----
     menu_init();
     menu_show_All();
 
@@ -162,6 +167,7 @@ int main(void)
             //---- 后续 PID 控制可在此添加 ----
             if(line_data_ready)
             {
+                serial_printf("hello world\r\n");
                 //motor_set_duty(30,30);
 
             }
