@@ -798,6 +798,17 @@ void menu_image_display_process(void)
                                240, 100,                   // 显示 240×100
                                1);                         // 二值化阈值=1
 
+        // ---- 在二值化图像上叠加赛道中线（红色折线） ----
+        // 中线坐标从图像坐标系(80×60)映射到显示坐标系(240×100)
+        for(int16 r = 1; r < IMG_H; r++)
+        {
+            uint16 x1 = center_line[r - 1] * 240 / IMG_W;                      // 上一行中点→显示X
+            uint16 y1 = (r - 1) * 100 / IMG_H;                                 // 上一行→显示Y
+            uint16 x2 = center_line[r] * 240 / IMG_W;                          // 当前行中点→显示X
+            uint16 y2 = r * 100 / IMG_H;                                       // 当前行→显示Y
+            ips200_draw_line(x1, y1, x2, y2, RGB565_RED);
+        }
+
         // ---- 分隔线 ----
         ips200_draw_line(0, 102, 239, 102, RGB565_RED);
 
