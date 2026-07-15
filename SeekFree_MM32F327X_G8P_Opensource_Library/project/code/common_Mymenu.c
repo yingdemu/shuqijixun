@@ -792,20 +792,24 @@ void menu_image_display_process(void)
         // ---- 执行完整图像处理管线（大津法→二值化→画框→爬线→ABCD→补线→中线） ----
         image_process_pipeline();
 
-        // ---- 在 IPS200 上显示处理后的二值化图像（240×180 三倍放大） ----
-        // binary_image 已经过画框+补线处理，边线=BLACK(0)，赛道=WHITE(255)
-        // 阈值=1 确保 0→黑、255→白
+        // ---- 上半屏：显示处理后的二值化图像 240×100（含补线、黑框） ----
         ips200_show_gray_image(0, 0, (const uint8 *)binary_image,
                                IMG_W, IMG_H,              // 源图 80×60
-                               240, 180,                   // 显示 240×180
+                               240, 100,                   // 显示 240×100
                                1);                         // 二值化阈值=1
 
-        // ---- 调试：取消下面注释可对比原始灰度图像 ----
-        // ips200_displayimage03x((const uint8 *)mt9v03x_image, 240, 180);
+        // ---- 分隔线 ----
+        ips200_draw_line(0, 102, 239, 102, RGB565_RED);
+
+        // ---- 下半屏：显示原始灰度图像 240×100（对比用） ----
+        ips200_show_gray_image(0, 106, (const uint8 *)mt9v03x_image,
+                               MT9V03X_W, MT9V03X_H,      // 源图 80×60
+                               240, 100,                   // 显示 240×100
+                               0);                         // 阈值=0=灰度模式
 
         // ---- 屏幕底部显示退出提示 ----
         ips200_set_color(RGB565_GREEN, RGB565_BLACK);
-        ips200_show_string(0, MENU_FOOTER_Y, "K4:Exit Image                ");                        //===============================================================主循环中不要打印ips以防止超时
+        ips200_show_string(0, MENU_FOOTER_Y, "K4:Exit Image                ");
         ips200_set_color(RGB565_BLACK, RGB565_WHITE);
     }
 }
