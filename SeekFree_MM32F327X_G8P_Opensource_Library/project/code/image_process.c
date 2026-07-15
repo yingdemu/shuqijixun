@@ -77,118 +77,94 @@ uint8 right_boundary[IMG_H];                                                    
 //-------------------------------------------------------------------------------------------------------------------
 uint8 otsu_threshold_calc(uint8 *image)
 {
-    // ---- 1. 定义灰度级常量（0~255共256级） ----
-    #define GRAY_SCALE 256
+    #define GRAY_SCALE 256                                                      // 灰度级 0~255
+    #define KUAN       30                                                       // 两峰之间最小间隔（灰度级）
 
-    int16 pixel_max = 0;                                                        // 图像中最大灰度值（初始化为最小可能值）
-    int16 pixel_min = 255;                                                      // 图像中最小灰度值（初始化为最大可能值）
+    uint16 i, j;
+    int32 pixel_count[GRAY_SCALE] = {0};                                        // 灰度直方图
+    uint8 *data = image;
 
-    uint16 i, j;                                                                // 循环变量
-    int32 pixel_count[GRAY_SCALE];                                              // 灰度直方图 —— pixelCount[i]表示灰度值为i的像素个数
-    float pixel_prob[GRAY_SCALE];                                               // 灰度概率分布 —— pixelPro[i]表示灰度值i出现的概率
-
-    // ---- 计算实际参与运算的采样像素总数 ----
-    // 每隔2行2列采样，实际只用 1/4 像素
-    int32 pixel_sum = (IMG_H / 2) * (IMG_W / 2);                                // 采样像素总数
-
-    uint8 threshold = 0;                                                        // 最终返回的二值化阈值
-    uint8 *data = image;                                                        // 指向图像数据的指针
-
-    // ---- 2. 初始化直方图和概率数组 ----
-    for(i = 0; i < GRAY_SCALE; i++)
+    // ---- 1. 全像素统计灰度直方图 ----
+    for(i = 0; i < IMG_H; i++)
     {
-        pixel_count[i] = 0;                                                     // 清零灰度计数
-        pixel_prob[i] = 0.0f;                                                   // 清零灰度概率
-    }
-
-    // ---- 3. 统计灰度直方图（隔行隔列采样，减少计算量） ----
-    int32 gray_sum = 0;                                                         // 所有采样像素的灰度值总和
-
-    // 行方向：每隔2行采样一次（i += 2）
-    for(i = 0; i < IMG_H; i += 2)
-    {
-        // 列方向：每隔2列采样一次（j += 2）
-        for(j = 0; j < IMG_W; j += 2)
+        for(j = 0; j < IMG_W; j++)
         {
-            uint8 pixel_val = data[i * IMG_W + j];                              // 获取当前像素灰度值
-            pixel_count[pixel_val]++;                                           // 直方图对应灰度级计数+1
-            gray_sum += pixel_val;                                              // 累加灰度值
-
-            // 更新图像灰度最大值
-            if(pixel_val > pixel_max)
-                pixel_max = pixel_val;
-
-            // 更新图像灰度最小值
-            if(pixel_val < pixel_min)
-                pixel_min = pixel_val;
+            pixel_count[data[i * IMG_W + j]]++;
         }
     }
 
-    // ---- 4. 计算每个灰度级出现的概率 ----
-    // 只在实际出现的最小灰度~最大灰度范围内计算，缩小搜索范围
-    for(i = pixel_min; i < pixel_max; i++)
+    // ---- 2. 寻找第一高峰（直方图中频数最高的灰度值，对应赛道背景的主要灰度） ----
+    int32 H1 = 0;                                                               // 第一高峰的海拔（频数）
+    uint8 D1 = 0;                                                               // 第一高峰的位置（灰度值）
+
+    for(i = 0; i < 255; i++)
     {
-        pixel_prob[i] = (float)pixel_count[i] / pixel_sum;
-    }
-
-    // ---- 5. 遍历所有可能的阈值，寻找使类间方差最大的阈值 ----
-    float w0, w1;                                                               // w0=背景像素占比, w1=前景像素占比
-    float u0_temp, u1_temp;                                                     // 中间变量 —— 背景/前景灰度值×概率的累加
-    float u0, u1;                                                               // u0=背景平均灰度, u1=前景平均灰度
-    float delta_temp;                                                           // 当前阈值下的类间方差
-    float delta_max = 0.0f;                                                     // 记录最大的类间方差
-    int32 k;                                                                    // 循环变量（候选阈值）
-
-    // 初始化所有变量为0
-    w0 = w1 = u0_temp = u1_temp = u0 = u1 = delta_temp = 0.0f;
-
-    // 遍历灰度范围 [pixel_min, pixel_max)，k即为候选阈值
-    for(k = pixel_min; k < pixel_max; k++)
-    {
-        // ---- 计算背景部分（灰度值 < k 的像素）的统计量 ----
-        w0 += pixel_prob[k];                                                    // 累加背景像素占比
-        u0_temp += k * pixel_prob[k];                                           // 累加 灰度值×概率
-
-        // ---- 计算前景部分（灰度值 >= k 的像素）的统计量 ----
-        w1 = 1.0f - w0;                                                         // 前景占比 = 1 - 背景占比
-        u1_temp = (float)gray_sum / pixel_sum - u0_temp;                        // 前景累加 = 全局平均 - 背景累加
-
-        // ---- 计算背景和前景的平均灰度 ----
-        u0 = u0_temp / w0;                                                      // 背景平均灰度
-        u1 = u1_temp / w1;                                                      // 前景平均灰度
-
-        // ---- 计算类间方差 ----
-        // 公式：g = w0 * w1 * (u0 - u1)^2
-        delta_temp = w0 * w1 * (u0 - u1) * (u0 - u1);
-
-        // ---- 更新最佳阈值 ----
-        if(delta_temp > delta_max)
+        if(pixel_count[i] > H1)
         {
-            delta_max = delta_temp;                                             // 更新最大类间方差
-            threshold = (uint8)k;                                               // 记录当前最佳阈值
-        }
-
-        // ---- 提前退出优化 ----
-        // 当类间方差开始下降时，说明已越过最佳阈值，后续阈值不会更优
-        if(delta_temp < delta_max)
-        {
-            break;
+            H1 = pixel_count[i];
+            D1 = (uint8)i;
         }
     }
 
-    // ---- 6. 阈值合理性检查与滤波 ----
-    // 正常情况下阈值应在 70~150 之间（针对赛道图像的经���值）
-    // 如果计算出的阈值超出合理范围，使用上一次的有效阈值
-    if(threshold > 70 && threshold < 184)
+    // ---- 3. 寻找第二高峰（降水位线法，找到与第一峰间距>KUAN的独立山峰） ----
+    int32 H2 = 0;                                                               // 第二高峰的海拔
+    uint8 D2 = 0;                                                               // 第二高峰的位置
+    uint8 OK = 0;                                                               // 是否找到第二峰
+
+    // 从第一峰的海拔下方开始，逐步降低水位线
+    for(i = H1 - 5; i > 0; i -= 5)
     {
-        last_threshold = threshold;                                             // 阈值合理，更新 last_threshold
+        for(j = 0; j < 256; j++)
+        {
+            // 条件1：灰度值j的频数高于当前水位线 i
+            // 条件2：与第一峰距离 > KUAN，确保是独立山峰而非噪声
+            if(pixel_count[j] > i && abs(j - D1) > KUAN)
+            {
+                H2 = i;                                                         // 记录当前水位线高度
+                D2 = (uint8)j;                                                  // 记录第二峰灰度值
+                OK = 1;
+                break;
+            }
+        }
+        if(OK) break;
+    }
+
+    // ---- 4. 寻找两峰之间的谷底（最小值即为最佳阈值） ----
+    int32 H3 = 4800;                                                            // 谷底海拔，初始化为最大可能值
+    uint8 D3 = 0;                                                               // 谷底位置（即阈值）
+
+    if(OK)                                                                      // 只有找到双峰才计算谷底
+    {
+        if(D1 < D2)                                                             // 第一峰在左
+        {
+            for(i = D1; i < D2; i++)
+            {
+                if(pixel_count[i] < H3)
+                {
+                    H3 = pixel_count[i];
+                    D3 = (uint8)i;
+                }
+            }
+        }
+        else                                                                    // 第二峰在左
+        {
+            for(i = D2; i < D1; i++)
+            {
+                if(pixel_count[i] < H3)
+                {
+                    H3 = pixel_count[i];
+                    D3 = (uint8)i;
+                }
+            }
+        }
+        last_threshold = D3;                                                    // 更新有效阈值
     }
     else
     {
-        threshold = last_threshold;                                             // 阈值不合理，沿用上次的阈值
+        D3 = last_threshold;                                                    // 未找到双峰，沿用上次阈值
     }
 
-    return threshold;
+    return D3;
 }
 
 //==================================================== 图像二值化 ====================================================
