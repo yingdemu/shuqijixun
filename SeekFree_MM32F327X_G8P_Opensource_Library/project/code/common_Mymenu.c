@@ -793,10 +793,15 @@ void menu_image_display_process(void)
         image_process_pipeline();
 
         // ---- 在 IPS200 上显示处理后的二值化图像（240×180 三倍放大） ----
+        // binary_image 已经过画框+补线处理，边线=BLACK(0)，赛道=WHITE(255)
+        // 阈值=1 确保 0→黑、255→白
         ips200_show_gray_image(0, 0, (const uint8 *)binary_image,
                                IMG_W, IMG_H,              // 源图 80×60
-                               240, 180,                   // 显示 240×180（三倍放大）
+                               240, 180,                   // 显示 240×180
                                1);                         // 二值化阈值=1
+
+        // ---- 调试：取消下面注释可对比原始灰度图像 ----
+        // ips200_displayimage03x((const uint8 *)mt9v03x_image, 240, 180);
 
         // ---- 屏幕底部显示退出提示 ----
         ips200_set_color(RGB565_GREEN, RGB565_BLACK);

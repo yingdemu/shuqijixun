@@ -321,7 +321,7 @@ void find_boundary_start(uint8 image[IMG_H][IMG_W])
         // 从中间列向右扫描
         if(!right_find_flag)                                                    // 如果右边界还没找到
         {
-            for(j = IMG_W / 2; j < IMG_W - 2; j++)                             // 从中间向右，避开右边框
+            for(j = IMG_W / 2; j < IMG_W - 3; j++)                             // 从中间向右，避开右边框
             {
                 // 检测上升沿：当前是白(255)、右边是黑(0)
                 if(image[search_row][j] == WHITE && image[search_row][j + 1] == BLACK)
@@ -351,7 +351,7 @@ void find_boundary_start(uint8 image[IMG_H][IMG_W])
     if(!right_find_flag)
     {
         right_start_row = IMG_H - 3;
-        right_start_col = IMG_W - 5;                                            // 默认偏右位置
+        right_start_col = IMG_W - 6;                                            // 默认偏右位置
         right_find_flag = 1;
     }
 }
@@ -702,98 +702,65 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
 {
     int16 i, j;
 
-    // ---- 1. 初始化A、B、C、D点坐标 ----
-    point_A_row = IMG_H - 1;                                                    // A点初始Y坐标 = 最底行
-    point_B_row = IMG_H - 1;                                                    // B点初始Y坐标 = 最底行
-    point_A_col = 0;
-    point_B_col = 0;
+    // ---- 1. A/B点直接使用 find_boundary_start 的结果（避免重复扫描） ----
+    point_A_row = left_start_row;
+    point_A_col = left_start_col;
+    point_B_row = right_start_row;
+    point_B_col = right_start_col;
+
+    // ---- 2. 初始化 C/D 点 ----
     point_C_row = 0;
     point_C_col = 0;
     point_D_row = 0;
     point_D_col = 0;
 
-    // ---- 2. 在图像最底行找左边界A点 ----
-    // 从中间列（IMG_W/2）向左扫描，寻找上升沿（黑→白）
-    // 找到 image[AY][j-1]==BLACK && image[AY][j]==WHITE 的位置
-    for(j = IMG_W / 2; j >= 2; j--)                                            // 从中间向左逐列扫描
-    {
-        if(image[point_A_row][j - 1] == BLACK && image[point_A_row][j] == WHITE)
-        {
-            point_A_col = j;                                                    // 记录A点的X坐标（白点位置，即赛道左边缘）
-            break;
-        }
-    }
-    // 如果没找到，使用默认值
-    if(point_A_col == 0)
-        point_A_col = 5;
-
-    // ---- 3. 在图像最底行找右边界B点 ----
-    // 从中间列（IMG_W/2）向右扫描，寻找上升沿（白→黑）
-    // 找到 image[BY][j]==WHITE && image[BY][j+1]==BLACK 的位置
-    for(j = IMG_W / 2; j < IMG_W - 2; j++)                                     // 从中间向右逐列扫描
-    {
-        if(image[point_B_row][j] == WHITE && image[point_B_row][j + 1] == BLACK)
-        {
-            point_B_col = j;                                                    // 记录B点的X坐标（白点位置，即赛道右边缘）
-            break;
-        }
-    }
-    // 如果没找到，使用默认值
-    if(point_B_col == 0)
-        point_B_col = IMG_W - 5;
-
-    // ---- 4. 向上迭代追踪C点（左边界线上端拐点） ----
-    // C点是左边界线向上延伸时发生转折的位置
-    // 从A点的左上方开始，逐行向上搜索
+    // ---- 3. 向上迭代追踪C点（左边界线上端拐点） ----
+    // 从A点左上方开始，逐行向上搜索
     point_C_row = point_A_row - 1;                                              // C点初始Y坐标 = A点上方一行
     point_C_col = point_A_col - 1;                                              // C点初始X坐标 = A点左边一列
 
-    // 由近及远（从下往上）逐行搜索
     for(i = point_C_row; i > BOUNDARY_SEARCH_END; i--)
     {
-        // 在当前行，从左向右逐列扫描
+        // 在当前行，从左向右逐列扫描，找白点（赛道）
         for(j = point_C_col; j < IMG_W - 2; j++)
         {
-            if(image[i][j] == WHITE)                                            // 找到白点（赛道区域）
+            if(image[i][j] == WHITE)                                            // 找到赛道区域
             {
-                point_C_col = j - 1;                                            // C点X坐标退回到黑白交界处
+                point_C_col = j - 1;                                            // 退回到黑白交界（黑点=边界线）
                 break;
             }
         }
 
-        // 判断上一行在 point_C_col 位置是否有黑点（边界线还在继续延伸）
-        // 如果上方是黑点(BLACK)，说明边界线还在继续，当前行即为C点
+        // 判断上一行边界位置是否为白点（白点=边界线断开=拐点）
         if(i > BOUNDARY_SEARCH_END + 1
            && point_C_col > 2 && point_C_col < IMG_W - 2
-           && image[i - 1][point_C_col] == BLACK)
+           && image[i - 1][point_C_col] == WHITE)                               // 上方断开→拐点
         {
             point_C_row = i;                                                    // 记录C点Y坐标
             break;
         }
     }
 
-    // ---- 5. 向上迭代追踪D点（右边界线上端拐点） ----
-    // D点是右边界线向上延伸时发生转折的位置
+    // ---- 4. 向上迭代追踪D点（右边界线上端拐点） ----
     point_D_row = point_B_row - 1;                                              // D点初始Y坐标 = B点上方一行
     point_D_col = point_B_col + 1;                                              // D点初始X坐标 = B点右边一列
 
-    // 由近及远（从下往上）逐行搜索
     for(i = point_D_row; i > BOUNDARY_SEARCH_END; i--)
     {
-        // 在当前行，从右向左逐列扫描
+        // 在当前行，从右向左逐列扫描，找白点（赛道）
         for(j = point_D_col; j > 2; j--)
         {
-            if(image[i][j] == WHITE)                                            // 找到白点（赛道区域）
+            if(image[i][j] == WHITE)                                            // 找到赛道区域
             {
-                point_D_col = j + 1;                                            // D点X坐标前进到黑白交界处
+                point_D_col = j + 1;                                            // 前进到黑白交界（黑点=边界线）
                 break;
             }
         }
 
-        // 判断上一行在 point_D_col 位置是否有黑点（边界线还在继续延伸）
+        // 判断上一行边界位置是否为白点（白点=边界线断开=拐点）
         if(i > BOUNDARY_SEARCH_END + 1
            && point_D_col > 2 && point_D_col < IMG_W - 2
-           && image[i - 1][point_D_col] == BLACK)
+           && image[i - 1][point_D_col] == WHITE)                               // 上方断开→拐点
         {
             point_D_row = i;                                                    // 记录D点Y坐标
             break;
