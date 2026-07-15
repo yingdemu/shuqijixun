@@ -159,13 +159,12 @@ int main(void)
             // ==================== 巡线处理 ====================
             line_follow_process();
 
-            // ---- 后续 PID 控制可在此添加 ----
-            // if(line_data_ready)
-            // {
-            //     int16 error = calc_deviation(15);
-            //     // servo_pid_control(error);
-            //     // motor_pid_control(error);
-            // }
+            //---- 后续 PID 控制可在此添加 ----
+            if(line_data_ready)
+            {
+                //motor_set_duty(30,30);
+
+            }
         }
     }
 }

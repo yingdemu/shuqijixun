@@ -24,8 +24,8 @@
 #define SERVO_FREQ                  (50)                                        // 舵机频率 50Hz（周期 20ms）
                                                                                 // 范围 50~300Hz，常用 50Hz
 
-#define SERVO_ANGLE_MIN             (60.0f)                                     // 舵机左边界角度（防止打角过大损坏机械结构）
-#define SERVO_ANGLE_MAX             (120.0f)                                    // 舵机右边界角度
+#define SERVO_ANGLE_MIN             (-12.0f)                                     // 舵机左边界角度（防止打角过大损坏机械结构）
+#define SERVO_ANGLE_MAX             (12.0f)                                    // 舵机右边界角度
 
 // 舵机占空比计算公式：
 // 0.5ms~2.5ms 高电平对应 0°~180°

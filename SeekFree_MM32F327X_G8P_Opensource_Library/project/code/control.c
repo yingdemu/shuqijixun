@@ -61,11 +61,12 @@ void control_init(void)
 void servo_set_angle(float angle)
 {
     // ---- 第一步：限幅（保护机械结构，防止打死方向） ----
+
     if(angle < SERVO_ANGLE_MIN)
         angle = SERVO_ANGLE_MIN;
     else if(angle > SERVO_ANGLE_MAX)
         angle = SERVO_ANGLE_MAX;
-
+    angle=angle+64;
     // ---- 第二步：计算占空比并输出 ----
     uint32 duty = SERVO_DUTY(angle);
     pwm_set_duty(SERVO_PWM, duty);
