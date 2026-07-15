@@ -131,12 +131,12 @@ int main(void)
     pit_ms_init(PIT, 5);
     interrupt_set_priority(PIT_PRIORITY, 0);
 
+    // ---- 第11步：启动微秒定时器（用于测量图像处理耗时） ----
+    timer_init(TIM_3, TIMER_US);                                                // TIM3 配置为微秒计数器（TIM2已被舵机PWM占用）
+    timer_start(TIM_3);                                                         // 启动计数
+
     // ---- 短暂延时 ----
     system_delay_ms(300);
-
-    //-------启动定时器（用来调试）
-        // timer_init(TIM_2, TIMER_US);  
-        //             timer_start(TIM_2);                                                         // 启动定时
  
     // ==================== 主循环 ====================
     while(1)
@@ -162,15 +162,26 @@ int main(void)
         else
         {
             // ==================== 巡线处理 ====================
-            line_follow_process();
+            {
+                uint16 t_start = timer_get(TIM_3);                              // 开始计时（µs）
+                line_follow_process();
+                uint16 t_end = timer_get(TIM_3);                                // 结束计时（µs）
+                uint16 elapsed_us = (t_end >= t_start) ? (t_end - t_start) : (65535 - t_start + t_end + 1);
+
+                // 当一帧处理完成时，通过蓝牙发送耗时
+                if(line_data_ready)
+                {
+                    float elapsed_ms = elapsed_us / 1000.0f;
+                    serial_printf("frame: %u us (%.2f ms)  OTSU=%u\r\n",
+                                  elapsed_us, elapsed_ms, otsu_threshold);
+                }
+            }
 
             //---- 后续 PID 控制可在此添加 ----
-            if(line_data_ready)
-            {
-                serial_printf("hello world\r\n");
-                //motor_set_duty(30,30);
-
-            }
+            // if(line_data_ready)
+            // {
+            //     //motor_set_duty(30,30);
+            // }
         }
     }
 }
