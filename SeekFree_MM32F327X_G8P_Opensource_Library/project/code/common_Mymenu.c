@@ -38,6 +38,8 @@ float motor_kp = 1.0f;                                                          
 float motor_ki = 0.1f;                                                          // 电机 Ki 默认 0.1
 float motor_kd = 0.0f;                                                          // 电机 Kd 默认 0.0
 
+//-----发车标志位-----
+bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 //==================================================== 菜单全局变量 ====================================================
 
 Folder_Menu myMenu;                                                             // 菜单根节点（主菜单）
@@ -89,6 +91,13 @@ static void my_create_Menus(void)
     // motor_pid 文件夹 —— 电机PID参数子菜单
     Folder_Menu *motor_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "motor_pid");
 
+
+    //=========================第一层，发车标志位===============================
+
+    dynamicCreate_Menu_NumberBox(&myMenu, "car_go", &car_go_flag, bool_Box);
+
+
+
     // ==================== 第二层：servo_pid 子菜单 ====================
 
     dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_kp", &servo_kp, float_Box, 0.0f, 100.0f);
@@ -100,6 +109,8 @@ static void my_create_Menus(void)
     dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kp", &motor_kp, float_Box, 0.0f, 100.0f);
     dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_ki", &motor_ki, float_Box, 0.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kd", &motor_kd, float_Box, 0.0f, 100.0f);
+
+
 }
 
 //==================================================== 菜单初始化 ====================================================

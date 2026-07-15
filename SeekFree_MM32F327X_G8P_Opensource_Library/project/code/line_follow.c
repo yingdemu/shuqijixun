@@ -33,6 +33,20 @@
 line_follow_state_enum line_state = LINE_STATE_IDLE;                            // 巡线当前工作状态
 uint8 line_data_ready = 0;                                                      // 中线数据就绪标志（1=可被读取）
 
+
+
+uint8 weight[IMG_H]={   1,1,1,1,1,
+                        1,1,1,1,1,
+                        1,1,1,1,1,
+                        1,1,1,1,1,
+                        6,6,6,6,8,
+                        9,10,11,12,13,
+                        14,15,14,13,12,
+                        11,10,9,8,7,
+                        6,6,6,6,6,
+                        1,1,1,1,1,
+                        1,1,1,1,1,
+                        1,1,1,1,1,};  //权重数组
 //==================================================== 巡线模块初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -123,7 +137,6 @@ void line_follow_process(void)
             break;
 
 
-            
         }
 
         // ==================== 状态3：处理完成 ====================
@@ -287,3 +300,20 @@ int16 calc_deviation(uint8 look_ahead_rows)
     // IMG_W/2 = 40 是图像的水平中心位置
     return (int16)mid_x - (int16)(IMG_W / 2);
 }
+
+float get_weight_position(uint8 *center_line)
+{
+
+    int16 tempt=0;
+    int16 weight_sum=0;
+    for(int i=0;i<IMG_H;i++)
+    {
+        tempt+=center_line[i]*weight[i];
+        weight_sum+=weight[i];
+    }
+
+    return (float)tempt / (float)weight_sum;
+}
+
+
+

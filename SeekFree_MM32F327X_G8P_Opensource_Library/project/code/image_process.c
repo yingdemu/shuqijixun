@@ -179,7 +179,7 @@ uint8 otsu_threshold_calc(uint8 *image)
     // ---- 6. 阈值合理性检查与滤波 ----
     // 正常情况下阈值应在 70~150 之间（针对赛道图像的经���值）
     // 如果计算出的阈值超出合理范围，使用上一次的有效阈值
-    if(threshold > 70 && threshold < 150)
+    if(threshold > 70 && threshold < 184)
     {
         last_threshold = threshold;                                             // 阈值合理，更新 last_threshold
     }

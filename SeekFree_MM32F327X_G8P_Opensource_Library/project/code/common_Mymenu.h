@@ -61,6 +61,8 @@ extern float motor_kp;                                                          
 extern float motor_ki;                                                          // 电机积分系数 Ki（默认 0.1）
 extern float motor_kd;                                                          // 电机微分系数 Kd（默认 0.0）
 
+
+extern bool car_go_flag;                                                         // 发车标志位（1=开始巡线，0=停止巡线）
 //==================================================== 菜单状态标志 ====================================================
 
 extern uint8 menu_in_image_mode;                                                // 图像显示模式标志（1=IPS200正在显示摄像头图像）

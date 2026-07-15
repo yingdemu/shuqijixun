@@ -56,6 +56,7 @@
 #include "common_menu.h"
 #include "common_Mymenu.h"
 #include "line_follow.h"
+#include "control.h"
 
 
 
@@ -76,12 +77,6 @@ int main(void)
     debug_init();
 
 
-
-
-    //------配置中断-----------------------------------
-    pit_ms_init(PIT, 5);                                                     // 初始化 PIT 为周期中断 1000ms 周期
-
-    interrupt_set_priority(PIT_PRIORITY, 0);                                    // 设置 PIT 对周期中断的中断优先级为 0
 
 
     // ---- 第3步：初始化 IPS200 显示屏 ----
@@ -119,11 +114,19 @@ int main(void)
     // ---- 第7步：初始化巡线模块 ----
     line_follow_init();
 
-    // ---- 第8步：初始化菜单系统（创建菜单树 + 绘制初始界面） ----
+    // ---- 第8步：初始化控制模块（舵机 PWM + 双电机 GPIO/PWM） ----
+    control_init();
+    ips200_show_string(0, 7 * 16, "Control OK!     ");
+
+    // ---- 第9步：初始化菜单系统（创建菜单树 + 绘制初始界面） ----
     menu_init();
     menu_show_All();
 
-    // ---- 短暂延时让用户看到启动信息 ----
+    // ---- 第10步：所有初始化完成后，启动 PIT 周期中断（按键扫描 + 菜单处理） ----
+    pit_ms_init(PIT, 5);
+    interrupt_set_priority(PIT_PRIORITY, 0);
+
+    // ---- 短暂延时 ----
     system_delay_ms(300);
 
     //-------启动定时器（用来调试）
