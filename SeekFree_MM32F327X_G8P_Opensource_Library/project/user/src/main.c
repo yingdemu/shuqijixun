@@ -125,8 +125,9 @@ int main(void)
 
     // ---- 第10步：初始化菜单系统（创建菜单树 + 绘制初始界面） ----
     menu_init();
-    menu_show_All();
-
+    // ips200_clear();                                                             // 首次绘制前清屏
+    // menu_show_All();
+menu_need_refresh = 1;                                                        // 首次绘制前刷新菜单
     // ---- 第10步：所有初始化完成后，启动 PIT 周期中断（按键扫描 + 菜单处理） ----
     pit_ms_init(PIT, 5);
     interrupt_set_priority(PIT_PRIORITY, 0);

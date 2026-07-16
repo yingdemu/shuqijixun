@@ -81,10 +81,26 @@ uint8 otsu_threshold_calc(uint8 *image)
     #define KUAN       30                                                       // 两峰之间最小间隔（灰度级）
 
     uint16 i, j;
-    int32 pixel_count[GRAY_SCALE] = {0};                                        // 灰度直方图
+    uint8 pixel_min = 255, pixel_max = 0;
     uint8 *data = image;
 
+    // ---- 快速对比度检测：先找 min/max（轻量扫描，隔2行2列） ----
+    for(i = 0; i < IMG_H; i += 2)
+    {
+        for(j = 0; j < IMG_W; j += 2)
+        {
+            uint8 val = data[i * IMG_W + j];
+            if(val < pixel_min) pixel_min = val;
+            if(val > pixel_max) pixel_max = val;
+        }
+    }
+
+    // 图像几乎均匀（对比度<20），直接返回上次阈值，避免无效处理
+    if(pixel_max - pixel_min < 20)
+        return last_threshold;
+
     // ---- 1. 全像素统计灰度直方图 ----
+    int32 pixel_count[GRAY_SCALE] = {0};
     for(i = 0; i < IMG_H; i++)
     {
         for(j = 0; j < IMG_W; j++)

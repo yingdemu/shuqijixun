@@ -147,6 +147,7 @@ void menu_init(void)
     All_Folder_Menu_Init(&myMenu);
 
     // ---- 5. 标记需要刷新 ----
+    menu_need_clear = 1;                                                        // 首次绘制前清屏（后续导航不再全清）
     menu_need_refresh = 1;
     menu_is_editing = 0;
     menu_in_image_mode = 0;
@@ -398,12 +399,27 @@ void menu_show_All(void)
     if(menu_in_image_mode)                                                      // 图像显示模式下不绘制菜单
         return;
 
-    ips200_clear();                                                             // 清屏（白色背景）
+    // 不再 ips200_clear() 全屏填充（76800像素SPI传输~20ms太慢）
+    // 改为逐行清+写，每行已经用40空格覆盖后再写新内容
 
     Mymenu_show_title();                                                        // 标题栏
     Mymenu_show_Setup();                                                        // 步进值显示
-    Mymenu_show_task();                                                         // 菜单项列表
+    Mymenu_show_task();                                                         // 菜单项列表（含逐行清空）
     Mymenu_show_footer();                                                       // 底部操作提示
+
+    // 清除剩余未使用的空行（防止上次显示残留）
+    {
+        uint8 sons_count = key_menu_p->father->sons_Count;
+        if(sons_count < MENU_MAX_DISPLAY_ITEMS)
+        {
+            ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+            for(uint8 i = sons_count; i < MENU_MAX_DISPLAY_ITEMS; i++)
+            {
+                ips200_show_string(0, MENU_START_Y + i * FONT_H,
+                                   "                                        ");
+            }
+        }
+    }
 
     menu_need_refresh = 0;                                                      // 清除刷新标志
 }
