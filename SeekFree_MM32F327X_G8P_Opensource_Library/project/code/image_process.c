@@ -21,6 +21,9 @@
 // ---- 二值化阈值 ----
 uint8 otsu_threshold = 100;                                                     // 大津法计算得到的二值化阈值，默认100
 uint8 last_threshold = 100;                                                     // 上一次有效的阈值，异常时回退使用
+float filtered_threshold = 100.0f;                                              // 互补滤波后的平滑阈值
+
+#define THRESHOLD_ALPHA         0.3f                                            // 互补滤波系数（0~1，越小越平滑，越大越灵敏）
 
 // ---- 二值化后的图像 ----
 uint8 binary_image[IMG_H][IMG_W];                                               // 二值化图像：0=黑(边界线), 255=白(赛道)
@@ -95,9 +98,12 @@ uint8 otsu_threshold_calc(uint8 *image)
         }
     }
 
-    // 图像几乎均匀（对比度<60），直接返回上次阈值，避免无效处理
+    // 图像几乎均匀（对比度<60），沿用滤波后的阈值，避免无效处理
     if(pixel_max - pixel_min < 60)
-        return last_threshold;
+    {
+        filtered_threshold = filtered_threshold * 0.95f + last_threshold * 0.05f;
+        return (uint8)(filtered_threshold + 0.5f);
+    }
 
     // ---- 1. 全像素统计灰度直方图 ----
     int32 pixel_count[GRAY_SCALE] = {0};
@@ -177,7 +183,10 @@ uint8 otsu_threshold_calc(uint8 *image)
         D3 = last_threshold;
     }
 
-    return D3;
+    // ---- 5. 互补滤波平滑：new = α·raw + (1-α)·old ----
+    // α 越小越平滑但响应慢，α 越大越灵敏但噪声多
+    filtered_threshold = THRESHOLD_ALPHA * (float)D3 + (1.0f - THRESHOLD_ALPHA) * filtered_threshold;
+    return (uint8)(filtered_threshold + 0.5f);                                  // 四舍五入
 }
 
 //==================================================== 图像二值化 ====================================================
