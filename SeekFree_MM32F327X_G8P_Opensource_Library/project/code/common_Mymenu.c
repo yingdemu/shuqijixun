@@ -808,18 +808,18 @@ void menu_image_display_process(void)
         // ---- 执行完整图像处理管线（大津法→二值化→画框→爬线→ABCD→补线→中线） ----
         image_process_pipeline();
 
-        // ---- 上半屏：显示处理后的二值化图像 240×100（含补线、黑框） ----
+        // ---- 上半屏：显示处理后的二值化图像 240×95（含补线、黑框） ----
         ips200_show_gray_image(0, 0, (const uint8 *)binary_image,
-                               IMG_W, IMG_H,              // 源图 80×60
-                               240, 100,                   // 显示 240×100
+                               IMG_W, IMG_H,              // 源图 188×120
+                               240, 95,                    // 显示 240×95
                                1);                         // 二值化阈值=1
 
         // ---- 在二值化图像上叠加赛道中线 + 左右边界 ----
-        // 坐标从图像坐标系(80×60)映射到显示坐标系(240×100)
+        // 坐标从图像坐标系(188×120)映射到显示坐标系(240×95)
         for(int16 r = 1; r < IMG_H; r++)
         {
-            uint16 y1 = (r - 1) * 100 / IMG_H;
-            uint16 y2 = r * 100 / IMG_H;
+            uint16 y1 = (r - 1) * 95 / IMG_H;
+            uint16 y2 = r * 95 / IMG_H;
 
             // 中线（红色）
             ips200_draw_line(center_line[r - 1] * 240 / IMG_W, y1,
@@ -835,12 +835,12 @@ void menu_image_display_process(void)
         }
 
         // ---- 分隔线 ----
-        ips200_draw_line(0, 102, 239, 102, RGB565_RED);
+        ips200_draw_line(0, 97, 239, 97, RGB565_RED);
 
-        // ---- 下半屏：显示原始灰度图像 240×100（对比用） ----
-        ips200_show_gray_image(0, 106, (const uint8 *)mt9v03x_image,
-                               MT9V03X_W, MT9V03X_H,      // 源图 80×60
-                               240, 100,                   // 显示 240×100
+        // ---- 下半屏：显示原始灰度图像 240×95（对比用） ----
+        ips200_show_gray_image(0, 101, (const uint8 *)mt9v03x_image,
+                               MT9V03X_W, MT9V03X_H,      // 源图 188×120
+                               240, 95,                    // 显示 240×95
                                0);                         // 阈值=0=灰度模式
 
         // ---- 灰度图下方显示大津法阈值（定位在 footer 上方一行） ----
