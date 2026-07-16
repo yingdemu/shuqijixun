@@ -78,59 +78,106 @@ uint8 right_boundary[IMG_H];                                                    
 uint8 otsu_threshold_calc(uint8 *image)
 {
     #define GRAY_SCALE 256                                                      // 灰度级 0~255
+    #define KUAN       30                                                       // 两峰之间最小间隔（灰度级）
 
     uint16 i, j;
-    int32 pixel_count[GRAY_SCALE] = {0};                                        // 灰度直方图
-    int32 gray_sum = 0;                                                         // 采样像素灰度总和
+    uint8 pixel_min = 255, pixel_max = 0;
     uint8 *data = image;
 
-    // ---- 1. 隔2行2列采样统计直方图（1/4像素，188×120/4=5640点） ----
+    // ---- 快速对比度检测：先找 min/max（轻量扫描，隔2行2列） ----
     for(i = 0; i < IMG_H; i += 2)
     {
         for(j = 0; j < IMG_W; j += 2)
         {
             uint8 val = data[i * IMG_W + j];
-            pixel_count[val]++;
-            gray_sum += val;
+            if(val < pixel_min) pixel_min = val;
+            if(val > pixel_max) pixel_max = val;
         }
     }
 
-    int32 pixel_sum = (IMG_H / 2) * (IMG_W / 2);                                // 采样像素总数
+    // 图像几乎均匀（对比度<60），直接返回上次阈值，避免无效处理
+    if(pixel_max - pixel_min < 60)
+        return last_threshold;
 
-    // ---- 2. 遍历256级灰度，最大化类间方差 g = w0·w1·(u0-u1)² ----
-    float w0 = 0.0f;                                                            // 背景占比
-    float u0_temp = 0.0f;                                                       // 背景灰度×概率累加
-    float delta_max = 0.0f;                                                     // 最大类间方差
-    uint8 threshold = 0;
-
-    for(i = 0; i < GRAY_SCALE; i++)
+    // ---- 1. 全像素统计灰度直方图 ----
+    int32 pixel_count[GRAY_SCALE] = {0};
+    for(i = 0; i < IMG_H; i++)
     {
-        float prob = (float)pixel_count[i] / pixel_sum;
-        w0 += prob;
-        u0_temp += i * prob;
-
-        if(w0 == 0.0f || w0 == 1.0f)                                           // 极端情况
-            continue;
-
-        float w1 = 1.0f - w0;
-        float u0 = u0_temp / w0;
-        float u1 = ((float)gray_sum / pixel_sum - u0_temp) / w1;
-        float delta = w0 * w1 * (u0 - u1) * (u0 - u1);
-
-        if(delta > delta_max)
+        for(j = 0; j < IMG_W; j++)
         {
-            delta_max = delta;
-            threshold = (uint8)i;
+            pixel_count[data[i * IMG_W + j]]++;
         }
     }
 
-    // ---- 3. 阈值合理性滤波 ----
-    if(threshold > 20 && threshold < 235)
-        last_threshold = threshold;
-    else
-        threshold = last_threshold;
+    // ---- 2. 寻找第一高峰（直方图中频数最高的灰度值） ----
+    int32 H1 = 0;
+    uint8 D1 = 0;
 
-    return threshold;
+    for(i = 0; i < 255; i++)
+    {
+        if(pixel_count[i] > H1)
+        {
+            H1 = pixel_count[i];
+            D1 = (uint8)i;
+        }
+    }
+
+    // ---- 3. 降水位线法寻找第二高峰 ----
+    int32 H2 = 0;
+    uint8 D2 = 0;
+    uint8 OK = 0;
+
+    for(i = H1 - 5; i > 0; i -= 5)
+    {
+        for(j = 0; j < 256; j++)
+        {
+            if(pixel_count[j] > i && abs(j - D1) > KUAN)
+            {
+                H2 = i;
+                D2 = (uint8)j;
+                OK = 1;
+                break;
+            }
+        }
+        if(OK) break;
+    }
+
+    // ---- 4. 寻找两峰之间的谷底 ----
+    int32 H3 = IMG_SIZE;
+    uint8 D3 = 0;
+
+    if(OK)
+    {
+        if(D1 < D2)
+        {
+            for(i = D1; i < D2; i++)
+            {
+                if(pixel_count[i] < H3)
+                {
+                    H3 = pixel_count[i];
+                    D3 = (uint8)i;
+                }
+            }
+        }
+        else
+        {
+            for(i = D2; i < D1; i++)
+            {
+                if(pixel_count[i] < H3)
+                {
+                    H3 = pixel_count[i];
+                    D3 = (uint8)i;
+                }
+            }
+        }
+        last_threshold = D3;
+    }
+    else
+    {
+        D3 = last_threshold;
+    }
+
+    return D3;
 }
 
 //==================================================== 图像二值化 ====================================================
