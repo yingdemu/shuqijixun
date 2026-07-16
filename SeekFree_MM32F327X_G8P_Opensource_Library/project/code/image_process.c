@@ -1157,10 +1157,6 @@ void image_process_pipeline(void)
     // 在图像底部找到赛道左右边界的起点位置
     find_boundary_start(binary_image);
 
-    // ---- 第6步：八邻域边界追踪 ----
-    // 从起始点向上爬线，提取完整的赛道左右边界
-    boundary_trace(binary_image);
-
     // ---- 第7步：寻找A/B/C/D关键点 ----
     // 在二值化图像中找到四个关键拐角点
     find_key_points(binary_image);
@@ -1168,6 +1164,10 @@ void image_process_pipeline(void)
     // ---- 第8步：十字路口判断与补线 ----
     // 检测十字路口并在必要时补画虚拟边界线
     crossroad_fix(binary_image);
+    
+    // ---- 第6步：八邻域边界追踪 ----
+    // 从起始点向上爬线，提取完整的赛道左右边界
+    boundary_trace(binary_image);
 
     // ---- 第9步：提取赛道中线 ----
     // 根据边界线逐行计算赛道中心线坐标
