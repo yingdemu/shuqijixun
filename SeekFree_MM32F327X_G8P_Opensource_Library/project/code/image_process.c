@@ -96,7 +96,7 @@ uint8 otsu_threshold_calc(uint8 *image)
     }
 
     // 图像几乎均匀（对比度<20），直接返回上次阈值，避免无效处理
-    if(pixel_max - pixel_min < 20)
+    if(pixel_max - pixel_min < 60)
         return last_threshold;
 
     // ---- 1. 全像素统计灰度直方图 ----

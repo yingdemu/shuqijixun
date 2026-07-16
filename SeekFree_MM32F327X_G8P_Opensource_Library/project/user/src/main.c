@@ -138,7 +138,7 @@ menu_need_refresh = 1;                                                        //
 
     // ---- 短暂延时 ----
     system_delay_ms(300);
- 
+
     // ==================== 主循环 ====================
     while(1)
     {
@@ -174,7 +174,7 @@ menu_need_refresh = 1;                                                        //
                 {
                     float elapsed_ms = elapsed_us / 1000.0f;
                     serial_printf("frame: %u us (%.2f ms)  OTSU=%u\r\n",
-                                  elapsed_us, elapsed_ms, otsu_threshold);
+                                elapsed_us, elapsed_ms, otsu_threshold);
                 }
             }
 
