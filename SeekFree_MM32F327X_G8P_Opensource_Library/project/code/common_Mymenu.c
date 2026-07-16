@@ -21,6 +21,10 @@
 #include <string.h>
 #include <stdio.h>
 
+// 外部变量（定义在 image_process.c 中）
+extern uint8 threshold_mode;
+extern uint8 fixed_threshold;
+
 //==================================================== PID参数变量定义 ====================================================
 
 // ---- 舵机PID控制参数 ----
@@ -28,10 +32,10 @@
 // servo_kp: 比例系数 —— 根据位置偏差进行比例调节
 // servo_ki: 积分系数 —— 消除稳态误差
 // servo_kd: 微分系数 —— 抑制振荡和超调
-float servo_kp = 1.0f;                                                          // 舵机 Kp 默认 1.0
+float servo_kp = 5.0f;                                                          // 舵机 Kp 默认 5.0
 float servo_ki = 0.0f;                                                          // 舵机 Ki 默认 0.0
-float servo_kd = 0.5f;                                                          // 舵机 Kd 默认 0.5
-
+float servo_kd = 2.0f;                                                          // 舵机 Kd 默认 0.5
+float servo_lowpass = 0.8f;                                                       // 舵机低通滤波系数（默认 0.1）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
 float motor_kp = 1.0f;                                                          // 电机 Kp 默认 1.0
@@ -96,13 +100,17 @@ static void my_create_Menus(void)
 
     dynamicCreate_Menu_NumberBox(&myMenu, "car_go", &car_go_flag, bool_Box);
 
+    //=========================第一层，阈值模式选择===============================
 
+    dynamicCreate_Menu_NumberBox(&myMenu, "thresh_mode", &threshold_mode, bool_Box);
+    dynamicCreate_Menu_LimitNumberBox(&myMenu, "fix_thresh", &fixed_threshold, uint8_Box, 0, 255);
 
     // ==================== 第二层：servo_pid 子菜单 ====================
 
     dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_kp", &servo_kp, float_Box, 0.0f, 100.0f);
     dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_ki", &servo_ki, float_Box, 0.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_kd", &servo_kd, float_Box, 0.0f, 100.0f);
+    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_lowpass", &servo_lowpass, float_Box, 0.0f, 1.0f);
 
     // ==================== 第二层：motor_pid 子菜单 ====================
 

@@ -22,6 +22,8 @@
 uint8 otsu_threshold = 100;                                                     // 大津法计算得到的二值化阈值，默认100
 uint8 last_threshold = 100;                                                     // 上一次有效的阈值，异常时回退使用
 float filtered_threshold = 100.0f;                                              // 互补滤波后的平滑阈值
+uint8 threshold_mode = 1;                                                       // 阈值模式：1=大津法，0=固定阈值
+uint8 fixed_threshold = 220;                                                    // 固定阈值默认值（0~255）
 
 #define THRESHOLD_ALPHA         0.3f                                            // 互补滤波系数（0~1，越小越平滑，越大越灵敏）
 
@@ -294,8 +296,8 @@ void find_boundary_start(uint8 image[IMG_H][IMG_W])
     right_start_col = 0;
 
     // ---- 从底部向上搜索，找到有效的边界起始行 ----
-    // 从 IMG_H-3 开始（避开底部2行黑框），向上最多搜索到 IMG_H/2 行
-    for(search_row = IMG_H - 3; search_row > IMG_H / 2; search_row--)
+    // 从 IMG_H-3 开始（避开底部2行黑框），向上最多搜索到 IMG_H的2/3行 行
+    for(search_row = IMG_H - 3; search_row > ((IMG_H / 3) * 2); search_row--)
     {
         // ==================== 寻找左边界起始点 ====================
         // 从中间列向左扫描
@@ -403,9 +405,9 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
             // ---- 越界检查 ----
             // 条件1：curr_row < BOUNDARY_SEARCH_END → 行坐标太小（已超出搜索上边界）
             // 条件2：curr_row >= IMG_H - 2 → 行坐标超出图像下边界
-            // 条件3：curr_col <= 2 或 curr_col >= IMG_W - 2 → 列坐标超出边界
+            // 条件3：curr_col < 1 或 curr_col >= IMG_W - 2 → 列坐标超出边界
             if(curr_row < BOUNDARY_SEARCH_END || curr_row >= IMG_H - 2
-               || curr_col <= 2 || curr_col >= IMG_W - 2)
+               || curr_col < 1 || curr_col >= IMG_W - 2)
                 break;
 
             // ======== 按优先级依次检查7个邻域方向 ========
@@ -555,7 +557,7 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
         {
             // ---- 越界检查 ----
             if(curr_row < BOUNDARY_SEARCH_END || curr_row >= IMG_H - 2
-               || curr_col <= 2 || curr_col >= IMG_W - 2)
+               || curr_col <= 2 || curr_col >= IMG_W - 1)
                 break;
 
             // --- 方向6：右上 ---
@@ -1134,12 +1136,17 @@ void image_process_pipeline(void)
     // ---- 第1步：清除上次的边界点数据 ----
     clear_edge_data();
 
-    // ---- 第2步：大津法计算二值化阈值 ----
-    // 使用原始灰度图像（mt9v03x_image）计算最佳阈值
-    otsu_threshold = otsu_threshold_calc((uint8 *)mt9v03x_image);
+    // ---- 第2步：根据模式计算二值化阈值 ----
+    if(threshold_mode)                                                          // 模式1：大津法
+    {
+        otsu_threshold = otsu_threshold_calc((uint8 *)mt9v03x_image);
+    }
+    else                                                                        // 模式0：固定阈值
+    {
+        otsu_threshold = fixed_threshold;
+    }
 
     // ---- 第3步：图像二值化 ----
-    // 将灰度图像转换为黑白二值图
     image_binarize((uint8 *)mt9v03x_image, binary_image, otsu_threshold);
 
     // ---- 第4步：图像外围画黑框 ----

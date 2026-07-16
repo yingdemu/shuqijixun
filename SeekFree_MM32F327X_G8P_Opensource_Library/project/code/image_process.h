@@ -55,6 +55,8 @@ typedef struct
 extern uint8 otsu_threshold;                                                    // 大津法计算得到的二值化阈值（0~255）
 extern uint8 last_threshold;                                                    // 上一次有效的二值化阈值（用于异常时回退）
 extern float filtered_threshold;                                                // 互补滤波后的平滑阈值（用于实际二值化）
+extern uint8 threshold_mode;                                                    // 阈值模式：1=大津法，0=固定阈值
+extern uint8 fixed_threshold;                                                   // 固定阈值（仅在 threshold_mode=0 时使用）
 
 // ---- 二值化后的图像 ----
 extern uint8 binary_image[IMG_H][IMG_W];                                        // 二值化后的图像数组
