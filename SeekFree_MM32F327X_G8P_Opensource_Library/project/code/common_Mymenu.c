@@ -226,11 +226,6 @@ static void Mymenu_show_footer(void)
         ips200_show_string(0, MENU_FOOTER_Y,
             "K1:+ K2:- K3:Save K4:Cancel ");
     }
-    else if(menu_in_image_mode)                                                 // 图像显示模式
-    {
-        ips200_show_string(0, MENU_FOOTER_Y,
-            "K4:Exit Image                ");
-    }
     else                                                                        // 普通菜单模式
     {
         ips200_show_string(0, MENU_FOOTER_Y,

@@ -303,13 +303,12 @@ void find_boundary_start(uint8 image[IMG_H][IMG_W])
         {
             for(j = IMG_W / 2; j > 2; j--)                                     // 从中间向左，避开左边框
             {
-                // 检测上升沿：左边是黑(0)、当前是白(255)
-                // 即(WHITE - BLACK) = 255 → 修正判断方式
+                // 检测上升沿：左边黑、右边白 → 左边黑点即为边界起始点
                 if(image[search_row][j - 1] == BLACK && image[search_row][j] == WHITE)
                 {
                     left_start_row = search_row;                                // 记录起始点行坐标
-                    left_start_col = j;                                         // 记录起始点列坐标（白色区域的左边缘）
-                    left_find_flag = 1;                                         // 标记已找到
+                    left_start_col = j - 1;                                     // 黑点列坐标（边界线上）
+                    left_find_flag = 1;
                     break;
                 }
             }
@@ -321,12 +320,12 @@ void find_boundary_start(uint8 image[IMG_H][IMG_W])
         {
             for(j = IMG_W / 2; j < IMG_W - 3; j++)                             // 从中间向右，避开右边框
             {
-                // 检测上升沿：当前是白(255)、右边是黑(0)
+                // 检测上升沿：当前白、右边黑 → 右边黑点即为边界起始点
                 if(image[search_row][j] == WHITE && image[search_row][j + 1] == BLACK)
                 {
                     right_start_row = search_row;                               // 记录起始点行坐标
-                    right_start_col = j;                                        // 记录起始点列坐标（白色区域的右边缘）
-                    right_find_flag = 1;                                        // 标记已找到
+                    right_start_col = j + 1;                                    // 黑点列坐标（边界线上）
+                    right_find_flag = 1;
                     break;
                 }
             }
@@ -337,19 +336,19 @@ void find_boundary_start(uint8 image[IMG_H][IMG_W])
             break;
     }
 
-    // ---- 如果没找到左边界，使用默认值（图像最左边偏右） ----
+    // ---- 如果没找到左边界，默认从左边框黑线开始爬 ----
     if(!left_find_flag)
     {
         left_start_row = IMG_H - 3;
-        left_start_col = 5;                                                     // 默认偏左位置
-        left_find_flag = 1;                                                     // 即使没找到也设置为有效，防止空指针
+        left_start_col = 1;                                                     // 左边框第1列是黑点（image_draw_border画的）
+        left_find_flag = 1;
     }
 
-    // ---- 如果没找到右边界，使用默认值（图像最右边偏左） ----
+    // ---- 如果没找到右边界，默认从右边框黑线开始爬 ----
     if(!right_find_flag)
     {
         right_start_row = IMG_H - 3;
-        right_start_col = IMG_W - 6;                                            // 默认偏右位置
+        right_start_col = IMG_W - 2;                                            // 右边框倒数第2列是黑点
         right_find_flag = 1;
     }
 }
@@ -844,8 +843,8 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
                 // 从C点向上延长补线
                 for(i = point_C_row; i > point_C_row - 25 && i > 0; i--)
                 {
-                    int16 offset = (int16)((point_C_row - i) * k_left);         // 计算X方向的偏移量
-                    int16 draw_col = point_C_col + offset;
+                    int16 offset = (int16)((i - point_C_row) * k_left);         // i<C_row，offset为负→向左延伸
+                    int16 draw_col = point_C_col + offset;                      // 左边界补线继续向左上方
 
                     // 限幅检查
                     if(draw_col > 2 && draw_col < IMG_W - 2)
@@ -867,8 +866,8 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
                 // 从D点向上延长补线
                 for(i = point_D_row; i > point_D_row - 25 && i > 0; i--)
                 {
-                    int16 offset = (int16)((point_D_row - i) * k_right);
-                    int16 draw_col = point_D_col + offset;
+                    int16 offset = (int16)((i - point_D_row) * k_right);        // i<D_row，offset符号与k_right一致
+                    int16 draw_col = point_D_col + offset;                      // 右边界补线继续延伸
 
                     // 限幅检查
                     if(draw_col > 2 && draw_col < IMG_W - 2)
