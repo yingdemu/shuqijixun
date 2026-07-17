@@ -176,13 +176,20 @@ menu_need_refresh = 1;                                                        //
                     serial_printf("frame: %u us (%.2f ms)  OTSU=%u\r\n",
                                 elapsed_us, elapsed_ms, otsu_threshold);
                 }
-            }
+
 
             //---- 后续 PID 控制可在此添加 ----
-            // if(line_data_ready)
-            // {
-            //     //motor_set_duty(30,30);
-            // }
+            if(line_data_ready)
+            {
+                float weight_position = get_weight_position(center_line);  // 获取加权中线位置（用于PID控制）
+                float servo_angle = servo_pid_set(0,weight_position-IMG_W/2); // 计算舵机PID输出（目标=0，实际=偏差）
+
+                servo_set_angle(servo_angle);
+            }
+
+
+            }
+
         }
     }
 }

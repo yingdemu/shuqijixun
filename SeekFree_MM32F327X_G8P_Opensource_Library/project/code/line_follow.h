@@ -134,7 +134,6 @@ float get_weight_position(uint8 *center_line);
 //              其中 target 是期望位置，actual 是当前偏差
 //              输出值可用于调整舵机角度以纠正偏差
 //-------------------------------------------------------------------------------------------------------------------
-
 float servo_pid_set(float target,float actual);
 
 

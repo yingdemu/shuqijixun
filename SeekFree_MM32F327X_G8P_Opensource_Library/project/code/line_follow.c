@@ -39,14 +39,14 @@ uint8 weight[IMG_H]={   1,1,1,1,1,
                         1,1,1,1,1,
                         1,1,1,1,1,
                         1,1,1,1,1,
-                        6,6,6,6,8,
-                        9,10,11,12,13,
-                        14,15,14,13,12,
-                        11,10,9,8,7,
-                        6,6,6,6,6,
-                        1,1,1,1,1,
-                        1,1,1,1,1,
-                        1,1,1,1,1,};  //权重数组
+                        2,2,3,4,4,
+                        5,5,6,6,7,
+                        14,15,17,17,16,
+                        16,16,15,15,14,
+                        14,13,13,12,12,
+                        12,11,11,11,10,
+                        10,9,9,9,8,
+                        8,8,7,7,7,};  //权重数组
 //==================================================== 巡线模块初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -67,7 +67,8 @@ void line_follow_init(void)
     for(i = 0; i < IMG_H; i++)
     {
         center_line[i] = IMG_W / 2;                                             // 默认为图像中心
-        left_boundary[i] = 0;                                                   // 左边界默认为最左边
+        left_boundary[i] = 0;       
+        center_line_valid[i] = 0;                                            // 左边界默认为最左边
         right_boundary[i] = IMG_W - 1;                                          // 右边界默认为最右边
     }
 
@@ -304,16 +305,23 @@ int16 calc_deviation(uint8 look_ahead_rows)
 float get_weight_position(uint8 *center_line)
 {
 
-    int16 tempt=0;
-    int16 weight_sum=0;
-    for(int i=0;i<IMG_H;i++)
+    float weighted_sum = 0.0f; //int16 tempt=0;
+    float weight_total = 0.0f;//int16 weight_sum=0;
+
+    int16 i;
+    for(i = 0; i < IMG_H; i++)
     {
-        tempt+=center_line[i]*weight[i];
-        weight_sum+=weight[i];
+        if(center_line_valid[i] == 1)                                           // 只使用真实边界点对应的中线
+        {
+            weighted_sum += (float)center_line[i] * weight[i];
+            weight_total += weight[i];
+        }
     }
 
-    return (float)tempt / (float)weight_sum;
+    return weighted_sum / weight_total; 
 }
+
+
 
 float servo_pid_error=0;
 float servo_pid_outd=0;

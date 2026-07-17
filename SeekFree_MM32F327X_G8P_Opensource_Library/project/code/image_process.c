@@ -50,6 +50,7 @@ uint8 point_D_row = 0, point_D_col = 0;                                        /
 
 // ---- 赛道中线 ----
 uint8 center_line[IMG_H];                                                       // 中线数组
+uint8 center_line_valid[IMG_H];                                                 // 中线有效标记（1=真实边界，0=插值）
 uint8 left_boundary[IMG_H];                                                     // 左边界数组（默认0=最左边）
 uint8 right_boundary[IMG_H];                                                    // 右边界数组（默认79=最右边）
 
@@ -300,10 +301,10 @@ void find_boundary_start(uint8 image[IMG_H][IMG_W])
     for(search_row = IMG_H - 3; search_row > ((IMG_H / 3) * 2); search_row--)
     {
         // ==================== 寻找左边界起始点 ====================
-        // 从中间列向左扫描
-        if(!left_find_flag)                                                     // 如果左边界还没找到
+        // 从中间列向左扫描到宽度的1/3处，不扫到最左边
+        if(!left_find_flag)
         {
-            for(j = IMG_W / 2; j > 2; j--)                                     // 从中间向左，避开左边框
+            for(j = IMG_W / 2; j > 2; j--)                             // 从中间向左，只扫到1/3宽度
             {
                 // 检测上升沿：左边黑、右边白 → 左边黑点即为边界起始点
                 if(image[search_row][j - 1] == BLACK && image[search_row][j] == WHITE)
@@ -317,10 +318,10 @@ void find_boundary_start(uint8 image[IMG_H][IMG_W])
         }
 
         // ==================== 寻找右边界起始点 ====================
-        // 从中间列向右扫描
-        if(!right_find_flag)                                                    // 如果右边界还没找到
+        // 从中间列向右扫描到宽度的2/3处，不扫到最右边
+        if(!right_find_flag)
         {
-            for(j = IMG_W / 2; j < IMG_W - 3; j++)                             // 从中间向右，避开右边框
+            for(j = IMG_W / 2; j < IMG_W -3; j++)                         // 从中间向右，只扫到2/3宽度
             {
                 // 检测上升沿：当前白、右边黑 → 右边黑点即为边界起始点
                 if(image[search_row][j] == WHITE && image[search_row][j + 1] == BLACK)
@@ -557,7 +558,7 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
         {
             // ---- 越界检查 ----
             if(curr_row < BOUNDARY_SEARCH_END || curr_row >= IMG_H - 2
-               || curr_col <= 2 || curr_col >= IMG_W - 1)
+                || curr_col <= 2 || curr_col >= IMG_W - 1)
                 break;
 
             // --- 方向6：右上 ---
@@ -964,6 +965,13 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
         }
     }
 
+    // ---- 3.5 标记哪些行的中线来自真实边界点（在插值填充之前） ----
+    for(i = 0; i < IMG_H; i++)
+    {
+        // 左右边界都有真实数据 → 中线有效
+        center_line_valid[i] = (left_boundary[i] != 0xFF && right_boundary[i] != 0xFF) ? 1 : 0;
+    }
+
     // ---- 4. 对于没有边界点的行，用最近的有效行插值填充 ----
     // 4.1 从下往上填充左边界空缺（用下方最近的有效值）
     {
@@ -1049,18 +1057,18 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
     for(i = 0; i < IMG_H; i++)
     {
         // 安全检查：左边界不能大于右边界
-        if(left_boundary[i] < right_boundary[i])
-        {
+//        if(left_boundary[i] < right_boundary[i])
+//        {
             center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
-        }
-        else
-        {
-            // 异常情况：使用相邻行的中线或图像中心
-            if(i < IMG_H - 1)
-                center_line[i] = center_line[i + 1];
-            else
-                center_line[i] = IMG_W / 2;
-        }
+//        }
+//        else
+//        {
+//            // 异常情况：使用相邻行的中线或图像中心
+//            if(i < IMG_H - 1)
+//                center_line[i] = center_line[i + 1];
+//            else
+//                center_line[i] = IMG_W / 2;
+//        }
     }
 }
 
@@ -1098,6 +1106,42 @@ void clear_edge_data(void)
     right_edge_count = 0;
     left_lose_rows = 0;
     right_lose_rows = 0;
+}
+
+//==================================================== 加权位置计算 ====================================================
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：get_weight_position_2
+// 功能：只使用真实边界点得到的中线行（center_line_valid=1）计算加权位置
+// 返回：float —— 加权后的中线偏移量（相对于图像中心的偏差）
+//
+// 权重设计：越靠近车身（行号越大）权重越大
+//   权重 = row + 1（底部行号大，贡献更大）
+//
+// 只统计有效行（center_line_valid[i]==1），忽略插值填充的行
+//-------------------------------------------------------------------------------------------------------------------
+float get_weight_position_2(void)
+{
+    float weighted_sum = 0.0f;                                                  // 加权累积（中线X * 权重）
+    float weight_total = 0.0f;                                                  // 权重总和
+    int16 i;
+
+    for(i = 0; i < IMG_H; i++)
+    {
+        if(center_line_valid[i] == 1)                                           // 只使用真实边界点对应的中线
+        {
+            float weight = (float)(i + 1);                                      // 行号越大（越靠近车身）权重越大
+            weighted_sum += (float)center_line[i] * weight;
+            weight_total += weight;
+        }
+    }
+
+    if(weight_total > 0.0f)
+    {
+        float weighted_center = weighted_sum / weight_total;                    // 加权平均中线位置
+        return weighted_center - (float)(IMG_W / 2);                            // 减去图像中心 → 偏差
+    }
+    return 0.0f;                                                                // 没有有效行 → 返回0
 }
 
 //==================================================== 完整图像处理管线 ====================================================
