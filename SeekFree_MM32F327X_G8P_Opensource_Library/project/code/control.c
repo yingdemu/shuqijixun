@@ -61,7 +61,7 @@ void control_init(void)
 void servo_set_angle(float angle)
 {
     // ---- 第一步：限幅（保护机械结构，防止打死方向） ----
-
+    angle=-angle;
     if(angle < SERVO_ANGLE_MIN)
         angle = SERVO_ANGLE_MIN;
     else if(angle > SERVO_ANGLE_MAX)

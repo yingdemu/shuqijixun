@@ -32,10 +32,10 @@ extern uint8 fixed_threshold;
 // servo_kp: 比例系数 —— 根据位置偏差进行比例调节
 // servo_ki: 积分系数 —— 消除稳态误差
 // servo_kd: 微分系数 —— 抑制振荡和超调
-float servo_kp = 5.0f;                                                          // 舵机 Kp 默认 5.0
+float servo_kp = 0.80f;                                                          // 舵机 Kp 默认 0.80
 float servo_ki = 0.0f;                                                          // 舵机 Ki 默认 0.0
-float servo_kd = 2.0f;                                                          // 舵机 Kd 默认 0.5
-float servo_lowpass = 0.8f;                                                       // 舵机低通滤波系数（默认 0.1）
+float servo_kd = 0.32f;                                                          // 舵机 Kd 默认 0.32
+float servo_lowpass = 0.8f;                                                       // 舵机低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
 float motor_kp = 1.0f;                                                          // 电机 Kp 默认 1.0
@@ -62,7 +62,7 @@ static float edit_saved_value = 0.0f;                                           
 // 步进值数组：在参数编辑未选中时，按 KEY_4 切换当前步进值
 // 编辑模式下按 KEY_1/KEY_2 以当前步进值增减参数
 static float SetupNumber[SETUP_LEN] = {0.001f, 0.01f, 0.1f, 1.0f, 10.0f, 100.0f, 1000.0f};
-static uint8 SetupIndex = 3;                                                    // 默认步进值 = 1.0
+static uint8 SetupIndex = 2;                                                    // 默认步进值 = 0.1
 
 //==================================================== 菜单树创建 ====================================================
 
@@ -107,9 +107,9 @@ static void my_create_Menus(void)
 
     // ==================== 第二层：servo_pid 子菜单 ====================
 
-    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_kp", &servo_kp, float_Box, 0.0f, 100.0f);
-    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_ki", &servo_ki, float_Box, 0.0f, 10.0f);
-    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_kd", &servo_kd, float_Box, 0.0f, 100.0f);
+    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_kp", &servo_kp, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_ki", &servo_ki, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_kd", &servo_kd, float_Box, -10.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_lowpass", &servo_lowpass, float_Box, 0.0f, 1.0f);
 
     // ==================== 第二层：motor_pid 子菜单 ====================
@@ -846,12 +846,13 @@ void menu_image_display_process(void)
                                240, 100,                   // 显示 240×100
                                0);                         // 阈值=0=灰度模式
 
-        // ---- 灰度图下方显示大津法阈值（定位在 footer 上方一行） ----
+        // ---- 灰度图下方显示加权位置和阈值（定位在 footer 上方） ----
         {
-            char thresh_buf[24];
-            sprintf(thresh_buf, "OTSU:%3u  last:%3u", otsu_threshold, last_threshold);
+            char info_buf[40];
+            float pos = get_weight_position(center_line);
+            sprintf(info_buf, "pos:%.1f  OTSU:%3u", pos, otsu_threshold);
             ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
-            ips200_show_string(0, MENU_FOOTER_Y - 16, thresh_buf);
+            ips200_show_string(0, MENU_FOOTER_Y - 32, info_buf);
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
         }
 
