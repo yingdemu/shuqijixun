@@ -189,7 +189,7 @@ menu_need_refresh = 1;                                                        //
 
                 // servo_set_angle(-12.0f); // 测试舵机固定角度
 
-                // motor_set_duty(20, 50); // 测试电机固定占空比（50%）
+                motor_set_duty(motor_duty, motor_duty); // 测试电机固定占空比（20%）
                 }
             }
 

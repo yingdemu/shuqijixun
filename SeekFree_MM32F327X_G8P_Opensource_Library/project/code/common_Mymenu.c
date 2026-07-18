@@ -44,6 +44,7 @@ float motor_kd = 0.0f;                                                          
 
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
+uint8 motor_duty = 13;                                                             //电机占空比
 //==================================================== 菜单全局变量 ====================================================
 
 Folder_Menu myMenu;                                                             // 菜单根节点（主菜单）
@@ -104,6 +105,8 @@ static void my_create_Menus(void)
 
     dynamicCreate_Menu_NumberBox(&myMenu, "thresh_mode", &threshold_mode, bool_Box);
     dynamicCreate_Menu_LimitNumberBox(&myMenu, "fix_thresh", &fixed_threshold, uint8_Box, 0, 255);
+    dynamicCreate_Menu_LimitNumberBox(&myMenu, "motor_duty", &motor_duty,uint8_Box , 0, 30);
+
 
     // ==================== 第二层：servo_pid 子菜单 ====================
 
