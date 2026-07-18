@@ -923,7 +923,11 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
     }
 
     // ---- 2. 从八邻域左边界点数组填充 left_boundary[] ----
-    // 同一行可能有多个边界点（边界线横向走），取 col 最大的（最靠近图像中心）
+    // 改为"先到先得"策略：只保留每行第一次被访问到的边界点
+    // 原因：当八邻域爬线形成半闭合图形（如绕过障碍物、U形弯）时，
+    //       同一行会被访问两次——第一次沿正确边界上爬，第二次绕回来下降。
+    //       如果取 col 最大的，会错误选中"绕回路径"上的点，导致边界线乱飘。
+    //       "先到先得"确保保留的是沿正确边界向上追踪时的点。
     for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
     {
         if(left_edge[k].flag == 1)                                              // 有效的边界点
@@ -933,8 +937,7 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
 
             if(row >= 0 && row < IMG_H && col >= 0 && col < IMG_W)
             {
-                if(left_boundary[row] == 0xFF                                   // 该行首次填充
-                   || col > left_boundary[row])                                 // 或取更靠右的黑点
+                if(left_boundary[row] == 0xFF)                                  // 只保留每行第一个点（先到先得）
                 {
                     left_boundary[row] = (uint8)col;
                 }
@@ -943,7 +946,7 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
     }
 
     // ---- 3. 从八邻域右边界点数组填充 right_boundary[] ----
-    // 同一行有多个边界点，取 col 最小的（最靠近图像中心）
+    // 同样改为"先到先得"策略，避免半闭合图形导致的边界漂移
     for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
     {
         if(right_edge[k].flag == 1)
@@ -953,8 +956,7 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
 
             if(row >= 0 && row < IMG_H && col >= 0 && col < IMG_W)
             {
-                if(right_boundary[row] == 0xFF
-                   || col < right_boundary[row])
+                if(right_boundary[row] == 0xFF)                                 // 只保留每行第一个点（先到先得）
                 {
                     right_boundary[row] = (uint8)col;
                 }
@@ -1050,18 +1052,18 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 4.5 跳变滤波：相邻两行列坐标差不超过15（从底部向上约束） ----
-    for(i = IMG_H - 2; i >= 0; i--)
-    {
-        int16 diff;
-        diff = (int16)left_boundary[i] - (int16)left_boundary[i + 1];
-        if(diff > 15)   left_boundary[i] = left_boundary[i + 1] + 15;
-        if(diff < -15)  left_boundary[i] = left_boundary[i + 1] - 15;
+    // // ---- 4.5 跳变滤波：相邻两行列坐标差不超过15（从底部向上约束） ----
+    // for(i = IMG_H - 2; i >= 0; i--)
+    // {
+    //     int16 diff;
+    //     diff = (int16)left_boundary[i] - (int16)left_boundary[i + 1];
+    //     if(diff > 15)   left_boundary[i] = left_boundary[i + 1] + 15;
+    //     if(diff < -15)  left_boundary[i] = left_boundary[i + 1] - 15;
 
-        diff = (int16)right_boundary[i] - (int16)right_boundary[i + 1];
-        if(diff > 15)   right_boundary[i] = right_boundary[i + 1] + 15;
-        if(diff < -15)  right_boundary[i] = right_boundary[i + 1] - 15;
-    }
+    //     diff = (int16)right_boundary[i] - (int16)right_boundary[i + 1];
+    //     if(diff > 15)   right_boundary[i] = right_boundary[i + 1] + 15;
+    //     if(diff < -15)  right_boundary[i] = right_boundary[i + 1] - 15;
+    // }
 
     // ---- 5. 逐行计算中线 = (左边界 + 右边界) / 2 ----
     for(i = 0; i < IMG_H; i++)

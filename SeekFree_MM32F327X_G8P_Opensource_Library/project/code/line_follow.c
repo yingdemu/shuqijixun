@@ -305,8 +305,8 @@ int16 calc_deviation(uint8 look_ahead_rows)
 float get_weight_position(uint8 *center_line)
 {
 
-    float weighted_sum = 0.0f; //int16 tempt=0;
-    float weight_total = 0.0f;//int16 weight_sum=0;
+    float weighted_sum = 0.0f;
+    float weight_total = 0.0f;
 
     int16 i;
     for(i = 0; i < IMG_H; i++)
@@ -318,7 +318,10 @@ float get_weight_position(uint8 *center_line)
         }
     }
 
-    return weighted_sum / weight_total; 
+    if(weight_total > 0.0f)
+        return weighted_sum / weight_total;
+    else
+        return 0.0f;
 }
 
 
