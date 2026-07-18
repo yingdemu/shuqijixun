@@ -32,7 +32,7 @@ extern uint8 fixed_threshold;
 // servo_kp: 比例系数 —— 根据位置偏差进行比例调节
 // servo_ki: 积分系数 —— 消除稳态误差
 // servo_kd: 微分系数 —— 抑制振荡和超调
-float servo_kp = 0.80f;                                                          // 舵机 Kp 默认 0.80
+float servo_kp = 0.29f;                                                          // 舵机 Kp 默认 0.80
 float servo_ki = 0.0f;                                                          // 舵机 Ki 默认 0.0
 float servo_kd = 0.32f;                                                          // 舵机 Kd 默认 0.32
 float servo_lowpass = 0.8f;                                                       // 舵机低通滤波系数（默认 0.8）
