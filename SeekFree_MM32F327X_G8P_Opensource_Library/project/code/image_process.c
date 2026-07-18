@@ -2,7 +2,7 @@
 * 文件名称          image_process
 * 功能描述          智能车摄像头扫描巡线 - 图像处理算法实现
 * 适用平台          MM32F327X_G8P
-* 摄像头型号        MT9V03X 总钻风灰度摄像头（60行×80列）
+* 摄像头型号        MT9V03X 总钻风灰度摄像头（120行×188列）
 * 说明              完整的赛道图像处理管线：
 *                   原始灰度图像 → 大津法阈值 → 二值化 → 画边框 →
 *                   寻找起始点 → 八邻域爬线 → 找ABCD点 → 补线 → 中线提取
@@ -52,7 +52,7 @@ uint8 point_D_row = 0, point_D_col = 0;                                        /
 uint8 center_line[IMG_H];                                                       // 中线数组
 uint8 center_line_valid[IMG_H];                                                 // 中线有效标记（1=真实边界，0=插值）
 uint8 left_boundary[IMG_H];                                                     // 左边界数组（默认0=最左边）
-uint8 right_boundary[IMG_H];                                                    // 右边界数组（默认79=最右边）
+uint8 right_boundary[IMG_H];                                                    // 右边界数组（默认187=最右边）
 
 //==================================================== 快速大津法（OTSU） ====================================================
 
@@ -797,8 +797,8 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
         cy_diff = point_D_row - point_C_row;
 
     // ---- 3. 判断是否为十字路口 ----
-    // 条件：C和D高度接近（差<10行）、且拐点在前方较远处（行号>15）
-    if(cy_diff < 10 && point_C_row > 15 && point_D_row > 15)
+    // 条件：C和D高度接近（差<10行）、且拐点在前方较远处（行号>30，分辨率120→30≈60的15）
+    if(cy_diff < 10 && point_C_row > 30 && point_D_row > 30)
     {
         uint8 check_row;                                                        // 用于统计的参考行
         uint8 black_count = 0;                                                  // 上方区域的黑点计数器
@@ -815,7 +815,7 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
         // 如果上方区域黑点很少，说明赛道边界确实断开了
         {
             int16 i, j;
-            for(i = check_row; i > check_row - 10 && i > 0; i -= 2)
+            for(i = check_row; i > check_row - 20 && i > 0; i -= 2)
             {
                 for(j = 10; j < IMG_W - 10; j += 5)
                 {
@@ -828,7 +828,7 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
         }
 
         // ---- 5. 如果上方黑点少于阈值，确认为十字路口并补线 ----
-        if(black_count < 10)
+        if(black_count < 20)
         {
             float k_left, k_right;                                              // 补线斜率
             int16 i;
@@ -841,7 +841,7 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
                 k_left = (float)(point_C_col - point_A_col) / (float)(point_C_row - point_A_row);
 
                 // 从C点向上延长补线
-                for(i = point_C_row; i > point_C_row - 25 && i > 0; i--)
+                for(i = point_C_row; i > point_C_row - 50 && i > 0; i--)
                 {
                     int16 offset = (int16)((i - point_C_row) * k_left);         // i<C_row，offset为负→向左延伸
                     int16 draw_col = point_C_col + offset;                      // 左边界补线继续向左上方
@@ -864,7 +864,7 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
                 k_right = (float)(point_D_col - point_B_col) / (float)(point_D_row - point_B_row);
 
                 // 从D点向上延长补线
-                for(i = point_D_row; i > point_D_row - 25 && i > 0; i--)
+                for(i = point_D_row; i > point_D_row - 50 && i > 0; i--)
                 {
                     int16 offset = (int16)((i - point_D_row) * k_right);        // i<D_row，offset符号与k_right一致
                     int16 draw_col = point_D_col + offset;                      // 右边界补线继续延伸
