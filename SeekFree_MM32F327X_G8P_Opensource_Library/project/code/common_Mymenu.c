@@ -840,6 +840,19 @@ void menu_image_display_process(void)
                              right_boundary[r] * 240 / IMG_W,     y2, RGB565_GREEN);
         }
 
+        // ---- 画圆环检测行标记线（白色虚线效果，4px线段+4px间隔） ----
+        // 远端检测行 = RING_FAR_ROW(30)，映射到显示坐标 y = 30*100/IMG_H
+        {
+            uint16 y_f = (uint16)RING_FAR_ROW * 100 / IMG_H;                  // 远端检测行显示Y
+            uint16 y_r = (uint16)RING_NEAR_ROW * 100 / IMG_H;                   // 近端检测行显示Y
+            // 画虚线（每8px画一段）
+            for(uint16 x = 0; x < 240; x += 12)
+            {
+                ips200_draw_line(x, y_f, (x + 4 < 240) ? x + 4 : 239, y_f, RGB565_WHITE);
+                ips200_draw_line(x, y_r, (x + 4 < 240) ? x + 4 : 239, y_r, RGB565_WHITE);
+            }
+        }
+
         // ---- 分隔线 ----
         ips200_draw_line(0, 102, 239, 102, RGB565_RED);
 
@@ -849,11 +862,25 @@ void menu_image_display_process(void)
                                240, 100,                   // 显示 240×100
                                0);                         // 阈值=0=灰度模式
 
-        // ---- 灰度图下方显示加权位置和阈值（定位在 footer 上方） ----
+        // ---- 灰度图上同样画检测行标记线 ----
         {
-            char info_buf[40];
+            uint16 y_f = (uint16)RING_FAR_ROW * 100 / IMG_H + 106;           // 远端检测行显示Y（下半屏偏移+106）
+            uint16 y_r = (uint16)RING_NEAR_ROW * 100 / IMG_H + 106;            // 近端检测行显示Y
+            for(uint16 x = 0; x < 240; x += 12)
+            {
+                ips200_draw_line(x, y_f, (x + 4 < 240) ? x + 4 : 239, y_f, RGB565_WHITE);
+                ips200_draw_line(x, y_r, (x + 4 < 240) ? x + 4 : 239, y_r, RGB565_WHITE);
+            }
+        }
+
+        // ---- 灰度图下方显示加权位置、阈值、圆环状态 ----
+        {
+            char info_buf[48];
             float pos = get_weight_position(center_line);
-            sprintf(info_buf, "pos:%.1f  OTSU:%3u", pos, otsu_threshold);
+            // 圆环状态缩写：N=正常,P=预判,C=确认进环,I=环中,E=出口,O=出环,D=结束
+            const char *ring_names = "NPCIEOD";
+            sprintf(info_buf, "pos:%.1f OT:%3u R:%c", pos, otsu_threshold,
+                    ring_names[ring_state]);
             ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
             ips200_show_string(0, MENU_FOOTER_Y - 32, info_buf);
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
