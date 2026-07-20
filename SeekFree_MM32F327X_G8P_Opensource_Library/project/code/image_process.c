@@ -1331,6 +1331,8 @@ void ring_detect(void)
                //&& near_right <= (uint8)(ref_near_right * RING_W_INC))            // 近端乙侧不变
                && left_boundary[RING_FAR_ROW] ==1
                && left_boundary[RING_NEAR_ROW] >=4
+               && right_boundary[RING_NEAR_ROW] <= (IMG_W-2)
+               && right_boundary[RING_FAR_ROW] <= (IMG_W-2)
             )
             {
                 confirm_count++;
@@ -1377,8 +1379,18 @@ void ring_detect(void)
 
             // 检测出口：远端赛宽很大（相对自己正常值翻倍）+ 甲侧边界远
             if(ref_far_track > 0
-               && far_track > (uint8)(ref_far_track * 2)                         // 赛宽 > 正常2倍
-               && far_left < (uint8)( IMG_W / 5))                                           // 甲侧边界过了1/5宽度
+               && far_track > (uint8)(60)                         // 赛宽 > 正常2倍
+               //&& far_left < (uint8)( IMG_W / 5))                                           // 甲侧边界过了1/5宽度
+
+               //&& left_boundary[RING_FAR_ROW] >=20
+               && left_boundary[RING_NEAR_ROW] ==1
+               //&& right_boundary[RING_NEAR_ROW] == (IMG_W-2)
+               && right_boundary[RING_FAR_ROW] == (IMG_W-2)
+               && left_boundary[IMG_H-3] ==1
+               &&right_boundary[IMG_H-3] > (IMG_W/2)
+               && binary_image[RING_NEAR_ROW][IMG_W/2] == WHITE
+               && binary_image[50][IMG_W/2] == WHITE
+            )
             {
                 confirm_count++;
                 if(confirm_count >= 0)
@@ -1407,7 +1419,12 @@ void ring_detect(void)
         case RING_S_EXIT:
         {
             if(ref_far_track > 0
-               && far_track <= (uint8)(ref_far_track * 2))                       // 赛宽降到2倍以下
+               && far_track <= (uint8)(ref_far_track * 2)                      // 赛宽降到2倍以下
+               && left_boundary[10] <=(IMG_W/2)
+               && right_boundary[10] >= (IMG_W/2)
+               && left_boundary[10] >=1
+               && right_boundary[10] <= (IMG_W-2)
+            )
             {
                 confirm_count++;
                 if(confirm_count >= 2)
@@ -1437,6 +1454,8 @@ void ring_detect(void)
         {
             if(ref_near_track > 0
                && far_track >= (uint8)(ref_far_track * 3 / 4)                    // 远端恢复到75%以上
+               && left_boundary[RING_FAR_ROW] >=20
+               && right_boundary[RING_FAR_ROW] <= (IMG_W-1-20)
                && near_track >= RING_NORMAL_WIDTH_MIN
                && near_track <= RING_NORMAL_WIDTH_MAX)
             {
@@ -1533,18 +1552,18 @@ void ring_centerline_extract(void)
     else
     {
         // ---- 进环/环内阶段：根据左/右边界状态决定跟随策略 ----
-        // 统计底部1/2区域
+        // 统计底部2/3区域
         uint16 left_at_border = 0;                                              // 左边界=1的行数
         uint16 right_at_border = 0;                                             // 右边界=IMG_W-2的行数
         uint16 checked = 0;
-        for(i = IMG_H - 1; i >= IMG_H / 2; i--)
+        for(i = IMG_H - 1; i >= IMG_H / 3; i--)
         {
             if(left_boundary[i] <= 1) left_at_border++;
             if(right_boundary[i] >= IMG_W - 2) right_at_border++;
             checked++;
         }
-        uint8 left_all_lost  = (left_at_border  > checked *3/ 5);                // 过半行左=1
-        uint8 right_all_lost = (right_at_border > checked *3/ 5);                // 过半行右=IMG_W-2
+        uint8 left_all_lost  = (left_at_border  > checked *3/ 4);                // 过半行左=1
+        uint8 right_all_lost = (right_at_border > checked *3/ 4);                // 过半行右=IMG_W-2
 
         if(left_all_lost && !right_all_lost)
         {
