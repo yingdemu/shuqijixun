@@ -1654,7 +1654,7 @@ void image_process_pipeline(void)
 
     // ---- 第7步：十字路口判断与补线 ----
     // 检测十字路口并在必要时补画虚拟边界线
-    //crossroad_fix(binary_image);
+    crossroad_fix(binary_image);
 
     // ---- 第8步：八邻域边界追踪 ----
     // 从起始点向上爬线，提取完整的赛道左右边界
