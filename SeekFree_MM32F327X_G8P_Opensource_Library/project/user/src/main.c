@@ -170,12 +170,12 @@ menu_need_refresh = 1;                                                        //
                 uint16 elapsed_us = (t_end >= t_start) ? (t_end - t_start) : (65535 - t_start + t_end + 1);
 
                 // 当一帧处理完成时，通过蓝牙发送耗时
-                if(line_data_ready)
-                {
-                    float elapsed_ms = elapsed_us / 1000.0f;
-                    serial_printf("frame: %u us (%.2f ms)  OTSU=%u\r\n",
-                                elapsed_us, elapsed_ms, otsu_threshold);
-                }
+                // if(line_data_ready)
+                // {
+                //     float elapsed_ms = elapsed_us / 1000.0f;
+                //     serial_printf("frame: %u us (%.2f ms)  OTSU=%u\r\n",
+                //                 elapsed_us, elapsed_ms, otsu_threshold);
+                // }
 
 
             //---- 后续 PID 控制可在此添加 ----

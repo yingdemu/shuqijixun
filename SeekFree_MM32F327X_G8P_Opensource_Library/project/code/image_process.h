@@ -37,19 +37,19 @@
 //==================================================== 八邻域搜索常量 ====================================================
 
 #define BOUNDARY_SEARCH_MAX     210                                             // 八邻域爬线最多搜索的点数（随分辨率调整）
-#define BOUNDARY_SEARCH_END     (IMG_H / 4)                                     // 八邻域搜索截止行号（只搜图像底部3/4）
+#define BOUNDARY_SEARCH_END     (2)                                     // 八邻域搜索截止行号（只搜图像底部3/4）
                                                                                 // 低于此行号认为已经超出搜索范围，停止爬线
 
 //==================================================== 圆环巡线常量 ====================================================
 
-#define RING_FAR_ROW            30                                              // 远端检测行号
+#define RING_FAR_ROW            25                                              // 远端检测行号
 #define RING_NEAR_ROW           (IMG_H - 30)                                    // 近端检测行号
-#define RING_HALF_WIDTH         15                                              // 赛道半宽（圆环跟随模式用）
+#define RING_HALF_WIDTH         30                                              // 赛道半宽（圆环跟随模式用）
 #define RING_NORMAL_WIDTH_MIN   20                                              // 正常赛道宽度下限
-#define RING_NORMAL_WIDTH_MAX   45                                              // 正常赛道宽度上限
+#define RING_NORMAL_WIDTH_MAX   142                                              // 正常赛道宽度上限
 #define RING_WIDE_THRESHOLD     55                                              // "赛宽很大"阈值
-#define RING_FRAME_CONFIRM      3                                               // 状态转换连续确认帧数
-#define RING_TIMEOUT            80                                              // 单状态最大持续帧数
+#define RING_FRAME_CONFIRM      0                                               // 状态转换连续确认帧数
+#define RING_TIMEOUT            120                                              // 单状态最大持续帧数
 
 //==================================================== 边界点数据结构 ====================================================
 
@@ -121,6 +121,20 @@ extern uint8 right_valid[IMG_H];                                                
 
 // ---- 圆环状态 ----
 extern ring_state_enum ring_state;                                              // 圆环当前状态
+
+// ---- 圆环检测调试变量（供显示用） ----
+extern uint8 ring_dbg_ref_fl;                                                   // 远端甲侧参考边宽
+extern uint8 ring_dbg_ref_fr;                                                   // 远端乙侧参考边宽
+extern uint8 ring_dbg_ref_nl;                                                   // 近端甲侧参考边宽
+extern uint8 ring_dbg_ref_nr;                                                   // 近端乙侧参考边宽
+extern uint8 ring_dbg_cur_fl;                                                   // 远端甲侧当前边宽
+extern uint8 ring_dbg_cur_fr;                                                   // 远端乙侧当前边宽
+extern uint8 ring_dbg_cur_nl;                                                   // 近端甲侧当前边宽
+extern uint8 ring_dbg_cur_nr;                                                   // 近端乙侧当前边宽
+extern uint8 ring_dbg_ref_nt;                                                   // 近端参考赛道宽度
+extern uint8 ring_dbg_cur_nt;                                                   // 近端当前赛道宽度
+extern uint8 ring_dbg_ref_ft;                                                   // 远端参考赛道宽度
+extern uint8 ring_dbg_cur_ft;                                                   // 远端当前赛道宽度
 
 //==================================================== 函数声明 ====================================================
 

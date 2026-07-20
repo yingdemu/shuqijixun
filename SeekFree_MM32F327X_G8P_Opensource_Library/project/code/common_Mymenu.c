@@ -856,34 +856,48 @@ void menu_image_display_process(void)
         // ---- 分隔线 ----
         ips200_draw_line(0, 102, 239, 102, RGB565_RED);
 
-        // ---- 下半屏：显示原始灰度图像 240×100（对比用） ----
-        ips200_show_gray_image(0, 106, (const uint8 *)mt9v03x_image,
-                               MT9V03X_W, MT9V03X_H,      // 源图 141×90
-                               240, 100,                   // 显示 240×100
-                               0);                         // 阈值=0=灰度模式
-
-        // ---- 灰度图上同样画检测行标记线 ----
+        // ---- 下半屏：显示圆环检测调试数据（替换原灰度图） ----
+        // 8×16字体，320宽=40字/行，y=106起共7行
         {
-            uint16 y_f = (uint16)RING_FAR_ROW * 100 / IMG_H + 106;           // 远端检测行显示Y（下半屏偏移+106）
-            uint16 y_r = (uint16)RING_NEAR_ROW * 100 / IMG_H + 106;            // 近端检测行显示Y
-            for(uint16 x = 0; x < 240; x += 12)
-            {
-                ips200_draw_line(x, y_f, (x + 4 < 240) ? x + 4 : 239, y_f, RGB565_WHITE);
-                ips200_draw_line(x, y_r, (x + 4 < 240) ? x + 4 : 239, y_r, RGB565_WHITE);
-            }
-        }
-
-        // ---- 灰度图下方显示加权位置、阈值、圆环状态 ----
-        {
-            char info_buf[48];
-            float pos = get_weight_position(center_line);
-            // 圆环状态缩写：N=正常,P=预判,C=确认进环,I=环中,E=出口,O=出环,D=结束
-            const char *ring_names = "NPCIEOD";
-            sprintf(info_buf, "pos:%.1f OT:%3u R:%c", pos, otsu_threshold,
-                    ring_names[ring_state]);
-            ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
-            ips200_show_string(0, MENU_FOOTER_Y - 32, info_buf);
+            char buf[40];
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+
+            // 行1：标题
+            sprintf(buf, "        REF      CUR");
+            ips200_show_string(0, 106, buf);
+
+            // 行2：远端甲侧(左)
+            sprintf(buf, "farL  %3u      %3u", ring_dbg_ref_fl, ring_dbg_cur_fl);
+            ips200_show_string(0, 122, buf);
+
+            // 行3：远端乙侧(右)
+            sprintf(buf, "farR  %3u      %3u", ring_dbg_ref_fr, ring_dbg_cur_fr);
+            ips200_show_string(0, 138, buf);
+
+            // 行4：近端甲侧(左)
+            sprintf(buf, "nearL %3u      %3u", ring_dbg_ref_nl, ring_dbg_cur_nl);
+            ips200_show_string(0, 154, buf);
+
+            // 行5：近端乙侧(右)
+            sprintf(buf, "nearR %3u      %3u", ring_dbg_ref_nr, ring_dbg_cur_nr);
+            ips200_show_string(0, 170, buf);
+
+            // 行6：远端赛道宽度 + 近端赛道宽度（同行显示）
+            sprintf(buf, "farT  %3u>%3u  nearT %3u>%3u",
+                    ring_dbg_ref_ft, ring_dbg_cur_ft,
+                    ring_dbg_ref_nt, ring_dbg_cur_nt);
+            ips200_show_string(0, 186, buf);
+
+            // 行7：加权位置、阈值、圆环状态
+            {
+                float pos = get_weight_position(center_line);
+                const char *ring_names = "NPCIEOD";
+                sprintf(buf, "pos:%.1f OT:%3u R:%c", pos, otsu_threshold,
+                        ring_names[ring_state]);
+                ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
+                ips200_show_string(0, 202, buf);
+                ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+            }
         }
 
         // ---- 屏幕底部显示退出提示 ----

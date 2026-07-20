@@ -15,6 +15,7 @@
 *********************************************************************************************************************/
 
 #include "image_process.h"
+#include "bluetooth.h"
 
 //==================================================== 全局变量定义 ====================================================
 
@@ -22,7 +23,7 @@
 uint8 otsu_threshold = 180;                                                     // 大津法计算得到的二值化阈值，默认180
 uint8 last_threshold = 180;                                                     // 上一次有效的阈值，异常时回退使用
 float filtered_threshold = 180.0f;                                              // 互补滤波后的平滑阈值
-uint8 threshold_mode = 1;                                                       // 阈值模式：1=大津法，0=固定阈值
+uint8 threshold_mode = 0;                                                       // 阈值模式：1=大津法，0=固定阈值
 uint8 fixed_threshold = 180;                                                    // 固定阈值默认值（0~255）
 
 #define THRESHOLD_ALPHA         0.3f                                            // 互补滤波系数（0~1，越小越平滑，越大越灵敏）
@@ -62,6 +63,20 @@ uint8 right_valid[IMG_H];                                                       
 ring_state_enum ring_state = RING_S_NONE;                                       // 当前圆环状态（默认正常巡线）
 float ring_error_sum = 0.0f;                                                    // 圆环误差累积和（进环阶段累积，出环阶段使用）
 uint16 ring_error_count = 0;                                                    // 圆环误差累积次数
+
+// ---- 圆环检测调试变量 ----
+uint8 ring_dbg_ref_fl = 0;                                                      // 远端甲侧参考边宽
+uint8 ring_dbg_ref_fr = 0;                                                      // 远端乙侧参考边宽
+uint8 ring_dbg_ref_nl = 0;                                                      // 近端甲侧参考边宽
+uint8 ring_dbg_ref_nr = 0;                                                      // 近端乙侧参考边宽
+uint8 ring_dbg_cur_fl = 0;                                                      // 远端甲侧当前边宽
+uint8 ring_dbg_cur_fr = 0;                                                      // 远端乙侧当前边宽
+uint8 ring_dbg_cur_nl = 0;                                                      // 近端甲侧当前边宽
+uint8 ring_dbg_cur_nr = 0;                                                      // 近端乙侧当前边宽
+uint8 ring_dbg_ref_nt = 0;                                                      // 近端参考赛道宽度
+uint8 ring_dbg_cur_nt = 0;                                                      // 近端当前赛道宽度
+uint8 ring_dbg_ref_ft = 0;                                                      // 远端参考赛道宽度
+uint8 ring_dbg_cur_ft = 0;                                                      // 远端当前赛道宽度
 
 //==================================================== 快速大津法（OTSU） ====================================================
 
@@ -1231,8 +1246,22 @@ void ring_detect(void)
     uint8 near_right = IMG_W - 1 - right_boundary[RING_NEAR_ROW];              // 近端乙侧边宽
     uint8 near_track = right_boundary[RING_NEAR_ROW] - left_boundary[RING_NEAR_ROW]; // 近端赛道宽度
 
+    // 写入调试变量（供IPS200显示）
+    ring_dbg_cur_fl = far_left;
+    ring_dbg_cur_fr = far_right;
+    ring_dbg_cur_nl = near_left;
+    ring_dbg_cur_nr = near_right;
+    ring_dbg_ref_fl = ref_far_left;
+    ring_dbg_ref_fr = ref_far_right;
+    ring_dbg_ref_nl = ref_near_left;
+    ring_dbg_ref_nr = ref_near_right;
+    ring_dbg_ref_nt = ref_near_track;
+    ring_dbg_cur_nt = near_track;
+    ring_dbg_ref_ft = ref_far_track;
+    ring_dbg_cur_ft = far_track;
+
     // 边宽增加判定倍数（相对于各行自己的参考值）
-    #define RING_W_INC  1.4f
+    #define RING_W_INC  1.5f
 
     state_duration++;
 
@@ -1245,7 +1274,7 @@ void ring_detect(void)
             if(near_track >= RING_NORMAL_WIDTH_MIN && near_track <= RING_NORMAL_WIDTH_MAX
                && far_track >= RING_NORMAL_WIDTH_MIN / 2)                        // 远端正常小很多
             {
-                #define REF_ALPHA 7                                              // 平滑系数：new = (old*7 + cur)/8
+                #define REF_ALPHA 4                                              // 平滑系数：new = (old*4 + cur)/5
                 if(ref_near_track == 0) ref_near_track = near_track;
                 else ref_near_track = (ref_near_track * REF_ALPHA + near_track) / (REF_ALPHA + 1);
                 if(ref_far_track == 0) ref_far_track = far_track;
@@ -1262,8 +1291,9 @@ void ring_detect(void)
 
             // 预判：远端甲侧边宽增加（和自己正常值比）+ 乙侧不变 + 近端赛宽正常
             if(ref_far_left > 0
-               && far_left > (uint8)(ref_far_left * RING_W_INC)                  // 甲侧边宽 > 自己正常1.4倍
-               && far_right <= (uint8)(ref_far_right * RING_W_INC)               // 乙侧没有大幅增加
+               && far_left > (uint8)(ref_far_left +3)                  // 甲侧边宽 > 自己正常1.5倍
+               && far_right <= (uint8)(ref_far_right +3)               // 乙侧没有大幅增加
+               && left_boundary[RING_FAR_ROW] < 20
                && near_track >= RING_NORMAL_WIDTH_MIN
                && near_track <= RING_NORMAL_WIDTH_MAX)
             {
@@ -1294,11 +1324,14 @@ void ring_detect(void)
 
             // 确认：甲侧小→再变大 + 乙侧不变 + 近端甲侧也增 + 近端乙侧不变
             if(ref_near_left > 0
-               && side_a_came_back
-               && far_left > (uint8)(ref_far_left * RING_W_INC)                  // 甲侧又大了
-               && far_right <= (uint8)(ref_far_right * RING_W_INC)               // 乙侧不变
-               && near_left > (uint8)(ref_near_left * RING_W_INC)                // 近端甲侧也增
-               && near_right <= (uint8)(ref_near_right * RING_W_INC))            // 近端乙侧不变
+               //&& side_a_came_back
+               && left_boundary[4] > 20                  // 远远端又大了
+               //&& far_right <= (uint8)(ref_far_right * RING_W_INC)               // 乙侧不变
+               //&& near_track < (uint8)(ref_near_track)                // 近端甲侧也增
+               //&& near_right <= (uint8)(ref_near_right * RING_W_INC))            // 近端乙侧不变
+               && left_boundary[RING_FAR_ROW] ==1
+               && left_boundary[RING_NEAR_ROW] >=4
+            )
             {
                 confirm_count++;
                 if(confirm_count >= RING_FRAME_CONFIRM)
@@ -1345,17 +1378,17 @@ void ring_detect(void)
             // 检测出口：远端赛宽很大（相对自己正常值翻倍）+ 甲侧边界远
             if(ref_far_track > 0
                && far_track > (uint8)(ref_far_track * 2)                         // 赛宽 > 正常2倍
-               && far_left > IMG_W / 3)                                           // 甲侧边界过了1/3宽度
+               && far_left < (uint8)( IMG_W / 5))                                           // 甲侧边界过了1/5宽度
             {
                 confirm_count++;
-                if(confirm_count >= 2)
+                if(confirm_count >= 0)
                 {
                     ring_state = RING_S_EXIT;
                     confirm_count = 0;
                     state_duration = 0;
                 }
             }
-            else if(state_duration > RING_TIMEOUT)
+            else if(state_duration > (RING_TIMEOUT*3))
             {
                 ring_state = RING_S_NONE;
                 confirm_count = 0;
@@ -1447,6 +1480,24 @@ void ring_detect(void)
             ring_state = RING_S_NONE;
             break;
     }
+
+    // ---- 状态变化时通过蓝牙发送 ----
+    {
+        static ring_state_enum prev_state = RING_S_NONE;
+        if(ring_state != prev_state)
+        {
+            const char *names[] = {"N","P","C","I","E","O","D"};
+            serial_printf("RING:%s fL:%u>%u fR:%u>%u nL:%u>%u nR:%u>%u fT:%u>%u nT:%u>%u\r\n",
+                names[ring_state],
+                ring_dbg_ref_fl, ring_dbg_cur_fl,
+                ring_dbg_ref_fr, ring_dbg_cur_fr,
+                ring_dbg_ref_nl, ring_dbg_cur_nl,
+                ring_dbg_ref_nr, ring_dbg_cur_nr,
+                ring_dbg_ref_ft, ring_dbg_cur_ft,
+                ring_dbg_ref_nt, ring_dbg_cur_nt);
+            prev_state = ring_state;
+        }
+    }
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1481,15 +1532,42 @@ void ring_centerline_extract(void)
     }
     else
     {
-        // ---- 进环/环内阶段：跟甲边界（左边界） ----
-        for(i = 0; i < IMG_H; i++)
+        // ---- 进环/环内阶段：根据左/右边界状态决定跟随策略 ----
+        // 统计底部1/2区域
+        uint16 left_at_border = 0;                                              // 左边界=1的行数
+        uint16 right_at_border = 0;                                             // 右边界=IMG_W-2的行数
+        uint16 checked = 0;
+        for(i = IMG_H - 1; i >= IMG_H / 2; i--)
         {
-            uint8 mid = left_boundary[i] + RING_HALF_WIDTH;
-            if(mid >= IMG_W) mid = IMG_W - 1;
-            center_line[i] = mid;
-            right_boundary[i] = (left_boundary[i] + 2 * RING_HALF_WIDTH < IMG_W)
-                                ? (left_boundary[i] + 2 * RING_HALF_WIDTH)
-                                : (IMG_W - 1);
+            if(left_boundary[i] <= 1) left_at_border++;
+            if(right_boundary[i] >= IMG_W - 2) right_at_border++;
+            checked++;
+        }
+        uint8 left_all_lost  = (left_at_border  > checked *3/ 5);                // 过半行左=1
+        uint8 right_all_lost = (right_at_border > checked *3/ 5);                // 过半行右=IMG_W-2
+
+        if(left_all_lost && !right_all_lost)
+        {
+            // 左全丢、右有值 → 中线 = (左+右)/2（右边界可靠，正常计算）
+            for(i = 0; i < IMG_H; i++)
+            {
+                center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
+            }
+        }
+        else
+        {
+            // 左没全丢 或 左右都丢了 → 跟左边界
+            //   左没全丢：左边界可见，跟左边界
+            //   左右都丢：环太大什么都看不到，贴左边走
+            for(i = 0; i < IMG_H; i++)
+            {
+                uint8 mid = left_boundary[i] + RING_HALF_WIDTH;
+                if(mid >= IMG_W) mid = IMG_W - 1;
+                center_line[i] = mid;
+                right_boundary[i] = (left_boundary[i] + 2 * RING_HALF_WIDTH < IMG_W)
+                                    ? (left_boundary[i] + 2 * RING_HALF_WIDTH)
+                                    : (IMG_W - 1);
+            }
         }
     }
 }
@@ -1557,7 +1635,7 @@ void image_process_pipeline(void)
 
     // ---- 第7步：十字路口判断与补线 ----
     // 检测十字路口并在必要时补画虚拟边界线
-    crossroad_fix(binary_image);
+    //crossroad_fix(binary_image);
 
     // ---- 第8步：八邻域边界追踪 ----
     // 从起始点向上爬线，提取完整的赛道左右边界
