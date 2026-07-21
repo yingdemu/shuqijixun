@@ -48,8 +48,9 @@
 #define RING_NORMAL_WIDTH_MIN   20                                              // 正常赛道宽度下限
 #define RING_NORMAL_WIDTH_MAX   142                                              // 正常赛道宽度上限
 #define RING_WIDE_THRESHOLD     55                                              // "赛宽很大"阈值
-#define RING_FRAME_CONFIRM      0                                               // 状态转换连续确认帧数
-#define RING_TIMEOUT            120                                              // 单状态最大持续帧数
+#define RING_FRAME_CONFIRM      3                                               // 状态转换连续确认帧数
+#define RING_TIMEOUT_SHORT      130                                             // 短超时 ~1s（@8ms/帧）
+#define RING_TIMEOUT_LONG       300                                             // 长超时 ~4s（I状态）
 
 //==================================================== 边界点数据结构 ====================================================
 

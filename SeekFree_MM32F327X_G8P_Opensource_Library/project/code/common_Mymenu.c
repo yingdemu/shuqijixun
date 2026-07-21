@@ -32,9 +32,9 @@ extern uint8 fixed_threshold;
 // servo_kp: 比例系数 —— 根据位置偏差进行比例调节
 // servo_ki: 积分系数 —— 消除稳态误差
 // servo_kd: 微分系数 —— 抑制振荡和超调
-float servo_kp = 0.29f;                                                          // 舵机 Kp 默认 0.80
+float servo_kp = 0.38f;                                                          // 舵机 Kp 默认 0.80
 float servo_ki = 0.0f;                                                          // 舵机 Ki 默认 0.0
-float servo_kd = 0.32f;                                                          // 舵机 Kd 默认 0.32
+float servo_kd = 0.37f;                                                          // 舵机 Kd 默认 0.32
 float servo_lowpass = 0.8f;                                                       // 舵机低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
@@ -44,7 +44,7 @@ float motor_kd = 0.0f;                                                          
 
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
-uint8 motor_duty = 13;                                                             //电机占空比
+uint8 motor_duty = 15;                                                             //电机占空比
 //==================================================== 菜单全局变量 ====================================================
 
 Folder_Menu myMenu;                                                             // 菜单根节点（主菜单）
