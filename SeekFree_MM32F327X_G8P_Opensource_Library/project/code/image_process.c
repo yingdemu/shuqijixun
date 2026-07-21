@@ -743,7 +743,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
     for(i = point_C_row; i > BOUNDARY_SEARCH_END; i--)
     {
         // 在当前行，从左向右逐列扫描，找白点（赛道）
-        for(j = point_C_col; j < IMG_W - 2; j++)
+        for(j = point_C_col; j <  (IMG_W/2); j++)
         {
             if(image[i][j] == WHITE)                                            // 找到赛道区域
             {
@@ -755,7 +755,8 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
         // 判断上一行边界位置是否为白点（白点=边界线断开=拐点）
         if(i > BOUNDARY_SEARCH_END + 1
            && point_C_col > 2 && point_C_col < IMG_W - 2
-           && image[i - 1][point_C_col] == WHITE)                               // 上方断开→拐点
+           && image[i - 1][point_C_col] == WHITE                               // 上方断开→拐点
+           && image[i - 2][point_C_col] == WHITE)
         {
             point_C_row = i;                                                    // 记录C点Y坐标
             break;
@@ -769,7 +770,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
     for(i = point_D_row; i > BOUNDARY_SEARCH_END; i--)
     {
         // 在当前行，从右向左逐列扫描，找白点（赛道）
-        for(j = point_D_col; j > 2; j--)
+        for(j = point_D_col; j > (IMG_W/2); j--)
         {
             if(image[i][j] == WHITE)                                            // 找到赛道区域
             {
@@ -781,7 +782,9 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
         // 判断上一行边界位置是否为白点（白点=边界线断开=拐点）
         if(i > BOUNDARY_SEARCH_END + 1
            && point_D_col > 2 && point_D_col < IMG_W - 2
-           && image[i - 1][point_D_col] == WHITE)                               // 上方断开→拐点
+           && image[i - 1][point_D_col] == WHITE                               // 上方断开→拐点
+           && image[i - 2][point_D_col] == WHITE)
+
         {
             point_D_row = i;                                                    // 记录D点Y坐标
             break;
@@ -1370,9 +1373,9 @@ void ring_detect(void)
         // ==================== 状态3：进环中 → 累积误差 + 检测出口 ====================
         case RING_S_IN_RING:
         {
-            // 累积近端中线误差
+            // 累积中线误差(相对于图像中心)
             {
-                float err = (float)center_line[RING_NEAR_ROW] - (float)(IMG_W / 2);
+                float err = (float)center_line[42] - (float)(IMG_W / 2);
                 ring_error_sum += err;
                 ring_error_count++;
             }
