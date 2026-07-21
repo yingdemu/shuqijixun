@@ -427,9 +427,9 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
         // ---- 1.2 开始八邻域迭代爬线 ----
         for(int i = 1; i < BOUNDARY_SEARCH_MAX; i++)
         {
-            // ---- 左边界越界检查（col范围 [0, IMG_W*3/4]） ----
+            // ---- 左边界越界检查（col范围 [0, IMG_W*2/3]） ----
             if(curr_row < BOUNDARY_SEARCH_END || curr_row >= IMG_H - 2
-               || curr_col < 1 || curr_col >= IMG_W * 3 / 4)
+               || curr_col < 1 || curr_col >= IMG_W * 2 / 3)
                 break;
 
             // ======== 按优先级依次检查7个邻域方向 ========
@@ -577,9 +577,9 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
         // ---- 2.2 开始八邻域迭代爬线 ----
         for(int i = 1; i < BOUNDARY_SEARCH_MAX; i++)
         {
-            // ---- 右边界越界检查（col范围 [IMG_W/4, IMG_W-1]） ----
+            // ---- 右边界越界检查（col范围 [IMG_W/3, IMG_W-1]） ----
             if(curr_row < BOUNDARY_SEARCH_END || curr_row >= IMG_H - 2
-               || curr_col <= IMG_W / 4 || curr_col >= IMG_W - 1)
+               || curr_col <= IMG_W / 3 || curr_col >= IMG_W - 1)
                 break;
 
             // --- 方向6：右上 ---
@@ -1221,7 +1221,7 @@ void clear_edge_data(void)
 //     EXIT_TURN:     近L✗R✓ + 远LR✓ → 累积2帧 → EXIT_STRAIGHT
 //     EXIT_STRAIGHT: 近LR✓ + 远LR✓ → 累积3帧 → DONE
 //     DONE:          保持30帧后自动回到NONE
-//   各状态有超时保护（RING_TIMEOUT_SHORT帧），超时回NONE
+//   各状态有超时保护（RING_TIMEOUT帧），超时回NONE
 //-------------------------------------------------------------------------------------------------------------------
 void ring_detect(void)
 {
@@ -1293,20 +1293,16 @@ void ring_detect(void)
             }
 
             // 预判：远端甲侧边宽增加（和自己正常值比）+ 乙侧不变 + 近端赛宽正常
-            if(
-            //    && far_left > (uint8)(ref_far_left +3)                  // 甲侧边宽 > 自己正常1.5倍
-            //    && far_right <= (uint8)(ref_far_right +3)               // 乙侧没有大幅增加
-            //    && left_boundary[RING_FAR_ROW] < 20
-            //    && near_track >= RING_NORMAL_WIDTH_MIN
-            //    && near_track <= RING_NORMAL_WIDTH_MAX
-            //    && right_boundary[RING_FAR_ROW] <= (IMG_W-4)
-            //    && right_boundary[4] <= (IMG_W-4)
-            //    && right_boundary[IMG_H-5] >= (IMG_W*5/6)
-            //    && right_boundary[RING_FAR_ROW] >= (IMG_W/2)
-                    left_boundary[RING_NEAR_ROW]==1
-                    && left_boundary[RING_FAR_ROW] >= IMG_W/3
-                    && right_boundary[RING_FAR_ROW] <= (IMG_W-20)
-                    && right_boundary[4] <= (IMG_W-20)
+            if(ref_far_left > 0
+               && far_left > (uint8)(ref_far_left +3)                  // 甲侧边宽 > 自己正常1.5倍
+               && far_right <= (uint8)(ref_far_right +3)               // 乙侧没有大幅增加
+               && left_boundary[RING_FAR_ROW] < 20
+               && near_track >= RING_NORMAL_WIDTH_MIN
+               && near_track <= RING_NORMAL_WIDTH_MAX
+               && right_boundary[RING_FAR_ROW] <= (IMG_W-4)
+               && right_boundary[4] <= (IMG_W-4)
+               && right_boundary[IMG_H-5] >= (IMG_W*5/6)
+               && right_boundary[RING_FAR_ROW] >= (IMG_W/2)
             )
             {
                 confirm_count++;
@@ -1335,22 +1331,16 @@ void ring_detect(void)
             }
 
             // 确认：甲侧小→再变大 + 乙侧不变 + 近端甲侧也增 + 近端乙侧不变
-            if(//ref_near_left > 0
-            //    //&& side_a_came_back
-            //    && left_boundary[4] > 20                  // 远远端又大了
-            //    //&& far_right <= (uint8)(ref_far_right * RING_W_INC)               // 乙侧不变
-            //    //&& near_track < (uint8)(ref_near_track)                // 近端甲侧也增
-            //    //&& near_right <= (uint8)(ref_near_right * RING_W_INC))            // 近端乙侧不变
-            //    && left_boundary[RING_FAR_ROW] ==1
-            //    && left_boundary[RING_NEAR_ROW] >=4
-            //    && right_boundary[RING_NEAR_ROW] <= (IMG_W-2)
-            //    && right_boundary[RING_FAR_ROW] <= (IMG_W-2)
-
-                left_boundary[RING_NEAR_ROW] >= (12)
-                && left_boundary[RING_FAR_ROW] ==1
-                && right_boundary[RING_FAR_ROW] <= (IMG_W-10)
-                && right_boundary[4] <= (IMG_W-20)
-                && left_boundary[4]>=20
+            if(ref_near_left > 0
+               //&& side_a_came_back
+               && left_boundary[4] > 20                  // 远远端又大了
+               //&& far_right <= (uint8)(ref_far_right * RING_W_INC)               // 乙侧不变
+               //&& near_track < (uint8)(ref_near_track)                // 近端甲侧也增
+               //&& near_right <= (uint8)(ref_near_right * RING_W_INC))            // 近端乙侧不变
+               && left_boundary[RING_FAR_ROW] ==1
+               && left_boundary[RING_NEAR_ROW] >=4
+               && right_boundary[RING_NEAR_ROW] <= (IMG_W-2)
+               && right_boundary[RING_FAR_ROW] <= (IMG_W-2)
             )
             {
                 confirm_count++;
@@ -1363,7 +1353,7 @@ void ring_detect(void)
                     ring_error_count = 0;
                 }
             }
-            else if(state_duration > RING_TIMEOUT_SHORT)
+            else if(state_duration > RING_TIMEOUT)
             {
                 ring_state = RING_S_NONE;
                 confirm_count = 0;
@@ -1394,48 +1384,31 @@ void ring_detect(void)
                 ring_error_sum += err;
                 ring_error_count++;
             }
-            int err_flag=0;
-            for(int i=IMG_H-3;i<IMG_H/2;i--)
-            {
-                if(binary_image[i][IMG_W/2]==BLACK)
-                {
-                    err_flag=1;
-                    break;
-                }
-
-            }
 
             // 检测出口：远端赛宽很大（相对自己正常值翻倍）+ 甲侧边界远
-            if(
-            //     ref_far_track > 0
-            //    && far_track > (uint8)(60)                         // 赛宽 > 正常2倍
-            //    //&& far_left < (uint8)( IMG_W / 5))                                           // 甲侧边界过了1/5宽度
+            if(ref_far_track > 0
+               && far_track > (uint8)(60)                         // 赛宽 > 正常2倍
+               //&& far_left < (uint8)( IMG_W / 5))                                           // 甲侧边界过了1/5宽度
 
-            //    //&& left_boundary[RING_FAR_ROW] >=20
-            //    && left_boundary[RING_NEAR_ROW] ==1
-            //    //&& right_boundary[RING_NEAR_ROW] == (IMG_W-2)
-            //    && right_boundary[RING_FAR_ROW] == (IMG_W-2)
-            //    && left_boundary[IMG_H-3] ==1
-            //    &&right_boundary[IMG_H-3] > (IMG_W/2)
-            //    && binary_image[RING_NEAR_ROW][IMG_W/2] == WHITE
-            //    && binary_image[50][IMG_W/2] == WHITE
-
-                far_track>=(IMG_W/2)
-                && left_boundary[RING_NEAR_ROW]==1
-                && right_boundary[RING_NEAR_ROW]<(IMG_W-2)
-                && (!err_flag)
-                
+               //&& left_boundary[RING_FAR_ROW] >=20
+               && left_boundary[RING_NEAR_ROW] ==1
+               //&& right_boundary[RING_NEAR_ROW] == (IMG_W-2)
+               && right_boundary[RING_FAR_ROW] == (IMG_W-2)
+               && left_boundary[IMG_H-3] ==1
+               &&right_boundary[IMG_H-3] > (IMG_W/2)
+               && binary_image[RING_NEAR_ROW][IMG_W/2] == WHITE
+               && binary_image[50][IMG_W/2] == WHITE
             )
             {
                 confirm_count++;
-                if(confirm_count >= RING_FRAME_CONFIRM)
+                if(confirm_count >= 0)
                 {
                     ring_state = RING_S_EXIT;
                     confirm_count = 0;
                     state_duration = 0;
                 }
             }
-            else if(state_duration > RING_TIMEOUT_LONG)
+            else if(state_duration > (RING_TIMEOUT*3))
             {
                 ring_state = RING_S_NONE;
                 confirm_count = 0;
@@ -1453,8 +1426,8 @@ void ring_detect(void)
         // ==================== 状态4：出口 → 用累积误差，检测过环心 ====================
         case RING_S_EXIT:
         {
-            if(
-                far_track <= (uint8)(ref_far_track * 2)                      // 赛宽降到2倍以下
+            if(ref_far_track > 0
+               && far_track <= (uint8)(ref_far_track * 2)                      // 赛宽降到2倍以下
                && left_boundary[10] <=(IMG_W/2)
                && right_boundary[10] >= (IMG_W/2)
                && left_boundary[10] >=1
@@ -1462,14 +1435,14 @@ void ring_detect(void)
             )
             {
                 confirm_count++;
-                if(confirm_count >= RING_FRAME_CONFIRM)
+                if(confirm_count >= 2)
                 {
                     ring_state = RING_S_OUT;
                     confirm_count = 0;
                     state_duration = 0;
                 }
             }
-            else if(state_duration > RING_TIMEOUT_SHORT)
+            else if(state_duration > RING_TIMEOUT)
             {
                 ring_state = RING_S_NONE;
                 confirm_count = 0;
@@ -1502,7 +1475,7 @@ void ring_detect(void)
                     state_duration = 0;
                 }
             }
-            else if(state_duration > RING_TIMEOUT_SHORT)
+            else if(state_duration > RING_TIMEOUT)
             {
                 ring_state = RING_S_NONE;
                 confirm_count = 0;
