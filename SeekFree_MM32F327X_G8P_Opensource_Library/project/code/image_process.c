@@ -1298,7 +1298,12 @@ void ring_detect(void)
                && far_right <= (uint8)(ref_far_right +3)               // 乙侧没有大幅增加
                && left_boundary[RING_FAR_ROW] < 20
                && near_track >= RING_NORMAL_WIDTH_MIN
-               && near_track <= RING_NORMAL_WIDTH_MAX)
+               && near_track <= RING_NORMAL_WIDTH_MAX
+               && right_boundary[RING_FAR_ROW] <= (IMG_W-4)
+               && right_boundary[4] <= (IMG_W-4)
+               && right_boundary[IMG_H-5] >= (IMG_W*5/6)
+               && right_boundary[RING_FAR_ROW] >= (IMG_W/2)
+            )
             {
                 confirm_count++;
                 if(confirm_count >= RING_FRAME_CONFIRM)
