@@ -182,31 +182,51 @@ menu_need_refresh = 1;                                                        //
 
 
             //---- 后续 PID 控制可在此添加 ----
+            extern float servo_pid_error;
             if(line_data_ready)
             {
                 if(car_go_flag){
-                // ---- 保护：图像下1/3全黑 → 停车 ----
+                // ---- 保护：底部中央10×10矩形全白或全黑 → 停车 ----
+                // 矩形：左下角(IMG_H-3, IMG_W/2-5)，往上10行往右10列
+                uint8 image_lost = 0;
                 {
-                    uint16 black_cnt = 0, total = 0;
-                    for(uint8 r = IMG_H * 2 / 3; r < IMG_H-2; r++)
+                    uint16 white_cnt = 0, black_cnt = 0, total = 0;
+                    uint8 r0 = IMG_H - 3 - 9;                                   // 矩形顶行
+                    uint8 c0 = IMG_W / 2 - 5;                                   // 矩形左列
+                    for(uint8 r = r0; r <= IMG_H - 3; r++)
                     {
-                        for(uint8 c = 0; c < IMG_W; c++)
+                        for(uint8 c = c0; c < c0 + 10; c++)
                         {
-                            if(binary_image[r][c] == BLACK) black_cnt++;
+                            if(binary_image[r][c] == BLACK) {
+                            black_cnt++;    
+                            }
+                            
                             total++;
                         }
                     }
-                    if(black_cnt > total * 3 / 4)                                // 95%以上是黑点 → 无赛道
-                    {
-                        motor_set_duty(0, 0);                                       // 停车
-                    }
-                    else
-                    {
-                        float weight_position = get_weight_position(center_line);
-                        float servo_angle = servo_pid_set(0, IMG_W/2 - weight_position);
-                        servo_set_angle(servo_angle);
-                        motor_set_duty(motor_duty, motor_duty);
-                    }
+                    if( black_cnt >= total * 9 / 10)
+                        image_lost = 1;
+                }
+
+                float weight_position = get_weight_position(center_line);
+                float servo_angle = servo_pid_set(0, IMG_W/2 - weight_position);
+                servo_set_angle(servo_angle);
+
+                if(image_lost)
+                {
+                    motor_set_duty(0, 0);                                           // 停车
+                }
+                else if(servo_pid_error < -20)                                      // 大左转：右轮加速
+                {
+                    motor_set_duty(motor_duty+ 6, motor_duty );
+                }
+                else if(servo_pid_error > 20)                                       // 大右转：左轮加速
+                {
+                    motor_set_duty(motor_duty , motor_duty+ 6);
+                }
+                else                                                                // 直行
+                {
+                    motor_set_duty(motor_duty, motor_duty);
                 }
                 }
             }

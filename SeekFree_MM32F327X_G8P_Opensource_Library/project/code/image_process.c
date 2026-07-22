@@ -1676,7 +1676,7 @@ void image_process_pipeline(void)
 
     // ---- 第10步：圆环检测 + 中线覆写 ----
     // 基于边沿宽度变化趋势更新圆环状态机
-    ring_detect();
+    //ring_detect();
     // 在圆环状态≥CONFIRM时，覆写中线
     if(ring_state >= RING_S_CONFIRM && ring_state <= RING_S_OUT)
     {
