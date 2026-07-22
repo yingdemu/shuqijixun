@@ -17,19 +17,38 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+// 蓝牙接收 FIFO
+static uint8 bt_rx_fifo_buf[128];
+static fifo_struct bt_rx_fifo;
+
 //==================================================== 蓝牙初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：bluetooth_init
-// 功能：初始化 HC-04 蓝牙模块对应的 UART
-// 说明：HC-04 上电后约 2 秒进入 AT 模式（可配参数），之后自动进入透传模式
-//       本函数只初始化 MCU 端 UART，不配置 HC-04 本身
-//       HC-04 出厂默认：9600 波特率，无需额外配置
+// 功能：初始化 HC-04 蓝牙模块对应的 UART，开启 RX 中断 + FIFO
 //-------------------------------------------------------------------------------------------------------------------
 void bluetooth_init(void)
 {
-    // 初始化 UART：串口号、波特率、TX 引脚、RX 引脚
     uart_init(BLUETOOTH_UART, BLUETOOTH_BAUD, BLUETOOTH_TX_PIN, BLUETOOTH_RX_PIN);
+    fifo_init(&bt_rx_fifo, FIFO_DATA_8BIT, bt_rx_fifo_buf, sizeof(bt_rx_fifo_buf)); // 初始化接收FIFO
+
+    // 注册 UART RX 中断回调（ISR 中 wireless_module_uart_handler 之后调用）
+    extern callback_function wireless_module_uart_handler;
+    wireless_module_uart_handler = bluetooth_uart_isr_callback;
+    uart_rx_interrupt(BLUETOOTH_UART, 1);                                       // 确保RX中断开启
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：bluetooth_uart_isr_callback
+// 功能：由 UART6 RX 中断调用，将接收字节存入 FIFO
+//-------------------------------------------------------------------------------------------------------------------
+void bluetooth_uart_isr_callback(void)
+{
+    uint8 data;
+    if(uart_query_byte(BLUETOOTH_UART, &data))
+    {
+        fifo_write_buffer(&bt_rx_fifo, &data, 1);
+    }
 }
 
 //==================================================== 蓝牙发送 ====================================================
@@ -84,9 +103,12 @@ void bluetooth_receive_process(void)
     static uint8 idx = 0;
     uint8 byte;
 
-    // 所有字节无脑累积，收到 ] 时往前搜 [ 然后解析
-    while(uart_query_byte(BLUETOOTH_UART, &byte))
+    // 从 ISR 填充的 FIFO 中读取（不丢字节），收到 ] 时往前搜 [ 解析
     {
+        uint32 len = 1;
+        while(fifo_read_buffer(&bt_rx_fifo, &byte, &len, FIFO_READ_AND_CLEAN) == FIFO_SUCCESS && len == 1)
+        {
+            len = 1;
         if(idx < sizeof(buf) - 1)
             buf[idx++] = byte;
 
@@ -141,6 +163,7 @@ void bluetooth_receive_process(void)
                 }
             }
             idx = 0;                                                            // 解析完清缓冲
+            }
         }
     }
 }

@@ -185,14 +185,29 @@ menu_need_refresh = 1;                                                        //
             if(line_data_ready)
             {
                 if(car_go_flag){
-                float weight_position = get_weight_position(center_line);  // 获取加权中线位置（用于PID控制）
-                float servo_angle = servo_pid_set(0,IMG_W/2-weight_position); // 计算舵机PID输出（目标=0，实际=偏差）
-
-                servo_set_angle(servo_angle);
-
-                // servo_set_angle(-12.0f); // 测试舵机固定角度
-
-                motor_set_duty(motor_duty, motor_duty); // 测试电机固定占空比（20%）
+                // ---- 保护：图像下1/3全黑 → 停车 ----
+                {
+                    uint16 black_cnt = 0, total = 0;
+                    for(uint8 r = IMG_H * 2 / 3; r < IMG_H-2; r++)
+                    {
+                        for(uint8 c = 0; c < IMG_W; c++)
+                        {
+                            if(binary_image[r][c] == BLACK) black_cnt++;
+                            total++;
+                        }
+                    }
+                    if(black_cnt > total * 3 / 4)                                // 95%以上是黑点 → 无赛道
+                    {
+                        motor_set_duty(0, 0);                                       // 停车
+                    }
+                    else
+                    {
+                        float weight_position = get_weight_position(center_line);
+                        float servo_angle = servo_pid_set(0, IMG_W/2 - weight_position);
+                        servo_set_angle(servo_angle);
+                        motor_set_duty(motor_duty, motor_duty);
+                    }
+                }
                 }
             }
 

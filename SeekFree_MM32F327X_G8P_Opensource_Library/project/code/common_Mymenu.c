@@ -44,7 +44,7 @@ float motor_kd = 0.0f;                                                          
 
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
-uint8 motor_duty = 13;                                                             //电机占空比
+uint8 motor_duty = 18;                                                             //电机占空比
 //==================================================== 菜单全局变量 ====================================================
 
 Folder_Menu myMenu;                                                             // 菜单根节点（主菜单）
@@ -62,8 +62,8 @@ static float edit_saved_value = 0.0f;                                           
 
 // 步进值数组：在参数编辑未选中时，按 KEY_4 切换当前步进值
 // 编辑模式下按 KEY_1/KEY_2 以当前步进值增减参数
-static float SetupNumber[SETUP_LEN] = {0.001f, 0.01f, 0.1f, 1.0f, 10.0f, 100.0f, 1000.0f};
-static uint8 SetupIndex = 2;                                                    // 默认步进值 = 0.1
+static float SetupNumber[SETUP_LEN] = {  0.1f, 1.0f};
+static uint8 SetupIndex = 0;                                                    // 默认步进值 = 0.1
 
 //==================================================== 菜单树创建 ====================================================
 
