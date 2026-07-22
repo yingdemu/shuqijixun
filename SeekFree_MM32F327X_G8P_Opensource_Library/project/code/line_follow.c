@@ -326,13 +326,14 @@ float get_weight_position(uint8 *center_line)
 float servo_pid_error=0;
 float servo_pid_outd=0;
 float servo_pid_outp=0;
+float servo_pid_outi=0;
 float servo_pid_set(float target,float actual)
 {
     servo_pid_error = target - actual;
     servo_pid_outd = (servo_pid_error - servo_pid_outp)*servo_lowpass+servo_pid_outd*(1-servo_lowpass);
     servo_pid_outp = servo_pid_error;
-
-    return (servo_kp*servo_pid_outp + servo_kd*servo_pid_outd);
+    servo_pid_outi += servo_pid_error;
+    return (servo_kp*servo_pid_outp + servo_kd*servo_pid_outd + servo_ki*servo_pid_outi);
 }
 
 

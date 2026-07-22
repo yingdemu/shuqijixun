@@ -57,3 +57,90 @@ void serial_printf(const char *fmt, ...)
     va_end(args);
     uart_write_string(BLUETOOTH_UART, buf);                                     // 通过 UART 发送
 }
+
+//==================================================== 蓝牙接收（调参命令解析） ====================================================
+
+// 外部PID参数（定义在 common_Mymenu.c 中）
+extern float servo_kp;
+extern float servo_ki;
+extern float servo_kd;
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：bluetooth_receive_process
+// 功能：读取蓝牙接收到的数据，解析 [slider,参数名,值] 格式的调参命令
+// 参数：void
+// 返回：void
+//
+// 命令格式：
+//   [slider,servo_kp,0.5]   → 设置 servo_kp = 0.5
+//   [slider,servo_ki,0.01]  → 设置 servo_ki = 0.01
+//   [slider,servo_kd,0.32]  → 设置 servo_kd = 0.32
+//
+// 接收采用逐字节轮询，状态机解析
+//-------------------------------------------------------------------------------------------------------------------
+void bluetooth_receive_process(void)
+{
+    static char buf[80];
+    static uint8 idx = 0;
+    uint8 byte;
+
+    // 所有字节无脑累积，收到 ] 时往前搜 [ 然后解析
+    while(uart_query_byte(BLUETOOTH_UART, &byte))
+    {
+        if(idx < sizeof(buf) - 1)
+            buf[idx++] = byte;
+
+        // 缓冲区溢出保护
+        if(idx >= sizeof(buf) - 2)
+        {
+            idx = 0;                                                            // 清空重来
+            continue;
+        }
+
+        if(byte == ']')
+        {
+            buf[idx] = '\0';
+
+            // 向前搜索最近的 '['
+            int16 start = -1;
+            int16 i;
+            for(i = idx - 2; i >= 0; i--)
+            {
+                if(buf[i] == '[')
+                {
+                    start = i;
+                    break;
+                }
+            }
+
+            if(start >= 0)
+            {
+                char name[16];
+                float val;
+                if(sscanf(buf + start, "[slider,%15[^,],%f]", name, &val) == 2)
+                {
+                    if(strcmp(name, "servo_kp") == 0)
+                    {
+                        servo_kp = val;
+                        serial_printf("OK kp=%.3f\r\n", servo_kp);
+                    }
+                    else if(strcmp(name, "servo_ki") == 0)
+                    {
+                        servo_ki = val;
+                        serial_printf("OK ki=%.3f\r\n", servo_ki);
+                    }
+                    else if(strcmp(name, "servo_kd") == 0)
+                    {
+                        servo_kd = val;
+                        serial_printf("OK kd=%.3f\r\n", servo_kd);
+                    }
+                    else
+                    {
+                        serial_printf("ERR %s\r\n", name);
+                    }
+                }
+            }
+            idx = 0;                                                            // 解析完清缓冲
+        }
+    }
+}

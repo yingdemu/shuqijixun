@@ -142,6 +142,9 @@ menu_need_refresh = 1;                                                        //
     // ==================== 主循环 ====================
     while(1)
     {
+        // ---- 蓝牙接收（调参命令解析） ----
+        bluetooth_receive_process();
+
         // ---- 清屏处理（由中断中的 menu_key_process 触发） ----
         if(menu_need_clear)
         {
