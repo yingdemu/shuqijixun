@@ -208,6 +208,30 @@ menu_need_refresh = 1;                                                        //
                         image_lost = 1;
                 }
 
+                // ---- 丢线补偿：连续丢线时偏移中线 ----
+                {
+                    uint16 left_lost = 0, right_lost = 0, total = 0;
+                    for(uint8 r = IMG_H / 3; r <= IMG_H - 3; r++)
+                    {
+                        if(left_boundary[r] <= 1)  left_lost++;
+                        if(right_boundary[r] >= IMG_W - 2) right_lost++;
+                        total++;
+                    }
+                    int8 shift = 0;
+                    if(left_lost == total)  shift = -15;                            // 左全丢 → 中线左移
+                    if(right_lost == total) shift = 15;                             // 右全丢 → 中线右移
+                    if(shift != 0)
+                    {
+                        for(uint8 i = 0; i < IMG_H; i++)
+                        {
+                            int16 val = (int16)center_line[i] + shift;
+                            if(val < 0) val = 0;
+                            if(val >= IMG_W) val = IMG_W - 1;
+                            center_line[i] = (uint8)val;
+                        }
+                    }
+                }
+
                 float weight_position = get_weight_position(center_line);
                 float servo_angle = servo_pid_set(0, IMG_W/2 - weight_position);
                 servo_set_angle(servo_angle);
@@ -218,11 +242,11 @@ menu_need_refresh = 1;                                                        //
                 }
                 else if(servo_pid_error < -20)                                      // 大左转：右轮加速
                 {
-                    motor_set_duty(motor_duty+ 6, motor_duty );
+                    motor_set_duty(motor_duty+ 2, motor_duty );
                 }
                 else if(servo_pid_error > 20)                                       // 大右转：左轮加速
                 {
-                    motor_set_duty(motor_duty , motor_duty+ 6);
+                    motor_set_duty(motor_duty , motor_duty+ 2);
                 }
                 else                                                                // 直行
                 {
