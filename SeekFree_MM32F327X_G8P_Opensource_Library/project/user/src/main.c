@@ -58,6 +58,7 @@
 #include "line_follow.h"
 #include "control.h"
 #include "bluetooth.h"
+#include "zf_device_imu963ra.h"
 
 
 
@@ -123,6 +124,14 @@ int main(void)
     control_init();
     ips200_show_string(0, 8 * 16, "Control OK!     ");
 
+    // ---- 第9.5步：初始化 IMU963RA 陀螺仪 ----
+    while(imu963ra_init())
+    {
+        ips200_show_string(0, 9 * 16, "IMU963RA Retry...");
+        system_delay_ms(500);
+    }
+    ips200_show_string(0, 9 * 16, "IMU963RA OK!    ");
+
     // ---- 第10步：初始化菜单系统（创建菜单树 + 绘制初始界面） ----
     menu_init();
     // ips200_clear();                                                             // 首次绘制前清屏
@@ -167,10 +176,10 @@ menu_need_refresh = 1;                                                        //
         {
             // ==================== 巡线处理 ====================
             {
-                uint16 t_start = timer_get(TIM_3);                              // 开始计时（µs）
-                line_follow_process();
-                uint16 t_end = timer_get(TIM_3);                                // 结束计时（µs）
-                uint16 elapsed_us = (t_end >= t_start) ? (t_end - t_start) : (65535 - t_start + t_end + 1);
+                // uint16 t_start = timer_get(TIM_3);                              // 开始计时（µs）
+                // line_follow_process();
+                // uint16 t_end = timer_get(TIM_3);                                // 结束计时（µs）
+                // uint16 elapsed_us = (t_end >= t_start) ? (t_end - t_start) : (65535 - t_start + t_end + 1);
 
                 // 当一帧处理完成时，通过蓝牙发送耗时
                 // if(line_data_ready)
@@ -246,4 +255,11 @@ void pit_handler (void)
 {
     key_scanner();
     menu_key_process();
+    imu963ra_get_gyro();     
 }
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数简介     获取 IMU963RA 的 Z 轴角速度（单位：°/s）
+// 参数说明     void
+// 返回参数     float —— Z轴角速度值（°/s），正值=逆时针，负值=顺时针
+//-------------------------------------------------------------------------------------------------------------------

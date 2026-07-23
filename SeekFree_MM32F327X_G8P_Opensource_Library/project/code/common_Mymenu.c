@@ -41,6 +41,10 @@ float servo_lowpass = 0.8f;                                                     
 float motor_kp = 1.0f;                                                          // 电机 Kp 默认 1.0
 float motor_ki = 0.1f;                                                          // 电机 Ki 默认 0.1
 float motor_kd = 0.0f;                                                          // 电机 Kd 默认 0.0
+//IMU PID 控制参数
+float IMU_kp =1.0f;
+float IMU_ki =1.0f;
+float IMU_kd =1.0f;
 
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
@@ -96,6 +100,9 @@ static void my_create_Menus(void)
     // motor_pid 文件夹 —— 电机PID参数子菜单
     Folder_Menu *motor_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "motor_pid");
 
+    //IMU_PID 文件夹 —— IMU PID参数子菜单
+    Folder_Menu *IMU_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "IMU_pid");
+
 
     //=========================第一层，发车标志位===============================
 
@@ -121,6 +128,11 @@ static void my_create_Menus(void)
     dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_ki", &motor_ki, float_Box, 0.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kd", &motor_kd, float_Box, 0.0f, 100.0f);
 
+    // ==================== 第二层：IMU_pid 子菜单 ====================
+
+    dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kp", &IMU_kp, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_ki", &IMU_ki, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kd", &IMU_kd, float_Box, -10.0f, 10.0f);
 
 }
 
