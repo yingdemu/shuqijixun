@@ -2,7 +2,7 @@
 * 文件名称          image_process
 * 功能描述          智能车摄像头扫描巡线 - 图像处理算法实现
 * 适用平台          MM32F327X_G8P
-* 摄像头型号        MT9V03X 总钻风灰度摄像头（90行×141列）
+* 摄像头型号        MT9V03X 总钻风灰度摄像头（90行×188列）
 * 说明              完整的赛道图像处理管线：
 *                   原始灰度图像 → 大津法阈值 → 二值化 → 画边框 →
 *                   寻找起始点 → 八邻域爬线 → 找ABCD点 → 补线 → 中线提取
@@ -53,7 +53,7 @@ uint8 point_D_row = 0, point_D_col = 0;                                        /
 uint8 center_line[IMG_H];                                                       // 中线数组
 uint8 center_line_valid[IMG_H];                                                 // 中线有效标记（1=真实边界，0=插值）
 uint8 left_boundary[IMG_H];                                                     // 左边界数组（默认0=最左边）
-uint8 right_boundary[IMG_H];                                                    // 右边界数组（默认140=最右边）
+uint8 right_boundary[IMG_H];                                                    // 右边界数组（默认187=最右边）
 
 // ---- 边界有效性标记（在插值前记录，用于圆环检测） ----
 uint8 left_valid[IMG_H];                                                        // 左边界有效：1=八邻域找到该行真实左边界
@@ -321,7 +321,7 @@ void find_boundary_start(uint8 image[IMG_H][IMG_W])
     right_start_col = 0;
 
     // ---- 从底部向上搜索，找到有效的边界起始行 ----
-    // 从 IMG_H-3 开始（避开底部2行黑框），向上最多搜索到 IMG_H的2/3行 行
+    // 从 IMG_H-3 开始（避开底部2行黑框），向上最多搜索到 IMG_H的1/3行 行
     for(search_row = IMG_H - 3; search_row > ((IMG_H / 3) * 2); search_row--)
     {
         // ==================== 寻找左边界起始点 ====================
@@ -1084,18 +1084,6 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // // ---- 4.5 跳变滤波：相邻两行列坐标差不超过15（从底部向上约束） ----
-    // for(i = IMG_H - 2; i >= 0; i--)
-    // {
-    //     int16 diff;
-    //     diff = (int16)left_boundary[i] - (int16)left_boundary[i + 1];
-    //     if(diff > 15)   left_boundary[i] = left_boundary[i + 1] + 15;
-    //     if(diff < -15)  left_boundary[i] = left_boundary[i + 1] - 15;
-
-    //     diff = (int16)right_boundary[i] - (int16)right_boundary[i + 1];
-    //     if(diff > 15)   right_boundary[i] = right_boundary[i + 1] + 15;
-    //     if(diff < -15)  right_boundary[i] = right_boundary[i + 1] - 15;
-    // }
 
     // ---- 4.6 记录边界有效性（在插值填充之后，只看最终列坐标） ----
     // 插值后 left_boundary/right_boundary 不再有 0xFF，所有行都有值
@@ -1162,42 +1150,6 @@ void clear_edge_data(void)
     left_lose_rows = 0;
     right_lose_rows = 0;
 }
-
-//==================================================== 加权位置计算 ====================================================
-
-//-------------------------------------------------------------------------------------------------------------------
-// 函数名称：get_weight_position_2
-// 功能：只使用真实边界点得到的中线行（center_line_valid=1）计算加权位置
-// 返回：float —— 加权后的中线偏移量（相对于图像中心的偏差）
-//
-// 权重设计：越靠近车身（行号越大）权重越大
-//   权重 = row + 1（底部行号大，贡献更大）
-//
-// 只统计有效行（center_line_valid[i]==1），忽略插值填充的行
-//-------------------------------------------------------------------------------------------------------------------
-// float get_weight_position_2(void)
-// {
-//     float weighted_sum = 0.0f;                                                  // 加权累积（中线X * 权重）
-//     float weight_total = 0.0f;                                                  // 权重总和
-//     int16 i;
-
-//     for(i = 0; i < IMG_H; i++)
-//     {
-//         if(center_line_valid[i] == 1)                                           // 只使用真实边界点对应的中线
-//         {
-//             float weight = (float)(i + 1);                                      // 行号越大（越靠近车身）权重越大
-//             weighted_sum += (float)center_line[i] * weight;
-//             weight_total += weight;
-//         }
-//     }
-
-//     if(weight_total > 0.0f)
-//     {
-//         float weighted_center = weighted_sum / weight_total;                    // 加权平均中线位置
-//         return weighted_center - (float)(IMG_W / 2);                            // 减去图像中心 → 偏差
-//     }
-//     return 0.0f;                                                                // 没有有效行 → 返回0
-// }
 
 //==================================================== 圆环巡线（v2：边沿宽度趋势 + 累积误差） ====================================================
 
