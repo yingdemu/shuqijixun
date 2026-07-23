@@ -32,19 +32,19 @@ extern uint8 fixed_threshold;
 // servo_kp: 比例系数 —— 根据位置偏差进行比例调节
 // servo_ki: 积分系数 —— 消除稳态误差
 // servo_kd: 微分系数 —— 抑制振荡和超调
-float servo_kp = 0.39f;                                                          // 舵机 Kp 默认 0.80
-float servo_ki = 0.0f;                                                          // 舵机 Ki 默认 0.0
-float servo_kd = 0.37f;                                                          // 舵机 Kd 默认 0.32
-float servo_lowpass = 0.8f;                                                       // 舵机低通滤波系数（默认 0.8）
+float image_kp_a = 0.03f;                                                          // 图像 Kp_a 默认 0.80
+float image_kp_b = 0.01f;                                                          // 图像 Kp_b 默认 0.0
+float image_kd = 0.03f;                                                          // 图像 Kd 默认 0.32
+float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
 float motor_kp = 1.0f;                                                          // 电机 Kp 默认 1.0
 float motor_ki = 0.1f;                                                          // 电机 Ki 默认 0.1
 float motor_kd = 0.0f;                                                          // 电机 Kd 默认 0.0
 //IMU PID 控制参数
-float IMU_kp =-0.04f;
+float IMU_kp =0.04f;
 float IMU_ki =0.0f;
-float IMU_kd =-0.03f;
+float IMU_kd =0.03f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
@@ -94,8 +94,8 @@ static void my_create_Menus(void)
     // image 文件夹 —— 进入后 IPS200 显示摄像头灰度图像
     Folder_Menu *image_folder = dynamicCreate_Menu_Folder(&myMenu, "image");
 
-    // servo_pid 文件夹 —— 舵机PID参数子菜单
-    Folder_Menu *servo_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "servo_pid");
+    // image_pid 文件夹 —— 舵机PID参数子菜单
+    Folder_Menu *image_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "image_pid");
 
     // motor_pid 文件夹 —— 电机PID参数子菜单
     Folder_Menu *motor_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "motor_pid");
@@ -115,12 +115,12 @@ static void my_create_Menus(void)
     dynamicCreate_Menu_LimitNumberBox(&myMenu, "motor_duty", &motor_duty,uint8_Box , 0, 30);
 
 
-    // ==================== 第二层：servo_pid 子菜单 ====================
+    // ==================== 第二层：image_pid 子菜单 ====================
 
-    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_kp", &servo_kp, float_Box, -10.0f, 10.0f);
-    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_ki", &servo_ki, float_Box, -10.0f, 10.0f);
-    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_kd", &servo_kd, float_Box, -10.0f, 10.0f);
-    dynamicCreate_Menu_LimitNumberBox(servo_pid_folder, "servo_lowpass", &servo_lowpass, float_Box, 0.0f, 1.0f);
+    dynamicCreate_Menu_LimitNumberBox(image_pid_folder, "image_kp", &image_kp_a, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(image_pid_folder, "image_kp_b", &image_kp_b, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(image_pid_folder, "image_kd", &image_kd, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(image_pid_folder, "image_lowpass", &image_lowpass, float_Box, 0.0f, 1.0f);
 
     // ==================== 第二层：motor_pid 子菜单 ====================
 
@@ -133,6 +133,7 @@ static void my_create_Menus(void)
     dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kp", &IMU_kp, float_Box, -10.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_ki", &IMU_ki, float_Box, -10.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kd", &IMU_kd, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_lowpass", &IMU_lowpass, float_Box, 0.0f, 1.0f);
 
 }
 

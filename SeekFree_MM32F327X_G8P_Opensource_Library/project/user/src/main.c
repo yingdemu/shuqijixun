@@ -218,13 +218,17 @@ menu_need_refresh = 1;                                                        //
 
                 float weight_position = get_weight_position(center_line);
                 float groy_z=get_gyro_z();
-                float servo_angle = IMU_pid_set(0, groy_z);
+                float IMU_target=image_pid_set(0,IMG_W/2-weight_position);
+                float servo_angle = IMU_pid_set(IMU_target, groy_z);
+
                 servo_set_angle(servo_angle);
 
                 if(image_lost)
                 {
-                
+                    car_go_flag=0;
                     motor_set_duty(0, 0);                                           // 停车
+                    menu_need_clear=1;
+                    menu_need_refresh=1;
                 }
                 else                                                                // 直行
                 {

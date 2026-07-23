@@ -125,16 +125,16 @@ int16 calc_deviation(uint8 look_ahead_rows);
 float get_weight_position(uint8 *center_line);
 
 //-------------------------------------------------------------------------------------------------------------------
-// 函数简介     pid计算舵机输出值
+// 函数简介     pid计算图像输出值
 // 参数说明     target —— 目标值（期望位置）
 // 参数说明     actual —— 实际值（当前偏差）
 // 返回参数     float —— 舵机输出值（用于控制舵机转角）
-// 使用示例     float servo_output = servo_pid_set(target, actual);
+// 使用示例     float image_output = image_pid_set(target, actual);
 // 备注信息     使用PID算法计算舵机的控制输出
 //              其中 target 是期望位置，actual 是当前偏差
-//              输出值可用于调整舵机角度以纠正偏差
+//              输出值可用于角速度以纠正偏差
 //-------------------------------------------------------------------------------------------------------------------
-float servo_pid_set(float target,float actual);
+float image_pid_set(float target,float actual);
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     pid计算舵机输出值

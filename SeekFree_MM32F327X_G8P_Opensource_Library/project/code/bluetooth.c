@@ -81,9 +81,9 @@ void serial_printf(const char *fmt, ...)
 //==================================================== 蓝牙接收（调参命令解析） ====================================================
 
 // 外部PID参数（定义在 common_Mymenu.c 中）
-extern float servo_kp;
-extern float servo_ki;
-extern float servo_kd;
+extern float image_kp_a;
+extern float image_kp_b;
+extern float image_kd;
 extern float IMU_kp;
 extern float IMU_ki;
 extern float IMU_kd;
@@ -184,20 +184,20 @@ void bluetooth_receive_process(void)
                     }
                 }
 
-                if(strcmp(name, "servo_kp") == 0)
+                if(strcmp(name, "image_kp_a") == 0)
                 {
-                    servo_kp = val;
-                    serial_printf("OK kp=%.3f\r\n", servo_kp);
+                    image_kp_a = val;
+                    serial_printf("OK kp_a=%.3f\r\n", image_kp_a);
                 }
-                else if(strcmp(name, "servo_ki") == 0)
+                else if(strcmp(name, "image_kp_b") == 0)
                 {
-                    servo_ki = val;
-                    serial_printf("OK ki=%.3f\r\n", servo_ki);
+                    image_kp_b = val;
+                    serial_printf("OK kp_b=%.3f\r\n", image_kp_b);
                 }
-                else if(strcmp(name, "servo_kd") == 0)
+                else if(strcmp(name, "image_kd") == 0)
                 {
-                    servo_kd = val;
-                    serial_printf("OK kd=%.3f\r\n", servo_kd);
+                    image_kd = val;
+                    serial_printf("OK kd=%.3f\r\n", image_kd);
                 }
                 else if(strcmp(name, "IMU_kp") == 0)
                 {

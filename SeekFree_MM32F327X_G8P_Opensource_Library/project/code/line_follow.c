@@ -323,17 +323,20 @@ float get_weight_position(uint8 *center_line)
 
 
 
-float servo_pid_error=0;
-float servo_pid_outd=0;
-float servo_pid_outp=0;
-float servo_pid_outi=0;
-float servo_pid_set(float target,float actual)
+float image_pid_error=0;
+float image_pid_outd=0;
+float image_pid_outp=0;
+float image_pid_outi=0;
+float image_PID_P_OUT=0;
+float image_pid_set(float target,float actual)
 {
-    servo_pid_error = target - actual;
-    servo_pid_outd = (servo_pid_error - servo_pid_outp)*servo_lowpass+servo_pid_outd*(1-servo_lowpass);
-    servo_pid_outp = servo_pid_error;
+    image_pid_error = target - actual;
+    image_pid_outd = (image_pid_error - image_pid_outp)*image_lowpass+image_pid_outd*(1-image_lowpass);
+    image_pid_outp = image_pid_error;
     
-    return (servo_kp*servo_pid_outp + servo_kd*servo_pid_outd );
+    image_PID_P_OUT=image_kp_a*image_pid_error*image_pid_error*image_pid_error+image_kp_b*image_pid_error;
+
+    return (-(image_PID_P_OUT + image_kd*image_pid_outd ));
 }
 
 float IMU_pid_error=0;
@@ -343,7 +346,7 @@ float IMU_pid_outi=0;
 
 float IMU_pid_set(float target,float actual)
 {
-    target=0;
+    
     IMU_pid_error = target - actual;
     IMU_pid_outd = (IMU_pid_error - IMU_pid_outp)*IMU_lowpass+IMU_pid_outd*(1-IMU_lowpass);
     IMU_pid_outp = IMU_pid_error;

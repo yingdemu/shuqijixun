@@ -53,10 +53,10 @@
 
 //==================================================== PID参数变量声明 ====================================================
 
-extern float servo_kp;                                                          // 舵机比例系数 Kp（默认 5.0）
-extern float servo_ki;                                                          // 舵机积分系数 Ki（默认 0.0）
-extern float servo_kd;                                                          // 舵机微分系数 Kd（默认 2.0）
-extern float servo_lowpass;                                                     // 舵机低通滤波系数（默认 0.8）
+extern float image_kp_a;                                                          // 图像比例系数 Kp（默认 5.0）
+extern float image_kp_b;                                                          // 图像积分系数 Ki（默认 0.0）
+extern float image_kd;                                                          // 图像微分系数 Kd（默认 2.0）
+extern float image_lowpass;                                                     // 图像低通滤波系数（默认 0.8）
 
 extern float motor_kp;                                                          // 电机比例系数 Kp（默认 1.0）
 extern float motor_ki;                                                          // 电机积分系数 Ki（默认 0.1）
