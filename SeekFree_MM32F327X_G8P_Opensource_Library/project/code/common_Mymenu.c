@@ -32,8 +32,8 @@ extern uint8 fixed_threshold;
 // servo_kp: 比例系数 —— 根据位置偏差进行比例调节
 // servo_ki: 积分系数 —— 消除稳态误差
 // servo_kd: 微分系数 —— 抑制振荡和超调
-float image_kp_a = 0.03f;                                                          // 图像 Kp_a 默认 0.80
-float image_kp_b = 0.01f;                                                          // 图像 Kp_b 默认 0.0
+float image_kp_a = 0.37f;                                                          // 图像 Kp_a 默认 0.80
+float image_kp_b = 0.002f;                                                          // 图像 Kp_b 默认 0.0
 float image_kd = 0.03f;                                                          // 图像 Kd 默认 0.32
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----

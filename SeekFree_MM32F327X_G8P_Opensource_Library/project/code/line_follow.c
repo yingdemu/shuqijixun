@@ -328,15 +328,16 @@ float image_pid_outd=0;
 float image_pid_outp=0;
 float image_pid_outi=0;
 float image_PID_P_OUT=0;
+float image_kp=0;
 float image_pid_set(float target,float actual)
 {
     image_pid_error = target - actual;
     image_pid_outd = (image_pid_error - image_pid_outp)*image_lowpass+image_pid_outd*(1-image_lowpass);
     image_pid_outp = image_pid_error;
-    
-    image_PID_P_OUT=image_kp_a*image_pid_error*image_pid_error*image_pid_error+image_kp_b*image_pid_error;
 
-    return (-(image_PID_P_OUT + image_kd*image_pid_outd ));
+    image_kp=image_kp_a + (image_pid_error*image_pid_error)*image_kp_b;
+
+    return (-(image_kp*image_pid_outp + image_kd*image_pid_outd ));
 }
 
 float IMU_pid_error=0;
