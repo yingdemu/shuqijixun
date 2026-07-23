@@ -336,7 +336,7 @@ float image_pid_set(float target,float actual)
     
     image_PID_P_OUT=image_kp_a*image_pid_error*image_pid_error*image_pid_error+image_kp_b*image_pid_error;
 
-    return (-(image_PID_P_OUT - image_kd*image_pid_outd ));
+    return (-(image_PID_P_OUT + image_kd*image_pid_outd ));
 }
 
 float IMU_pid_error=0;
@@ -351,7 +351,7 @@ float IMU_pid_set(float target,float actual)
     IMU_pid_outd = (IMU_pid_error - IMU_pid_outp)*IMU_lowpass+IMU_pid_outd*(1-IMU_lowpass);
     IMU_pid_outp = IMU_pid_error;
 
-    return (-(IMU_kp*IMU_pid_outp - IMU_kd*IMU_pid_outd ));
+    return (-(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd ));
 
 }
 
