@@ -176,10 +176,10 @@ menu_need_refresh = 1;                                                        //
         {
             // ==================== 巡线处理 ====================
             {
-                // uint16 t_start = timer_get(TIM_3);                              // 开始计时（µs）
-                // line_follow_process();
-                // uint16 t_end = timer_get(TIM_3);                                // 结束计时（µs）
-                // uint16 elapsed_us = (t_end >= t_start) ? (t_end - t_start) : (65535 - t_start + t_end + 1);
+                uint16 t_start = timer_get(TIM_3);                              // 开始计时（µs）
+                line_follow_process();
+                uint16 t_end = timer_get(TIM_3);                                // 结束计时（µs）
+                uint16 elapsed_us = (t_end >= t_start) ? (t_end - t_start) : (65535 - t_start + t_end + 1);
 
                 // 当一帧处理完成时，通过蓝牙发送耗时
                 // if(line_data_ready)
@@ -191,7 +191,6 @@ menu_need_refresh = 1;                                                        //
 
 
             //---- 后续 PID 控制可在此添加 ----
-            extern float servo_pid_error;
             if(line_data_ready)
             {
                 if(car_go_flag){
@@ -218,21 +217,14 @@ menu_need_refresh = 1;                                                        //
                 }
 
                 float weight_position = get_weight_position(center_line);
-                float servo_angle = servo_pid_set(0, IMG_W/2 - weight_position);
+                float groy_z=get_gyro_z();
+                float servo_angle = IMU_pid_set(0, groy_z);
                 servo_set_angle(servo_angle);
 
                 if(image_lost)
                 {
-                    car_go_flag=0;
+                
                     motor_set_duty(0, 0);                                           // 停车
-                }
-                else if(servo_pid_error < -20)                                      // 大左转：右轮加速
-                {
-                    motor_set_duty(motor_duty+ 2, motor_duty );
-                }
-                else if(servo_pid_error > 20)                                       // 大右转：左轮加速
-                {
-                    motor_set_duty(motor_duty , motor_duty+ 2);
                 }
                 else                                                                // 直行
                 {

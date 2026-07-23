@@ -62,6 +62,12 @@ extern float motor_kp;                                                          
 extern float motor_ki;                                                          // 电机积分系数 Ki（默认 0.1）
 extern float motor_kd;                                                          // 电机微分系数 Kd（默认 0.0）
 
+extern float IMU_kp ;                                                           // 电机微分系数 Kp（默认 1.0）
+extern float IMU_ki ;                                                           // 电机微分系数 Ki（默认 0.0）
+extern float IMU_kd ;                                                           // 电机微分系数 Kd（默认 1.0）
+extern float IMU_lowpass ;                                                       // IMU低通滤波系数（默认 0.8）
+
+
 
 extern bool car_go_flag;                                                         // 发车标志位（1=开始巡线，0=停止巡线）
 extern uint8 motor_duty; //电机占空比

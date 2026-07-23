@@ -42,13 +42,13 @@ float motor_kp = 1.0f;                                                          
 float motor_ki = 0.1f;                                                          // 电机 Ki 默认 0.1
 float motor_kd = 0.0f;                                                          // 电机 Kd 默认 0.0
 //IMU PID 控制参数
-float IMU_kp =1.0f;
-float IMU_ki =1.0f;
-float IMU_kd =1.0f;
-
+float IMU_kp =-0.04f;
+float IMU_ki =0.0f;
+float IMU_kd =-0.03f;
+float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
-uint8 motor_duty = 16;                                                             //电机占空比
+uint8 motor_duty = 25;                                                             //电机占空比
 //==================================================== 菜单全局变量 ====================================================
 
 Folder_Menu myMenu;                                                             // 菜单根节点（主菜单）

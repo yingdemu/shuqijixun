@@ -336,4 +336,21 @@ float servo_pid_set(float target,float actual)
     return (servo_kp*servo_pid_outp + servo_kd*servo_pid_outd );
 }
 
+float IMU_pid_error=0;
+float IMU_pid_outd=0;
+float IMU_pid_outp=0;
+float IMU_pid_outi=0;
+
+float IMU_pid_set(float target,float actual)
+{
+    target=0;
+    IMU_pid_error = target - actual;
+    IMU_pid_outd = (IMU_pid_error - IMU_pid_outp)*IMU_lowpass+IMU_pid_outd*(1-IMU_lowpass);
+    IMU_pid_outp = IMU_pid_error;
+
+    return (-(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd ));
+
+}
+
+
 

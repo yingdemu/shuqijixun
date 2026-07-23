@@ -16,6 +16,7 @@
 #include "bluetooth.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 // 蓝牙接收 FIFO
 static uint8 bt_rx_fifo_buf[128];
@@ -140,44 +141,82 @@ void bluetooth_receive_process(void)
 
             if(start >= 0)
             {
+                // 手动解析 [slider,<name>,<value>]（microlib 的 sscanf 不支持 %f）
+                char *p = buf + start;                                          // 指向 '['
                 char name[16];
-                float val;
-                if(sscanf(buf + start, "[slider,%15[^,],%f]", name, &val) == 2)
+                char val_str[16];
+                float val = 0.0f;
+                int16 n;
+
+                // 跳过 "[slider,"
+                if(strncmp(p, "[slider,", 8) == 0)
                 {
-                    if(strcmp(name, "servo_kp") == 0)
+                    p += 8;                                                     // 指向参数名首字符
+                    // 提取参数名（到 ',' 为止）
+                    n = 0;
+                    while(*p != ',' && *p != '\0' && n < 15)
+                        name[n++] = *p++;
+                    name[n] = '\0';
+
+                    if(*p == ',') p++;                                          // 跳过 ','
+
+                    // 提取值字符串（到 ']' 为止）
+                    n = 0;
+                    while(*p != ']' && *p != '\0' && n < 15)
+                        val_str[n++] = *p++;
+                    val_str[n] = '\0';
+
+                    // 字符串转 float（手写，microlib 的 strtof 不可用）
                     {
-                        servo_kp = val;
-                        serial_printf("OK kp=%.3f\r\n", servo_kp);
+                        float sign = 1.0f, int_part = 0.0f, frac_part = 0.0f, frac_div = 1.0f;
+                        char *s = val_str;
+                        if(*s == '-') { sign = -1.0f; s++; }
+                        else if(*s == '+') { s++; }
+                        while(*s >= '0' && *s <= '9')
+                            { int_part = int_part * 10.0f + (*s - '0'); s++; }
+                        if(*s == '.')
+                        {
+                            s++;
+                            while(*s >= '0' && *s <= '9')
+                                { frac_part = frac_part * 10.0f + (*s - '0'); frac_div *= 10.0f; s++; }
+                        }
+                        val = sign * (int_part + frac_part / frac_div);
                     }
-                    else if(strcmp(name, "servo_ki") == 0)
-                    {
-                        servo_ki = val;
-                        serial_printf("OK ki=%.3f\r\n", servo_ki);
-                    }
-                    else if(strcmp(name, "servo_kd") == 0)
-                    {
-                        servo_kd = val;
-                        serial_printf("OK kd=%.3f\r\n", servo_kd);
-                    }
-                    else if(strcmp(name, "IMU_kp") == 0)
-                    {
-                        IMU_kp = val;
-                        serial_printf("OK IMU_kp=%.3f\r\n", IMU_kp);
-                    }
-                    else if(strcmp(name, "IMU_ki") == 0)
-                    {
-                        IMU_ki = val;
-                        serial_printf("OK IMU_ki=%.3f\r\n", IMU_ki);
-                    }
-                    else if(strcmp(name, "IMU_kd") == 0)
-                    {
-                        IMU_kd = val;
-                        serial_printf("OK IMU_kd=%.3f\r\n", IMU_kd);
-                    }
-                    else
-                    {
-                        serial_printf("ERR %s\r\n", name);
-                    }
+                }
+
+                if(strcmp(name, "servo_kp") == 0)
+                {
+                    servo_kp = val;
+                    serial_printf("OK kp=%.3f\r\n", servo_kp);
+                }
+                else if(strcmp(name, "servo_ki") == 0)
+                {
+                    servo_ki = val;
+                    serial_printf("OK ki=%.3f\r\n", servo_ki);
+                }
+                else if(strcmp(name, "servo_kd") == 0)
+                {
+                    servo_kd = val;
+                    serial_printf("OK kd=%.3f\r\n", servo_kd);
+                }
+                else if(strcmp(name, "IMU_kp") == 0)
+                {
+                    IMU_kp = val;
+                    serial_printf("OK IMU_kp=%.3f\r\n", IMU_kp);
+                }
+                else if(strcmp(name, "IMU_ki") == 0)
+                {
+                    IMU_ki = val;
+                    serial_printf("OK IMU_ki=%.3f\r\n", IMU_ki);
+                }
+                else if(strcmp(name, "IMU_kd") == 0)
+                {
+                    IMU_kd = val;
+                    serial_printf("OK IMU_kd=%.3f\r\n", IMU_kd);
+                }
+                else
+                {
+                    serial_printf("ERR %s\r\n", name);
                 }
             }
             idx = 0;                                                            // 解析完清缓冲
