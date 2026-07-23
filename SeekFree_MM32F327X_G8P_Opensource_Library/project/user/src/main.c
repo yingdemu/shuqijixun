@@ -225,10 +225,10 @@ menu_need_refresh = 1;                                                        //
 
                 if(image_lost)
                 {
-                    car_go_flag=0;
+                    //car_go_flag=0;
                     motor_set_duty(0, 0);                                           // 停车
-                    menu_need_clear=1;
-                    menu_need_refresh=1;
+                    //menu_need_clear=1;
+                    //menu_need_refresh=1;
                 }
                 else                                                                // 直行
                 {

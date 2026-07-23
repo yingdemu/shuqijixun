@@ -43,7 +43,7 @@
 
 #define MOTOR_PWM_FREQ              (17000)                                     // 电机 PWM 频率 17KHz
 
-#define MOTOR_DUTY_MAX              (100)                                       // 电机占空比最大绝对值（0~100）
+#define MOTOR_DUTY_MAX              (30)                                       // 电机占空比最大绝对值（0~100）
 
 //==================================================== 控制函数声明 ====================================================
 
@@ -76,6 +76,6 @@ void servo_set_angle(float angle);
 // 备注信息     占空比自动限幅到 [-MOTOR_DUTY_MAX, MOTOR_DUTY_MAX]
 //              正值=DIR高电平（前进），负值=DIR低电平（后退），0=停止
 //-------------------------------------------------------------------------------------------------------------------
-void motor_set_duty(int16 left_duty, int16 right_duty);
+void motor_set_duty(float left_duty, float right_duty);
 
 #endif

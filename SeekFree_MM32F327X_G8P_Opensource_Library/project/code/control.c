@@ -89,50 +89,48 @@ void servo_set_angle(float angle)
 //   motor_set_duty(20, 80);   → 左轮慢右轮快，向左转弯
 //   motor_set_duty(0, 0);     → 停止
 //-------------------------------------------------------------------------------------------------------------------
-void motor_set_duty(int16 left_duty, int16 right_duty)
+void motor_set_duty(float left_duty, float right_duty)
 {
     uint32 left_pwm, right_pwm;
 
     // ==================== 左电机处理 ====================
 
     // ---- 限幅 ----
-    if(left_duty > MOTOR_DUTY_MAX)
-        left_duty = MOTOR_DUTY_MAX;
-    else if(left_duty < -MOTOR_DUTY_MAX)
-        left_duty = -MOTOR_DUTY_MAX;
+    if(left_duty > (float)MOTOR_DUTY_MAX)
+        left_duty = (float)MOTOR_DUTY_MAX;
+    else if(left_duty < -(float)MOTOR_DUTY_MAX)
+        left_duty = -(float)MOTOR_DUTY_MAX;
 
-    if(left_duty >= 0)                                                          // 正值 → 前进
+    if(left_duty >= 0.0f)                                                       // 正值 → 前进
     {
         gpio_set_level(MOTOR_L_DIR, GPIO_HIGH);
     }
     else                                                                        // 负值 → 后退
     {
         gpio_set_level(MOTOR_L_DIR, GPIO_LOW);
-        left_duty = -left_duty;                                                 // 取绝对值用于计算 PWM
+        left_duty = -left_duty;                                                 // 取绝对值
     }
 
-    // 占空比计算：PWM_DUTY_MAX * duty / 100
-    left_pwm = (uint32)left_duty * PWM_DUTY_MAX / 100;
+    left_pwm = (uint32)(left_duty * (float)PWM_DUTY_MAX / 100.0f);
     pwm_set_duty(MOTOR_L_PWM, left_pwm);
 
     // ==================== 右电机处理 ====================
 
-    // ---- 限幅 ----
-    if(right_duty > MOTOR_DUTY_MAX)
-        right_duty = MOTOR_DUTY_MAX;
-    else if(right_duty < -MOTOR_DUTY_MAX)
-        right_duty = -MOTOR_DUTY_MAX;
+    if(right_duty > (float)MOTOR_DUTY_MAX)
+        right_duty = (float)MOTOR_DUTY_MAX;
+    else if(right_duty < -(float)MOTOR_DUTY_MAX)
+        right_duty = -(float)MOTOR_DUTY_MAX;
 
-    if(right_duty >= 0)                                                         // 正值 → 前进
+    if(right_duty >= 0.0f)
     {
         gpio_set_level(MOTOR_R_DIR, GPIO_HIGH);
     }
-    else                                                                        // 负值 → 后退
+    else
     {
         gpio_set_level(MOTOR_R_DIR, GPIO_LOW);
         right_duty = -right_duty;
     }
 
-    right_pwm = (uint32)right_duty * PWM_DUTY_MAX / 100;
+    right_pwm = (uint32)(right_duty * (float)PWM_DUTY_MAX / 100.0f);
     pwm_set_duty(MOTOR_R_PWM, right_pwm);
 }

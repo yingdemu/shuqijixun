@@ -36,11 +36,11 @@ uint8 line_data_ready = 0;                                                      
 
 
 uint8 weight[IMG_H]={   1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 ,
-                        2 , 2 , 2 , 2 , 3 , 3 , 3 , 4 , 4 , 4 , 5 , 5 , 6 , 7 , 8 ,
-                        9 , 10 , 11 , 12 , 13 , 14 , 15 , 16 , 17 , 17 , 18 , 18 , 19 , 19 , 18 ,
-                        18 , 17 , 17 , 16 , 16 , 15 , 15, 14, 14, 13, 13, 12, 12, 11, 11,
-                        10, 10, 9, 9, 8, 8, 8, 7, 7, 7, 6, 6, 6, 6, 5,
-                        5, 4, 4, 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 , 1 , 1 , 1 , 1 };    //加权数组 15*6
+                        2 , 3 , 3 , 4 , 4 , 5 , 5 , 6 , 6 , 7 , 7 , 8 , 8 , 9 , 9 ,
+                        10, 10, 11, 11, 12, 12, 13, 13, 14, 16, 17, 18, 19, 19, 18,
+                        17, 16, 15, 14, 13, 13, 12, 12, 11, 11, 10, 10, 9 , 9 , 8 ,
+                        8 , 7 , 7 , 6 , 6 , 5 , 5 , 4 , 4 , 3 , 3 , 2 , 2 , 1 , 1 ,
+                        5 , 4 , 4 , 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 , 1 , 1 , 1 , 1 };    //加权数组 15*6
 //==================================================== 巡线模块初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -336,7 +336,7 @@ float image_pid_set(float target,float actual)
     
     image_PID_P_OUT=image_kp_a*image_pid_error*image_pid_error*image_pid_error+image_kp_b*image_pid_error;
 
-    return (-(image_PID_P_OUT + image_kd*image_pid_outd ));
+    return (-(image_PID_P_OUT - image_kd*image_pid_outd ));
 }
 
 float IMU_pid_error=0;
@@ -351,9 +351,11 @@ float IMU_pid_set(float target,float actual)
     IMU_pid_outd = (IMU_pid_error - IMU_pid_outp)*IMU_lowpass+IMU_pid_outd*(1-IMU_lowpass);
     IMU_pid_outp = IMU_pid_error;
 
-    return (-(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd ));
+    return (-(IMU_kp*IMU_pid_outp - IMU_kd*IMU_pid_outd ));
 
 }
+
+
 
 
 
