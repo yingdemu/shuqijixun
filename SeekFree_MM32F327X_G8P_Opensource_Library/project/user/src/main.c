@@ -232,7 +232,7 @@ menu_need_refresh = 1;                                                        //
                     float actual_motor_duty=motor_duty-abs(image_pid_error*0.35);
                     servo_set_angle(servo_angle);
 
-                    motor_set_duty(actual_motor_duty + dif_motor, actual_motor_duty - dif_motor);
+                    motor_set_duty(actual_motor_duty + dif_motor, actual_motor_duty - dif_motor);  //
                 }
                 }
             }
