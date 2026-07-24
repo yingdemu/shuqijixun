@@ -229,8 +229,10 @@ menu_need_refresh = 1;                                                        //
                     float IMU_target = image_pid_set(0, IMG_W/2 - weight_position);
                     float servo_angle = IMU_pid_set(IMU_target, groy_z);
                     float dif_motor = motor_pid_set(0, IMG_W/2 - weight_position);
+                    float actual_motor_duty=motor_duty-abs(image_pid_error*0.35);
                     servo_set_angle(servo_angle);
-                    motor_set_duty(motor_duty + dif_motor, motor_duty - dif_motor);
+
+                    motor_set_duty(actual_motor_duty + dif_motor, actual_motor_duty - dif_motor);
                 }
                 }
             }
