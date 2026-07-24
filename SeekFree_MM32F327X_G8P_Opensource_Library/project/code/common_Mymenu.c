@@ -27,19 +27,17 @@ extern uint8 fixed_threshold;
 
 //==================================================== PID参数变量定义 ====================================================
 
-// ---- 舵机PID控制参数 ----
-// 舵机PID用于控制前轮转向角度
-// servo_kp: 比例系数 —— 根据位置偏差进行比例调节
-// servo_ki: 积分系数 —— 消除稳态误差
-// servo_kd: 微分系数 —— 抑制振荡和超调
-float image_kp_a = 0.37f;                                                          // 图像 Kp_a 默认 0.80
-float image_kp_b = 0.002f;                                                          // 图像 Kp_b 默认 0.0
-float image_kd = 0.03f;                                                          // 图像 Kd 默认 0.32
+// ---- 图像PID控制参数（中线偏差→目标角速度） ----
+// image_kp_a: 线性比例系数（小偏差主导）  image_kp_b: 三次比例系数（大偏差主导）
+// image_kd: 微分系数 —— 抑制振荡和超调
+float image_kp_a = 0.37f;                                                       // 图像 Kp_a（线性项/小弯）
+float image_kp_b = 0.002f;                                                      // 图像 Kp_b（三次项/大弯）
+float image_kd = 0.03f;                                                         // 图像 Kd
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
 float motor_kp_a = 1.0f;                                                          // 电机 Kp 默认 1.0
-float motor_kp_b = 0.1f;                                                          // 电机 Ki 默认 0.1
+float motor_kp_b = 0.1f;                                                        // 电机 Kp_b（三次项/大弯差速）
 float motor_kd = 0.0f;                                                          // 电机 Kd 默认 0.0
 float motor_lowpass = 0.8f;                                                       // 电机低通滤波系数（默认 0.8）
 //IMU PID 控制参数
@@ -128,6 +126,7 @@ static void my_create_Menus(void)
     dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kp_a", &motor_kp_a, float_Box, 0.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kp_b", &motor_kp_b, float_Box, 0.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kd", &motor_kd, float_Box, 0.0f, 100.0f);
+    dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_lowpass", &motor_lowpass, float_Box, 0.0f, 1.0f);
 
     // ==================== 第二层：IMU_pid 子菜单 ====================
 

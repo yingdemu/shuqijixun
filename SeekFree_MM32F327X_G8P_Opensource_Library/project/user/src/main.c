@@ -198,42 +198,33 @@ menu_need_refresh = 1;                                                        //
                 // 矩形：左下角(IMG_H-3, IMG_W/2-5)，往上10行往右10列
                 uint8 image_lost = 0;
                 {
-                    uint16 white_cnt = 0, black_cnt = 0, total = 0;
-                    uint8 r0 = IMG_H - 3 - 9;                                   // 矩形顶行
-                    uint8 c0 = IMG_W / 2 - 5;                                   // 矩形左列
+                    uint16 black_cnt = 0, total = 0;
+                    uint8 r0 = IMG_H - 3 - 9;
+                    uint8 c0 = IMG_W / 2 - 5;
                     for(uint8 r = r0; r <= IMG_H - 3; r++)
-                    {
                         for(uint8 c = c0; c < c0 + 10; c++)
                         {
-                            if(binary_image[r][c] == BLACK) {
-                            black_cnt++;    
-                            }
-                            
+                            if(binary_image[r][c] == BLACK) black_cnt++;
                             total++;
                         }
-                    }
-                    if( black_cnt >= total * 9 / 10)
+                    if(black_cnt >= total * 9 / 10)
                         image_lost = 1;
                 }
 
-                float weight_position = get_weight_position(center_line);
-                float groy_z=get_gyro_z();
-                float IMU_target=image_pid_set(0,IMG_W/2-weight_position);
-                float servo_angle = IMU_pid_set(IMU_target, groy_z);
-                float dif_motor = motor_pid_set(0,IMG_W/2-weight_position);
-
-                servo_set_angle(servo_angle);
-
+                // 必须在PID计算之前检查：丢线时不跑PID，避免污染D项状态
                 if(image_lost)
                 {
-                    car_go_flag=0;
-                    motor_set_duty(0, 0);                                           // 停车
-                    menu_need_clear=1;
-                    menu_need_refresh=1;
+                    motor_set_duty(0, 0);
                 }
-                else                                                                // 直行
+                else
                 {
-                    motor_set_duty(motor_duty+dif_motor, motor_duty-dif_motor);
+                    float weight_position = get_weight_position(center_line);
+                    float groy_z = get_gyro_z();
+                    float IMU_target = image_pid_set(0, IMG_W/2 - weight_position);
+                    float servo_angle = IMU_pid_set(IMU_target, groy_z);
+                    float dif_motor = motor_pid_set(0, IMG_W/2 - weight_position);
+                    servo_set_angle(servo_angle);
+                    motor_set_duty(motor_duty + dif_motor, motor_duty - dif_motor);
                 }
                 }
             }

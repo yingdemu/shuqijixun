@@ -295,7 +295,7 @@ int16 calc_deviation(uint8 look_ahead_rows)
     mid_x = get_center_line(row);
 
     // ---- 计算偏差（相对于图像中心列的偏移量） ----
-    // IMG_W/2 = 40 是图像的水平中心位置
+    // IMG_W/2 = 94 是图像的水平中心位置
     return (int16)mid_x - (int16)(IMG_W / 2);
 }
 
@@ -340,56 +340,50 @@ float get_weight_position(uint8 *center_line)
 
 
 
+// ---- 图像 PID：中线偏差 → 目标角速度 ----
 float image_pid_error=0;
 float image_pid_outd=0;
 float image_pid_outp=0;
-float image_pid_outi=0;
-float image_PID_P_OUT=0;
 float image_kp=0;
 float image_pid_set(float target,float actual)
 {
+    static uint8 first = 1;
     image_pid_error = target - actual;
+    if(first) { image_pid_outp = image_pid_error; first = 0; return 0.0f; }  // 首帧跳过D项防尖峰
     image_pid_outd = (image_pid_error - image_pid_outp)*image_lowpass+image_pid_outd*(1-image_lowpass);
     image_pid_outp = image_pid_error;
-
     image_kp=image_kp_a + (image_pid_error*image_pid_error)*image_kp_b;
-
     return (-(image_kp*image_pid_outp + image_kd*image_pid_outd ));
 }
 
+// ---- IMU PID：角速度闭环 → 舵机打角 ----
 float IMU_pid_error=0;
 float IMU_pid_outd=0;
 float IMU_pid_outp=0;
-float IMU_pid_outi=0;
-
 float IMU_pid_set(float target,float actual)
 {
-    
+    static uint8 first = 1;
     IMU_pid_error = target - actual;
+    if(first) { IMU_pid_outp = IMU_pid_error; first = 0; return 0.0f; }
     IMU_pid_outd = (IMU_pid_error - IMU_pid_outp)*IMU_lowpass+IMU_pid_outd*(1-IMU_lowpass);
     IMU_pid_outp = IMU_pid_error;
-
     return (-(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd ));
-
 }
 
-
+// ---- 电机 PID：中线偏差 → 差速量 ----
 float motor_pid_error=0;
 float motor_pid_outd=0;
 float motor_pid_outp=0;
-float motor_pid_outi=0;
 float motor_kp=0;
-
 float motor_pid_set(float target,float actual)
 {
+    static uint8 first = 1;
     motor_pid_error = target - actual;
+    if(first) { motor_pid_outp = motor_pid_error; first = 0; return 0.0f; }
     motor_pid_outd = (motor_pid_error - motor_pid_outp)*motor_lowpass+motor_pid_outd*(1-motor_lowpass);
     motor_pid_outp = motor_pid_error;
-
     motor_kp=motor_kp_a + (motor_pid_error*motor_pid_error)*motor_kp_b;
-
     return (-(motor_kp*motor_pid_outp + motor_kd*motor_pid_outd ));
-
 }
 
 

@@ -73,7 +73,7 @@ void serial_printf(const char *fmt, ...)
     char buf[256];                                                              // 格式化缓冲区
     va_list args;
     va_start(args, fmt);
-    vsprintf(buf, fmt, args);                                                   // 格式化字符串
+    vsnprintf(buf, sizeof(buf), fmt, args);                                    // 格式化字符串（带边界检查）
     va_end(args);
     uart_write_string(BLUETOOTH_UART, buf);                                     // 通过 UART 发送
 }
