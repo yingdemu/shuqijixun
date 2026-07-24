@@ -171,6 +171,12 @@ menu_need_refresh = 1;                                                        //
         if(menu_in_image_mode)
         {
             menu_image_display_process();
+
+            float weight_position2 = get_weight_position(center_line);
+            float groy_z2 = get_gyro_z();
+            float IMU_target2 = image_pid_set(0, IMG_W/2 - weight_position2);
+            float servo_angle2 = IMU_pid_set(IMU_target2, groy_z2);
+            servo_set_angle(servo_angle2);
         }
         else
         {

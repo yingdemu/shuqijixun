@@ -2,7 +2,7 @@
 * 文件名称          image_process
 * 功能描述          智能车摄像头扫描巡线 - 图像处理算法实现
 * 适用平台          MM32F327X_G8P
-* 摄像头型号        MT9V03X 总钻风灰度摄像头（90行×188列）
+* 摄像头型号        MT9V03X 总钻风灰度摄像头（90行×141列）
 * 说明              完整的赛道图像处理管线：
 *                   原始灰度图像 → 大津法阈值 → 二值化 → 画边框 →
 *                   寻找起始点 → 八邻域爬线 → 找ABCD点 → 补线 → 中线提取
@@ -53,7 +53,7 @@ uint8 point_D_row = 0, point_D_col = 0;                                        /
 uint8 center_line[IMG_H];                                                       // 中线数组
 uint8 center_line_valid[IMG_H];                                                 // 中线有效标记（1=真实边界，0=插值）
 uint8 left_boundary[IMG_H];                                                     // 左边界数组（默认0=最左边）
-uint8 right_boundary[IMG_H];                                                    // 右边界数组（默认187=最右边）
+uint8 right_boundary[IMG_H];                                                    // 右边界数组（默认140=最右边）
 
 // ---- 边界有效性标记（在插值前记录，用于圆环检测） ----
 uint8 left_valid[IMG_H];                                                        // 左边界有效：1=八邻域找到该行真实左边界
