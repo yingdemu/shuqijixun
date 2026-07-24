@@ -57,9 +57,10 @@ extern float image_kp_a;                                                        
 extern float image_kp_b;                                                          // 图像积分系数 Ki（默认 0.0）
 extern float image_kd;                                                          // 图像微分系数 Kd（默认 2.0）
 extern float image_lowpass;                                                     // 图像低通滤波系数（默认 0.8）
+extern float motor_lowpass;
 
-extern float motor_kp;                                                          // 电机比例系数 Kp（默认 1.0）
-extern float motor_ki;                                                          // 电机积分系数 Ki（默认 0.1）
+extern float motor_kp_a;                                                          // 电机比例系数 Kp（默认 1.0）
+extern float motor_kp_b;                                                          // 电机积分系数 Ki（默认 0.1）
 extern float motor_kd;                                                          // 电机微分系数 Kd（默认 0.0）
 
 extern float IMU_kp ;                                                           // 电机微分系数 Kp（默认 1.0）

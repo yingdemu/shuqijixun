@@ -315,10 +315,27 @@ float get_weight_position(uint8 *center_line)
         }
     }
 
+    float raw_pos;
+    static float filtered_pos = 0.0f;
+    static uint8 first_run = 1;
+
     if(weight_total > 0.0f)
-        return weighted_sum / weight_total;
+        raw_pos = weighted_sum / weight_total;
     else
-        return 0.0f;
+        raw_pos = 0.0f;
+
+    // 一阶低通滤波：new = α·raw + (1-α)·old
+    #define POS_LOWPASS 0.3f                                                     // 滤波系数（越小越平滑，越大越灵敏）
+    if(first_run)
+    {
+        filtered_pos = raw_pos;
+        first_run = 0;
+    }
+    else
+    {
+        filtered_pos = POS_LOWPASS * raw_pos + (1.0f - POS_LOWPASS) * filtered_pos;
+    }
+    return filtered_pos;
 }
 
 
@@ -355,6 +372,26 @@ float IMU_pid_set(float target,float actual)
     return (-(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd ));
 
 }
+
+
+float motor_pid_error=0;
+float motor_pid_outd=0;
+float motor_pid_outp=0;
+float motor_pid_outi=0;
+float motor_kp=0;
+
+float motor_pid_set(float target,float actual)
+{
+    motor_pid_error = target - actual;
+    motor_pid_outd = (motor_pid_error - motor_pid_outp)*motor_lowpass+motor_pid_outd*(1-motor_lowpass);
+    motor_pid_outp = motor_pid_error;
+
+    motor_kp=motor_kp_a + (motor_pid_error*motor_pid_error)*motor_kp_b;
+
+    return (-(motor_kp*motor_pid_outp + motor_kd*motor_pid_outd ));
+
+}
+
 
 
 

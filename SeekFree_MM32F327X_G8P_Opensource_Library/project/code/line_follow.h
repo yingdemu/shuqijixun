@@ -149,4 +149,18 @@ float image_pid_set(float target,float actual);
 
 float IMU_pid_set(float target,float actual);
 
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数简介     pid计算电机差速输出值
+// 参数说明     target —— 目标值（期望位置）
+// 参数说明     actual —— 实际值（当前偏差）
+// 返回参数     float —— 电机差速输出值（用于控制电机差速差速）
+// 使用示例     float motor_output = motor_pid_set(target, actual);
+// 备注信息     使用PID算法计算电机差速的控制输出
+//              其中 target 是期望位置，actual 是当前偏差
+//              输出值可用于调整电机差速以纠正偏差
+//-------------------------------------------------------------------------------------------------------------------
+
+float motor_pid_set(float target,float actual);
+
 #endif

@@ -87,6 +87,9 @@ extern float image_kd;
 extern float IMU_kp;
 extern float IMU_ki;
 extern float IMU_kd;
+extern float motor_kp_a;
+extern float motor_kp_b;
+extern float motor_kd;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：bluetooth_receive_process
@@ -213,6 +216,21 @@ void bluetooth_receive_process(void)
                 {
                     IMU_kd = val;
                     serial_printf("OK IMU_kd=%.3f\r\n", IMU_kd);
+                }
+                else if(strcmp(name, "motor_kp_a") == 0)
+                {
+                    motor_kp_a = val;
+                    serial_printf("OK motor_kp_a=%.3f\r\n", motor_kp_a);
+                }
+                else if(strcmp(name, "motor_kp_b") == 0)
+                {
+                    motor_kp_b = val;
+                    serial_printf("OK motor_kp_b=%.3f\r\n", motor_kp_b);
+                }
+                else if(strcmp(name, "motor_kd") == 0)
+                {
+                    motor_kd = val;
+                    serial_printf("OK motor_kd=%.3f\r\n", motor_kd);
                 }
                 else
                 {

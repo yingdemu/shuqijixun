@@ -38,9 +38,10 @@ float image_kd = 0.03f;                                                         
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
-float motor_kp = 1.0f;                                                          // 电机 Kp 默认 1.0
-float motor_ki = 0.1f;                                                          // 电机 Ki 默认 0.1
+float motor_kp_a = 1.0f;                                                          // 电机 Kp 默认 1.0
+float motor_kp_b = 0.1f;                                                          // 电机 Ki 默认 0.1
 float motor_kd = 0.0f;                                                          // 电机 Kd 默认 0.0
+float motor_lowpass = 0.8f;                                                       // 电机低通滤波系数（默认 0.8）
 //IMU PID 控制参数
 float IMU_kp =0.04f;
 float IMU_ki =0.0f;
@@ -124,8 +125,8 @@ static void my_create_Menus(void)
 
     // ==================== 第二层：motor_pid 子菜单 ====================
 
-    dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kp", &motor_kp, float_Box, 0.0f, 100.0f);
-    dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_ki", &motor_ki, float_Box, 0.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kp_a", &motor_kp_a, float_Box, 0.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kp_b", &motor_kp_b, float_Box, 0.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(motor_pid_folder, "motor_kd", &motor_kd, float_Box, 0.0f, 100.0f);
 
     // ==================== 第二层：IMU_pid 子菜单 ====================
