@@ -30,15 +30,15 @@ extern uint8 fixed_threshold;
 // ---- 图像PID控制参数（中线偏差→目标角速度） ----
 // image_kp_a: 线性比例系数（小偏差主导）  image_kp_b: 三次比例系数（大偏差主导）
 // image_kd: 微分系数 —— 抑制振荡和超调
-float image_kp_a = 4.77f;                                                       // 图像 Kp_a（线性项/小弯）
-float image_kp_b = 0.07f;                                                      // 图像 Kp_b（三次项/大弯）
-float image_kd = 0.32f;                                                         // 图像 Kd
+float image_kp_a = 4.17f;                                                       // 图像 Kp_a（线性项/小弯）
+float image_kp_b = 0.04f;                                                      // 图像 Kp_b（三次项/大弯）
+float image_kd = 0.00f;                                                         // 图像 Kd
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
-float motor_kp_a = 0.01f;                                                          // 电机 Kp 默认 1.0
-float motor_kp_b = 0.0f;                                                        // 电机 Kp_b（三次项/大弯差速）
-float motor_kd = 0.13f;                                                          // 电机 Kd 默认 0.0
+float motor_kp_a = 0.00f;                                                          // 电机 Kp 默认 1.0
+float motor_kp_b = -0.001f;                                                        // 电机 Kp_b（三次项/大弯差速）
+float motor_kd = 0.00f;                                                          // 电机 Kd 默认 0.0
 float motor_lowpass = 0.8f;                                                       // 电机低通滤波系数（默认 0.8）
 //IMU PID 控制参数
 float IMU_kp =0.04f;
