@@ -360,6 +360,8 @@ float image_pid_set(float target,float actual)
 float IMU_pid_error=0;
 float IMU_pid_outd=0;
 float IMU_pid_outp=0;
+float IMU_kp=0;
+
 float IMU_pid_set(float target,float actual)
 {
     static uint8 first = 1;
@@ -367,6 +369,8 @@ float IMU_pid_set(float target,float actual)
     if(first) { IMU_pid_outp = IMU_pid_error; first = 0; return 0.0f; }
     IMU_pid_outd = (IMU_pid_error - IMU_pid_outp)*IMU_lowpass+IMU_pid_outd*(1-IMU_lowpass);
     IMU_pid_outp = IMU_pid_error;
+    IMU_kp=IMU_kp_a + (IMU_pid_error*IMU_pid_error)*IMU_kp_b;
+
     return (-(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd ));
 }
 

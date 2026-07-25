@@ -84,9 +84,10 @@ void serial_printf(const char *fmt, ...)
 extern float image_kp_a;
 extern float image_kp_b;
 extern float image_kd;
-extern float IMU_kp;
-extern float IMU_ki;
+extern float IMU_kp_a;
+extern float IMU_kp_b;
 extern float IMU_kd;
+extern float IMU_lowpass;
 extern float motor_kp_a;
 extern float motor_kp_b;
 extern float motor_kd;
@@ -202,20 +203,25 @@ void bluetooth_receive_process(void)
                     image_kd = val;
                     serial_printf("OK kd=%.3f\r\n", image_kd);
                 }
-                else if(strcmp(name, "IMU_kp") == 0)
+                else if(strcmp(name, "IMU_kp_a") == 0)
                 {
-                    IMU_kp = val;
-                    serial_printf("OK IMU_kp=%.3f\r\n", IMU_kp);
+                    IMU_kp_a = val;
+                    serial_printf("OK IMU_kp_a=%.3f\r\n", IMU_kp_a);
                 }
-                else if(strcmp(name, "IMU_ki") == 0)
+                else if(strcmp(name, "IMU_kp_b") == 0)
                 {
-                    IMU_ki = val;
-                    serial_printf("OK IMU_ki=%.3f\r\n", IMU_ki);
+                    IMU_kp_b = val;
+                    serial_printf("OK IMU_kp_b=%.3f\r\n", IMU_kp_b);
                 }
                 else if(strcmp(name, "IMU_kd") == 0)
                 {
                     IMU_kd = val;
                     serial_printf("OK IMU_kd=%.3f\r\n", IMU_kd);
+                }
+                else if(strcmp(name, "IMU_lowpass") == 0)
+                {
+                    IMU_lowpass = val;
+                    serial_printf("OK IMU_lowpass=%.3f\r\n", IMU_lowpass);
                 }
                 else if(strcmp(name, "motor_kp_a") == 0)
                 {

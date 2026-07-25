@@ -37,17 +37,17 @@ float image_lowpass = 0.8f;                                                     
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
 float motor_kp_a = 0.00f;                                                          // 电机 Kp 默认 1.0
-float motor_kp_b = -0.001f;                                                        // 电机 Kp_b（三次项/大弯差速）
+float motor_kp_b = 0.00f;                                                        // 电机 Kp_b（三次项/大弯差速）
 float motor_kd = 0.00f;                                                          // 电机 Kd 默认 0.0
 float motor_lowpass = 0.8f;                                                       // 电机低通滤波系数（默认 0.8）
 //IMU PID 控制参数
-float IMU_kp =0.04f;
-float IMU_ki =0.0f;
+float IMU_kp_a =0.04f;
+float IMU_kp_b =0.0f;
 float IMU_kd =0.03f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
-uint8 motor_duty = 23;                                                             //电机占空比
+uint8 motor_duty = 26;                                                             //电机占空比
 //==================================================== 菜单全局变量 ====================================================
 
 Folder_Menu myMenu;                                                             // 菜单根节点（主菜单）
@@ -130,8 +130,8 @@ static void my_create_Menus(void)
 
     // ==================== 第二层：IMU_pid 子菜单 ====================
 
-    dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kp", &IMU_kp, float_Box, -10.0f, 10.0f);
-    dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_ki", &IMU_ki, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kp_a", &IMU_kp_a, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kp_b", &IMU_kp_b, float_Box, -10.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kd", &IMU_kd, float_Box, -10.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_lowpass", &IMU_lowpass, float_Box, 0.0f, 1.0f);
 

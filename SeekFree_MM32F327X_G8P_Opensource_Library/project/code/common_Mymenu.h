@@ -63,8 +63,8 @@ extern float motor_kp_a;                                                        
 extern float motor_kp_b;                                                          // 电机积分系数 Ki（默认 0.1）
 extern float motor_kd;                                                          // 电机微分系数 Kd（默认 0.0）
 
-extern float IMU_kp ;                                                           // 电机微分系数 Kp（默认 1.0）
-extern float IMU_ki ;                                                           // 电机微分系数 Ki（默认 0.0）
+extern float IMU_kp_a ;                                                           // 电机微分系数 Kp（默认 1.0）
+extern float IMU_kp_b ;                                                           // 电机微分系数 Ki（默认 0.0）
 extern float IMU_kd ;                                                           // 电机微分系数 Kd（默认 1.0）
 extern float IMU_lowpass ;                                                       // IMU低通滤波系数（默认 0.8）
 
