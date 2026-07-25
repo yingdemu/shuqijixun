@@ -344,6 +344,9 @@ float get_weight_position(uint8 *center_line)
 float image_pid_error=0;
 float image_pid_outd=0;
 float image_pid_outp=0;
+float image_pid_outi=0;
+#define image_pid_i_tolerance  (20)
+extern float image_ki;                                                               //测试代码，用来让image_set_pid中的i项进行累计
 float image_kp=0;
 float image_pid_set(float target,float actual)
 {
@@ -353,7 +356,15 @@ float image_pid_set(float target,float actual)
     image_pid_outd = (image_pid_error - image_pid_outp)*image_lowpass+image_pid_outd*(1-image_lowpass);
     image_pid_outp = image_pid_error;
     image_kp=image_kp_a + (image_pid_error*image_pid_error)*image_kp_b;
-    return (-(image_kp*image_pid_outp + image_kd*image_pid_outd ));
+
+    if(abs(image_pid_error)>image_pid_i_tolerance){  
+        image_pid_outi+=image_pid_error;
+    }else{
+        image_pid_outi=0;
+    }
+
+    
+    return (-(image_kp*image_pid_outp + image_kd*image_pid_outd +image_ki*image_pid_outi));
 }
 
 // ---- IMU PID：角速度闭环 → 舵机打角 ----

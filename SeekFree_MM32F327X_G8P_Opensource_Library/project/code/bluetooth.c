@@ -23,6 +23,8 @@ static uint8 bt_rx_fifo_buf[128];
 static fifo_struct bt_rx_fifo;
 
 float turn_rate=0;
+
+float image_ki=0;
 //==================================================== 蓝牙初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -203,6 +205,11 @@ void bluetooth_receive_process(void)
                 {
                     image_kd = val;
                     serial_printf("OK kd=%.3f\r\n", image_kd);
+                }
+                else if(strcmp(name, "image_ki") == 0)
+                {
+                    image_ki = val;
+                    serial_printf("OK image_ki=%.3f\r\n", image_ki);
                 }
                 else if(strcmp(name, "IMU_kp_a") == 0)
                 {
