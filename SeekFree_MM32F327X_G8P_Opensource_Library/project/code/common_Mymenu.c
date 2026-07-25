@@ -32,7 +32,7 @@ extern uint8 fixed_threshold;
 // image_kd: 微分系数 —— 抑制振荡和超调
 float image_kp_a = 4.17f;                                                       // 图像 Kp_a（线性项/小弯）
 float image_kp_b = 0.04f;                                                      // 图像 Kp_b（三次项/大弯）
-float image_kd = 0.00f;                                                         // 图像 Kd
+float image_kd = 0.19f;                                                         // 图像 Kd
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
@@ -47,7 +47,7 @@ float IMU_kd =0.03f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
-uint8 motor_duty = 26;                                                             //电机占空比
+uint8 motor_duty = 25;                                                             //电机占空比
 //==================================================== 菜单全局变量 ====================================================
 
 Folder_Menu myMenu;                                                             // 菜单根节点（主菜单）

@@ -96,10 +96,17 @@ void motor_set_duty(float left_duty, float right_duty)
     // ==================== 左电机处理 ====================
 
     // ---- 限幅 ----
-    if(left_duty > (float)MOTOR_DUTY_MAX)
-        left_duty = (float)MOTOR_DUTY_MAX;
-    else if(left_duty < (float)MOTOR_DUTY_MIN)
-        left_duty = (float)MOTOR_DUTY_MIN;
+    if(left_duty != 0){
+            if(left_duty > (float)MOTOR_DUTY_MAX){
+                            left_duty = (float)MOTOR_DUTY_MAX;
+
+            }
+            else if(left_duty < (float)MOTOR_DUTY_MIN){
+                        left_duty = (float)MOTOR_DUTY_MIN;
+
+            }
+
+    }
 
     if(left_duty >= 0.0f)                                                       // 正值 → 前进
     {
@@ -116,10 +123,17 @@ void motor_set_duty(float left_duty, float right_duty)
 
     // ==================== 右电机处理 ====================
 
-    if(right_duty > (float)MOTOR_DUTY_MAX)
-        right_duty = (float)MOTOR_DUTY_MAX;
-    else if(right_duty < (float)MOTOR_DUTY_MIN)
-        right_duty = (float)MOTOR_DUTY_MIN;
+    if(right_duty != 0){
+            if(right_duty > (float)MOTOR_DUTY_MAX){
+                        right_duty = (float)MOTOR_DUTY_MAX;
+
+            }
+            else if(right_duty < (float)MOTOR_DUTY_MIN){
+                        right_duty = (float)MOTOR_DUTY_MIN;
+  
+            }
+
+    }
 
     if(right_duty >= 0.0f)
     {

@@ -22,6 +22,7 @@
 static uint8 bt_rx_fifo_buf[128];
 static fifo_struct bt_rx_fifo;
 
+float turn_rate=0;
 //==================================================== 蓝牙初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -237,6 +238,11 @@ void bluetooth_receive_process(void)
                 {
                     motor_kd = val;
                     serial_printf("OK motor_kd=%.3f\r\n", motor_kd);
+                }
+                else if(strcmp(name, "turn_rate") == 0)
+                {
+                    turn_rate = val;
+                    serial_printf("OK turn_rate=%.3f\r\n", turn_rate);
                 }
                 else
                 {
