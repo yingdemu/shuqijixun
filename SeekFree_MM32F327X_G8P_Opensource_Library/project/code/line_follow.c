@@ -324,6 +324,34 @@ float get_weight_position(uint8 *center_line)
     else
         raw_pos = 0.0f;
 
+    // 丢线补偿：统计下半部分（IMG_H/2 ~ IMG_H-1）左右边界丢线比例
+    // 左边界=1 → 丢线，右边界=IMG_W-2 → 丢线
+    // 单侧丢线>4/5 → 中线向有边界侧偏移5px；双侧同时丢线>4/5 → 不偏移
+    {
+        uint16 total_rows = 0;
+        uint16 left_lost = 0;
+        uint16 right_lost = 0;
+        for(i = 5; i < IMG_H-2; i++)
+        {
+            total_rows++;
+            if(left_boundary[i] <= 1)       left_lost++;
+            if(right_boundary[i] >= IMG_W - 2) right_lost++;
+        }
+        if(total_rows > 0)
+        {
+            uint8 left_lost_flag  = (left_lost  * 10 > total_rows * 9);
+            uint8 right_lost_flag = (right_lost * 10 > total_rows * 9);
+
+            if(left_lost_flag && !right_lost_flag)
+                raw_pos -= 10.0f;
+            else if(!left_lost_flag && right_lost_flag)
+                raw_pos += 10.0f;
+
+            if(raw_pos < 0.0f)        raw_pos = 0.0f;
+            if(raw_pos > IMG_W - 1.0f) raw_pos = IMG_W - 1.0f;
+        }
+    }
+
     // 一阶低通滤波：new = α·raw + (1-α)·old
     #define POS_LOWPASS 0.3f                                                     // 滤波系数（越小越平滑，越大越灵敏）
     if(first_run)
