@@ -345,7 +345,7 @@ float image_pid_error=0;
 float image_pid_outd=0;
 float image_pid_outp=0;
 float image_pid_outi=0;
-#define image_pid_i_tolerance  (20)
+#define image_pid_i_tolerance  (15)
 extern float image_ki;                                                               //测试代码，用来让image_set_pid中的i项进行累计
 float image_kp=0;
 float image_pid_set(float target,float actual)
