@@ -35,12 +35,12 @@ uint8 line_data_ready = 0;                                                      
 
 
 
-uint8 weight[IMG_H]={   2 , 3 , 3 , 4 , 4 , 5 , 6 , 7 , 8 , 9 , 10, 11, 12, 12, 13,
-                        14, 14, 15, 16, 16, 17, 18, 18, 19, 19, 18, 18, 18, 17, 17,
-                        17, 16, 16, 16, 15, 15, 15, 14, 14, 14, 13, 13, 13, 12, 12,
-                        12, 11, 11, 11, 10, 10, 10, 9 , 9 , 9 , 8 , 8 , 8 , 7 , 7 ,
-                        7 , 6 , 6 , 6 , 5 , 5 , 5 , 4 , 4 , 4 , 3 , 3 , 3 , 2 , 2 ,
-                        2 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1     };    //加权数组 15*6
+uint8 weight[IMG_H]={   1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 ,
+                        2 , 3 , 3 , 4 , 4 , 5 , 6 , 7 , 8 , 9 , 10 , 11 , 12 , 12 , 13 ,
+                        14, 14, 15, 16, 16, 17, 18, 18, 19, 19, 18, 18, 17, 17, 16,
+                        16, 15, 15, 14, 13, 13, 12, 12, 11, 11, 10, 10, 9 , 9 , 8 ,
+                        8 , 7 , 7 , 6 , 6 , 5 , 5 , 4 , 4 , 3 , 3 , 2 , 2 , 1 , 1 ,
+                        5 , 4 , 4 , 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 , 1 , 1 , 1 , 1 };    //加权数组 15*6
 //==================================================== 巡线模块初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -344,9 +344,6 @@ float get_weight_position(uint8 *center_line)
 float image_pid_error=0;
 float image_pid_outd=0;
 float image_pid_outp=0;
-float image_pid_outi=0;
-#define image_pid_i_tolerance  (15)
-extern float image_ki;                                                               //测试代码，用来让image_set_pid中的i项进行累计
 float image_kp=0;
 float image_pid_set(float target,float actual)
 {
@@ -356,15 +353,7 @@ float image_pid_set(float target,float actual)
     image_pid_outd = (image_pid_error - image_pid_outp)*image_lowpass+image_pid_outd*(1-image_lowpass);
     image_pid_outp = image_pid_error;
     image_kp=image_kp_a + (image_pid_error*image_pid_error)*image_kp_b;
-
-    if(abs(image_pid_error)>image_pid_i_tolerance){  
-        image_pid_outi+=image_pid_error;
-    }else{
-        image_pid_outi=0;
-    }
-
-    
-    return (-(image_kp*image_pid_outp + image_kd*image_pid_outd +image_ki*image_pid_outi));
+    return (-(image_kp*image_pid_outp + image_kd*image_pid_outd ));
 }
 
 // ---- IMU PID：角速度闭环 → 舵机打角 ----
