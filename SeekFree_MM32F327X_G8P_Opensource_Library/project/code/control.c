@@ -20,7 +20,7 @@
 #include "control.h"
 
 // 阿克曼差速全局变量
-float ackermann_gain = 1.00f;                                                   // 差速增益（蓝牙可调）
+float ackermann_gain = 3.00f;                                                   // 差速增益（蓝牙可调）
 
 //==================================================== 控制模块初始化 ====================================================
 
@@ -195,6 +195,6 @@ void ackermann_differential(float servo_angle_deg, float base_duty, float *left_
 
     // 正角（左转）：左轮减速、右轮加速
     // 负角（右转）：左轮加速、右轮减速（tan负值自动反转）
-    *left_duty  = base_duty * (1.0f + diff);
-    *right_duty = base_duty * (1.0f - diff);
+    *left_duty  = base_duty * (1.0f - diff);
+    *right_duty = base_duty * (1.0f + diff);
 }
