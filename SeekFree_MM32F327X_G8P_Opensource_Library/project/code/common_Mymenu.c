@@ -827,6 +827,9 @@ void menu_image_display_process(void)
         // ---- 执行完整图像处理管线（大津法→二值化→画框→爬线→ABCD→补线→中线） ----
         image_process_pipeline();
 
+        // 丢线边界补偿（与巡线模式一致）
+        boundary_lost_compensate();
+
         // ---- 上半屏：显示处理后的二值化图像 240×100（含补线、黑框） ----
         ips200_show_gray_image(0, 0, (const uint8 *)binary_image,
                                IMG_W, IMG_H,              // 源图 141×90

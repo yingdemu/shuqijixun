@@ -126,6 +126,9 @@ void line_follow_process(void)
             //   八邻域爬线 → 找ABCD点 → 补线 → 中线提取
             image_process_pipeline();
 
+            // 丢线边界补偿
+            boundary_lost_compensate();
+
             // ---- 清除摄像头采集完成标志（准备接收下一帧） ----
             mt9v03x_finish_flag = 0;
 
@@ -324,33 +327,33 @@ float get_weight_position(uint8 *center_line)
     else
         raw_pos = 0.0f;
 
-    // 丢线补偿：统计下半部分（IMG_H/2 ~ IMG_H-1）左右边界丢线比例
-    // 左边界=1 → 丢线，右边界=IMG_W-2 → 丢线
-    // 单侧丢线>4/5 → 中线向有边界侧偏移5px；双侧同时丢线>4/5 → 不偏移
-    {
-        uint16 total_rows = 0;
-        uint16 left_lost = 0;
-        uint16 right_lost = 0;
-        for(i = 5; i < IMG_H-2; i++)
-        {
-            total_rows++;
-            if(left_boundary[i] <= 1)       left_lost++;
-            if(right_boundary[i] >= IMG_W - 2) right_lost++;
-        }
-        if(total_rows > 0)
-        {
-            uint8 left_lost_flag  = (left_lost  * 10 > total_rows * 9);
-            uint8 right_lost_flag = (right_lost * 10 > total_rows * 9);
+    // // 丢线补偿：统计下半部分（IMG_H/2 ~ IMG_H-1）左右边界丢线比例
+    // // 左边界=1 → 丢线，右边界=IMG_W-2 → 丢线
+    // // 单侧丢线>4/5 → 中线向有边界侧偏移5px；双侧同时丢线>4/5 → 不偏移
+    // {
+    //     uint16 total_rows = 0;
+    //     uint16 left_lost = 0;
+    //     uint16 right_lost = 0;
+    //     for(i = 5; i < IMG_H-2; i++)
+    //     {
+    //         total_rows++;
+    //         if(left_boundary[i] <= 1)       left_lost++;
+    //         if(right_boundary[i] >= IMG_W - 2) right_lost++;
+    //     }
+    //     if(total_rows > 0)
+    //     {
+    //         uint8 left_lost_flag  = (left_lost  * 10 > total_rows * 9);
+    //         uint8 right_lost_flag = (right_lost * 10 > total_rows * 9);
 
-            if(left_lost_flag && !right_lost_flag)
-                raw_pos -= 10.0f;
-            else if(!left_lost_flag && right_lost_flag)
-                raw_pos += 10.0f;
+    //         if(left_lost_flag && !right_lost_flag)
+    //             raw_pos -= 10.0f;
+    //         else if(!left_lost_flag && right_lost_flag)
+    //             raw_pos += 10.0f;
 
-            if(raw_pos < 0.0f)        raw_pos = 0.0f;
-            if(raw_pos > IMG_W - 1.0f) raw_pos = IMG_W - 1.0f;
-        }
-    }
+    //         if(raw_pos < 0.0f)        raw_pos = 0.0f;
+    //         if(raw_pos > IMG_W - 1.0f) raw_pos = IMG_W - 1.0f;
+    //     }
+    // }
 
     // 一阶低通滤波：new = α·raw + (1-α)·old
     #define POS_LOWPASS 0.3f                                                     // 滤波系数（越小越平滑，越大越灵敏）
@@ -366,7 +369,71 @@ float get_weight_position(uint8 *center_line)
     return filtered_pos;
 }
 
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：boundary_lost_compensate
+// 功能：丢线边界补偿（单侧丢线>9/10时，对侧边界向内偏移30px）
+// 说明：
+//   统计行10~IMG_H-1
+//   左边界=1→丢线，右边界=IMG_W-2→丢线
+//   左丢→右边界左移30px，右丢→左边界右移30px，双侧都丢→不偏移
+//-------------------------------------------------------------------------------------------------------------------
+void boundary_lost_compensate(void)
+{
+    uint16 total_rows = 0;
+    uint16 left_lost = 0, right_lost = 0;
+    int16 k;
+    for(k = IMG_H/2; k >=2 ; k--)
+    {
+        total_rows++;
+        if(left_boundary[k] <= 3)       left_lost++;
+        if(right_boundary[k] >= IMG_W - 4) right_lost++;
+    }
+    if(total_rows == 0) return;
 
+    uint8 left_lost_flag  = (left_lost   >= total_rows );
+    uint8 right_lost_flag = (right_lost  >= total_rows );
+
+    if(left_lost_flag && !right_lost_flag)
+    {
+        // 额外条件：中心线>IMG_W/2的行数≥5（确保右边界可靠）
+        uint8 center_right_count = 0;
+        for(k = 2; k < IMG_H/2; k++)
+        {
+            if(center_line[k] < IMG_W / 2) center_right_count++;
+        }
+        if(center_right_count >= 5)
+        {
+            for(k = 2; k < IMG_H; k++)
+            {
+                if(right_boundary[k] >= 10)
+                    right_boundary[k] -= 10;
+                else
+                    right_boundary[k] = 0;
+                center_line[k] = (left_boundary[k] + right_boundary[k]) / 2;
+            }
+        }
+    }
+    else if(!left_lost_flag && right_lost_flag)
+    {
+        // 额外条件：中心线>IMG_W/2的行数≥5（确保左边界可靠）
+        uint8 center_right_count = 0;
+        for(k = 2; k < IMG_H/2; k++)
+        {
+            if(center_line[k] > IMG_W / 2) center_right_count++;
+        }
+        if(center_right_count >= 5)
+        {
+            for(k = 2; k < IMG_H; k++)
+            {
+                if(left_boundary[k] <= IMG_W - 11)
+                    left_boundary[k] += 10;
+                else
+                    left_boundary[k] = IMG_W - 1;
+                center_line[k] = (left_boundary[k] + right_boundary[k]) / 2;
+            }
+        }
+    }
+}
 
 // ---- 图像 PID：中线偏差 → 目标角速度 ----
 float image_pid_error=0;
