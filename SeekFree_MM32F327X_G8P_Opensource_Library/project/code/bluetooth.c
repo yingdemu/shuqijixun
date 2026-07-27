@@ -94,6 +94,7 @@ extern float IMU_lowpass;
 extern float motor_kp_a;
 extern float motor_kp_b;
 extern float motor_kd;
+extern float ackermann_gain;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：bluetooth_receive_process
@@ -250,6 +251,11 @@ void bluetooth_receive_process(void)
                 {
                     turn_rate = val;
                     serial_printf("OK turn_rate=%.3f\r\n", turn_rate);
+                }
+                else if(strcmp(name, "ackermann_gain") == 0)
+                {
+                    ackermann_gain = val;
+                    serial_printf("OK ackermann_gain=%.3f\r\n", ackermann_gain);
                 }
                 else
                 {

@@ -127,7 +127,7 @@ void line_follow_process(void)
             image_process_pipeline();
 
             // 丢线边界补偿
-            boundary_lost_compensate();
+            //boundary_lost_compensate();
 
             // ---- 清除摄像头采集完成标志（准备接收下一帧） ----
             mt9v03x_finish_flag = 0;
@@ -456,7 +456,7 @@ float IMU_pid_error=0;
 float IMU_pid_outd=0;
 float IMU_pid_outp=0;
 float IMU_kp=0;
-
+float finall_out;
 float IMU_pid_set(float target,float actual)
 {
     static uint8 first = 1;
@@ -465,8 +465,13 @@ float IMU_pid_set(float target,float actual)
     IMU_pid_outd = (IMU_pid_error - IMU_pid_outp)*IMU_lowpass+IMU_pid_outd*(1-IMU_lowpass);
     IMU_pid_outp = IMU_pid_error;
     IMU_kp=IMU_kp_a + (IMU_pid_error*IMU_pid_error)*IMU_kp_b;
-
-    return (-(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd ));
+    finall_out= -(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd );
+    if(finall_out >12){
+        finall_out=12;
+    }else if(finall_out<-12){
+        finall_out=-12;
+    }
+    return (finall_out);
 }
 
 // ---- 电机 PID：中线偏差 → 差速量 ----

@@ -70,6 +70,10 @@
 
 // ==================== 主函数 ====================
 
+
+float left_duty=0;
+float right_duty=0;
+
 int main(void)
 {
     // ---- 第1步：初始化系统时钟 120MHz ----
@@ -236,7 +240,9 @@ menu_need_refresh = 1;                                                        //
                     float actual_motor_duty=motor_duty-abs(image_pid_error*turn_rate);
                     servo_set_angle(servo_angle);
 
-                    motor_set_duty(actual_motor_duty + dif_motor, actual_motor_duty - dif_motor);  
+                    ackermann_differential( servo_angle,  motor_duty, &left_duty, &right_duty);
+
+                    motor_set_duty(left_duty, right_duty);  
                 }
                 }
             }

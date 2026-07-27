@@ -43,8 +43,8 @@
 
 #define MOTOR_PWM_FREQ              (17000)                                     // 电机 PWM 频率 17KHz
 
-#define MOTOR_DUTY_MAX              (30)                                       // 电机占空比最大绝对值（0~100）
-#define MOTOR_DUTY_MIN              (16)                                       // 电机占空比最大绝对值（0~100）
+#define MOTOR_DUTY_MAX              (50)                                       // 电机占空比最大绝对值（0~100）
+#define MOTOR_DUTY_MIN              (0)                                       // 电机占空比最大绝对值（0~100）
 
 //==================================================== 控制函数声明 ====================================================
 
@@ -78,5 +78,29 @@ void servo_set_angle(float angle);
 //              正值=DIR高电平（前进），负值=DIR低电平（后退），0=停止
 //-------------------------------------------------------------------------------------------------------------------
 void motor_set_duty(float left_duty, float right_duty);
+
+//==================================================== 阿克曼差速 ====================================================
+
+// 阿克曼转向几何参数（需根据实际车模测量后填写）
+#define ACKERMANN_WHEELBASE      (0.20f)                     // 轴距 L：前轮中心到后轮中心的距离（单位：m）
+#define ACKERMANN_TRACK          (0.154f)                     // 后轮轮距 W：左右后轮中心距离（单位：m）
+#define ACKERMANN_DEADZONE_DEG   (3.00f)                     // 死区（°）舵机打角小于此值不产生差速
+
+extern float ackermann_gain;                                    // 阿克曼差速增益（蓝牙可调，默认1.0）
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数简介     阿克曼差速计算：根据舵机打角计算左右电机差速占空比
+// 参数说明     servo_angle_deg —— 舵机打角（°，正=左转，负=右转）
+// 参数说明     base_duty       —— 基础占空比（0~100）
+// 参数说明     left_duty       —— 输出：左电机占空比
+// 参数说明     right_duty      —— 输出：右电机占空比
+// 返回参数     void
+// 使用示例     float L_duty, R_duty;
+//             ackermann_differential(servo_angle, motor_duty, &L_duty, &R_duty);
+//             motor_set_duty(L_duty, R_duty);
+// 备注信息     基于阿克曼转向几何：R = L/tan(δ)，ΔV = v×W×tan(δ)/L
+//              servo_angle_deg > 0（左转）→ 左轮减速、右轮加速
+//-------------------------------------------------------------------------------------------------------------------
+void ackermann_differential(float servo_angle_deg, float base_duty, float *left_duty, float *right_duty);
 
 #endif

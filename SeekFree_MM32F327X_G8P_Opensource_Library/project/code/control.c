@@ -19,6 +19,9 @@
 
 #include "control.h"
 
+// 阿克曼差速全局变量
+float ackermann_gain = 1.00f;                                                   // 差速增益（蓝牙可调）
+
 //==================================================== 控制模块初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -147,4 +150,51 @@ void motor_set_duty(float left_duty, float right_duty)
 
     right_pwm = (uint32)(right_duty * (float)PWM_DUTY_MAX / 100.0f);
     pwm_set_duty(MOTOR_R_PWM, right_pwm);
+}
+
+//==================================================== 阿克曼差速 ====================================================
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：ackermann_differential
+// 功能：根据舵机打角，基于阿克曼转向几何计算左右电机差速占空比
+// 参数：servo_angle_deg —— 舵机打角（°，正=左转，负=右转）
+// 参数：base_duty       —— 基础占空比（0~100）
+// 参数：left_duty       —— 输出左电机占空比
+// 参数：right_duty      —— 输出右电机占空比
+// 返回：void
+//
+// 原理：
+//   转弯半径 R = L / tan(δ)
+//   速度差   ΔV = v × W × tan(δ) / L
+//   左转(δ>0)：左轮(内侧)=减速，右轮(外侧)=加速
+//   右转(δ<0)：右轮(内侧)=减速，左轮(外侧)=加速
+//
+// 使用示例：
+//   float L, R;
+//   ackermann_differential(servo_angle, motor_duty, &L, &R);
+//   motor_set_duty(L, R);
+//-------------------------------------------------------------------------------------------------------------------
+void ackermann_differential(float servo_angle_deg, float base_duty, float *left_duty, float *right_duty)
+{
+    // 死区：打角绝对值小于阈值时不产生差速（避免直线微摆）
+    float abs_angle = (servo_angle_deg > 0.0f) ? servo_angle_deg : -servo_angle_deg;
+    if(abs_angle < ACKERMANN_DEADZONE_DEG)
+    {
+        *left_duty  = base_duty;
+        *right_duty = base_duty;
+        return;
+    }
+
+    // 角度转弧度，计算 tan(δ)
+    float angle_rad = servo_angle_deg * 3.1415926f / 180.0f;
+    float tan_angle = angle_rad;                                                  // 小角度近似 tan(θ) ≈ θ（<12° 误差<2%）
+    // 如需精确计算可替换为：tan_angle = tanf(angle_rad);
+
+    // 阿克曼差速因子：diff = tan(δ) × W / L × gain
+    float diff = tan_angle * ACKERMANN_TRACK / ACKERMANN_WHEELBASE * ackermann_gain;
+
+    // 正角（左转）：左轮减速、右轮加速
+    // 负角（右转）：左轮加速、右轮减速（tan负值自动反转）
+    *left_duty  = base_duty * (1.0f + diff);
+    *right_duty = base_duty * (1.0f - diff);
 }
