@@ -127,7 +127,7 @@ void line_follow_process(void)
             image_process_pipeline();
 
             // 丢线边界补偿
-            //boundary_lost_compensate();
+            boundary_lost_compensate();
 
             // ---- 清除摄像头采集完成标志（准备接收下一帧） ----
             mt9v03x_finish_flag = 0;

@@ -240,7 +240,7 @@ menu_need_refresh = 1;                                                        //
                     float actual_motor_duty=motor_duty-abs(image_pid_error*turn_rate);
                     servo_set_angle(servo_angle);
 
-                    ackermann_differential( servo_angle,  motor_duty, &left_duty, &right_duty);
+                    ackermann_differential( servo_angle,  actual_motor_duty, &left_duty, &right_duty);
 
                     motor_set_duty(left_duty, right_duty);  
                 }
