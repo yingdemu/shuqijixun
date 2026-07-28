@@ -136,6 +136,10 @@ int main(void)
     }
     ips200_show_string(0, 9 * 16, "IMU963RA OK!    ");
 
+    // ---- 第9.6步：初始化姿态解算（六轴互补滤波） ----
+    atti_init();
+    ips200_show_string(0, 10 * 16, "Atti OK!        ");
+
     // ---- 第10步：初始化菜单系统（创建菜单树 + 绘制初始界面） ----
     menu_init();
     // ips200_clear();                                                             // 首次绘制前清屏
@@ -180,7 +184,11 @@ menu_need_refresh = 1;                                                        //
             float groy_z2 = get_gyro_z();
             float IMU_target2 = image_pid_set(0, IMG_W/2 - weight_position2);
             float servo_angle2 = IMU_pid_set(IMU_target2, groy_z2);
-            servo_set_angle(servo_angle2);
+            static float prev_yaw2 = 0.0f;
+            float angle_out2 = angle_pid_set(prev_yaw2, atti_yaw);
+            prev_yaw2 = atti_yaw;
+            float final_servo2 = servo_fusion(angle_out2, servo_angle2);
+            servo_set_angle(final_servo2);
         }
         else
         {
@@ -191,7 +199,7 @@ menu_need_refresh = 1;                                                        //
                 uint16 t_end = timer_get(TIM_3);                                // 结束计时（µs）
                 uint16 elapsed_us = (t_end >= t_start) ? (t_end - t_start) : (65535 - t_start + t_end + 1);
 
-                // 当一帧处理完成时，通过蓝牙发送耗时
+                //当一帧处理完成时，通过蓝牙发送耗时
                 // if(line_data_ready)
                 // {
                 //     float elapsed_ms = elapsed_us / 1000.0f;
@@ -236,12 +244,19 @@ menu_need_refresh = 1;                                                        //
                     float groy_z = get_gyro_z();
                     float IMU_target = image_pid_set(0, IMG_W/2 - weight_position);
                     float servo_angle = IMU_pid_set(IMU_target, groy_z);
-                    //float actual_motor_duty=motor_duty-abs(image_pid_error*turn_rate);
-                    servo_set_angle(servo_angle);
 
-                    ackermann_differential( servo_angle,  motor_duty, &left_duty, &right_duty);
+                    // 角度 PID：检测偏航角突变，提供稳定补偿
+                    static float prev_yaw = 0.0f;
+                    float angle_out = angle_pid_set(prev_yaw, atti_yaw);
+                    prev_yaw = atti_yaw;
 
-                    motor_set_duty(left_duty, right_duty);  
+                    // 融合 IMU PID 和角度 PID 输出
+                    float final_servo = servo_fusion(angle_out, servo_angle);
+                    servo_set_angle(final_servo);
+
+                    ackermann_differential( final_servo,  motor_duty, &left_duty, &right_duty);
+
+                    motor_set_duty(left_duty, right_duty);
                 }
                 }
             }
@@ -260,7 +275,7 @@ void pit_handler (void)
 {
     key_scanner();
     menu_key_process();
-    imu963ra_get_gyro();     
+    atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
 }
 
 //-------------------------------------------------------------------------------------------------------------------

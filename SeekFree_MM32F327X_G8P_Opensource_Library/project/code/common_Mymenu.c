@@ -32,7 +32,7 @@ extern uint8 fixed_threshold;
 // image_kd: 微分系数 —— 抑制振荡和超调
 float image_kp_a = 4.17f;                                                       // 图像 Kp_a（线性项/小弯）
 float image_kp_b = 0.04f;                                                      // 图像 Kp_b（三次项/大弯）
-float image_kd = 0.19f;                                                         // 图像 Kd
+float image_kd = 9.670f;                                                         // 图像 Kd
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
@@ -43,7 +43,7 @@ float motor_lowpass = 0.8f;                                                     
 //IMU PID 控制参数
 float IMU_kp_a =0.04f;
 float IMU_kp_b =0.0f;
-float IMU_kd =0.03f;
+float IMU_kd =0.869f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
@@ -102,6 +102,9 @@ static void my_create_Menus(void)
     //IMU_PID 文件夹 —— IMU PID参数子菜单
     Folder_Menu *IMU_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "IMU_pid");
 
+    // angle_pid 文件夹 —— 角度PID参数子菜单
+    Folder_Menu *angle_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "angle_pid");
+
 
     //=========================第一层，发车标志位===============================
 
@@ -134,6 +137,17 @@ static void my_create_Menus(void)
     dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kp_b", &IMU_kp_b, float_Box, -10.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_kd", &IMU_kd, float_Box, -10.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(IMU_pid_folder, "IMU_lowpass", &IMU_lowpass, float_Box, 0.0f, 1.0f);
+
+    // ==================== 第二层：angle_pid 子菜单 ====================
+
+    dynamicCreate_Menu_LimitNumberBox(angle_pid_folder, "angle_kp_a", &angle_kp_a, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(angle_pid_folder, "angle_kp_b", &angle_kp_b, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(angle_pid_folder, "angle_kd", &angle_kd, float_Box, -10.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(angle_pid_folder, "angle_lowpass", &angle_lowpass, float_Box, 0.0f, 1.0f);
+
+    //=========================第一层，融合系数===============================
+
+    dynamicCreate_Menu_LimitNumberBox(&myMenu, "fusion_alpha", &servo_fusion_alpha, float_Box, 0.0f, 1.0f);
 
 }
 

@@ -95,6 +95,10 @@ extern float motor_kp_a;
 extern float motor_kp_b;
 extern float motor_kd;
 extern float ackermann_gain;
+extern float angle_kp_a;
+extern float angle_kp_b;
+extern float angle_kd;
+extern float servo_fusion_alpha;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：bluetooth_receive_process
@@ -257,6 +261,26 @@ void bluetooth_receive_process(void)
                     ackermann_gain = val;
                     serial_printf("OK ackermann_gain=%.3f\r\n", ackermann_gain);
                 }
+                else if(strcmp(name, "angle_kp_a") == 0)
+                {
+                    angle_kp_a = val;
+                    serial_printf("OK angle_kp_a=%.3f\r\n", angle_kp_a);
+                }
+                else if(strcmp(name, "angle_kp_b") == 0)
+                {
+                    angle_kp_b = val;
+                    serial_printf("OK angle_kp_b=%.3f\r\n", angle_kp_b);
+                }
+                else if(strcmp(name, "angle_kd") == 0)
+                {
+                    angle_kd = val;
+                    serial_printf("OK angle_kd=%.3f\r\n", angle_kd);
+                }
+                else if(strcmp(name, "servo_fusion_alpha") == 0)
+                {
+                    servo_fusion_alpha = val;
+                    serial_printf("OK servo_fusion_alpha=%.3f\r\n", servo_fusion_alpha);
+                }
                 else
                 {
                     serial_printf("ERR %s\r\n", name);
@@ -273,5 +297,10 @@ void bluetooth_receive_process(void)
 
 float get_gyro_z(void)
 {
-    return imu963ra_gyro_transition(imu963ra_gyro_z);
+    static float filtered = 0.0f;
+    static uint8 first = 1;
+    float raw = imu963ra_gyro_transition(imu963ra_gyro_z);
+    if(first) { filtered = raw; first = 0; }
+    else      { filtered = 0.3f * raw + 0.7f * filtered; }
+    return filtered;
 }

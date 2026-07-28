@@ -127,7 +127,7 @@ void line_follow_process(void)
             image_process_pipeline();
 
             // 丢线边界补偿
-            boundary_lost_compensate();
+            //boundary_lost_compensate();
 
             // ---- 清除摄像头采集完成标志（准备接收下一帧） ----
             mt9v03x_finish_flag = 0;
@@ -488,6 +488,193 @@ float motor_pid_set(float target,float actual)
     motor_pid_outp = motor_pid_error;
     motor_kp=motor_kp_a + (motor_pid_error*motor_pid_error)*motor_kp_b;
     return (-(motor_kp*motor_pid_outp + motor_kd*motor_pid_outd ));
+}
+
+//==================================================== 姿态解算（六轴互补滤波 AHRS） ====================================================
+
+#include <math.h>
+
+// ---- 互补滤波参数 ----
+#define ATTI_KP             0.0001f                                             // 加速度计修正比例增益
+#define ATTI_KI             -0.0000324f                                        // 加速度计修正积分增益
+#define ATTI_DT             0.005f                                              // 采样周期（s），与 PIT 一致
+#define ATTI_ACC_ALPHA      0.3f                                                // 加速度低通滤波系数
+
+// ---- 四元数状态 ----
+static float atti_q0 = 1.0f, atti_q1 = 0.0f, atti_q2 = 0.0f, atti_q3 = 0.0f;
+static float atti_I_ex = 0.0f, atti_I_ey = 0.0f, atti_I_ez = 0.0f;
+
+// ---- 输出 ----
+float atti_yaw = 0.0f;                                                          // 当前偏航角（°），左=负，右=正
+
+// ---- 角度 PID 参数（蓝牙可调） ----
+float angle_kp_a = 0.0f;
+float angle_kp_b = 0.0f;
+float angle_kd  = 0.02f;
+float angle_lowpass = 0.8f;
+
+// ---- 融合系数 ----
+float servo_fusion_alpha = 0.1f;                                                // 0=纯IMU_PID, 1=纯角度PID
+
+//---- 上次偏航角 ----
+static float prev_angle_yaw = 0.0f;
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：atti_init
+// 功能：姿态解算初始化
+//-------------------------------------------------------------------------------------------------------------------
+void atti_init(void)
+{
+    atti_q0 = 1.0f; atti_q1 = 0.0f; atti_q2 = 0.0f; atti_q3 = 0.0f;
+    atti_I_ex = 0.0f; atti_I_ey = 0.0f; atti_I_ez = 0.0f;
+    atti_yaw = 0.0f;
+    prev_angle_yaw = 0.0f;
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：fast_inv_sqrt
+// 功能：快速平方根倒数（Quake III 算法）
+//-------------------------------------------------------------------------------------------------------------------
+static float fast_inv_sqrt(float x)
+{
+    float halfx = 0.5f * x;
+    float y = x;
+    int32 i;
+    // memcpy not used due to microlib, use union instead
+    union { float f; int32 i; } u;
+    u.f = y;
+    u.i = 0x5f3759df - (u.i >> 1);
+    y = u.f;
+    y = y * (1.5f - (halfx * y * y));
+    return y;
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：atti_update
+// 功能：姿态解算更新（在 PIT 中断中调用，5ms 周期）
+// 说明：基于六轴互补滤波 AHRS
+//       陀螺仪提供高频角速度 → 四元数积分
+//       加速度计提供低频重力方向 → PI 修正陀螺漂移
+//       最后从四元数提取偏航角 Yaw
+//-------------------------------------------------------------------------------------------------------------------
+void atti_update(void)
+{
+    float ax, ay, az;
+    float gx, gy, gz;
+    float norm;
+    float ex, ey, ez;
+    float q0, q1, q2, q3;
+    static float acc_fx = 0.0f, acc_fy = 0.0f, acc_fz = 0.0f;
+    static uint8 first = 1;
+
+    // ---- 1. 读取加速度计（低通滤波） ----
+    imu963ra_get_acc();
+    ax = imu963ra_acc_transition((float)imu963ra_acc_x);
+    ay = imu963ra_acc_transition((float)imu963ra_acc_y);
+    az = imu963ra_acc_transition((float)imu963ra_acc_z);
+    if(first) { acc_fx = ax; acc_fy = ay; acc_fz = az; first = 0; }
+    else
+    {
+        acc_fx = ATTI_ACC_ALPHA * ax + (1.0f - ATTI_ACC_ALPHA) * acc_fx;
+        acc_fy = ATTI_ACC_ALPHA * ay + (1.0f - ATTI_ACC_ALPHA) * acc_fy;
+        acc_fz = ATTI_ACC_ALPHA * az + (1.0f - ATTI_ACC_ALPHA) * acc_fz;
+    }
+
+    // ---- 2. 读取陀螺仪，转为 rad/s ----
+    imu963ra_get_gyro();
+    gx = imu963ra_gyro_transition((float)imu963ra_gyro_x) * 3.1415926f / 180.0f;
+    gy = imu963ra_gyro_transition((float)imu963ra_gyro_y) * 3.1415926f / 180.0f;
+    gz = imu963ra_gyro_transition((float)imu963ra_gyro_z) * 3.1415926f / 180.0f;
+
+    // ---- 3. 归一化加速度计 ----
+    norm = fast_inv_sqrt(acc_fx * acc_fx + acc_fy * acc_fy + acc_fz * acc_fz);
+    ax = acc_fx * norm;
+    ay = acc_fy * norm;
+    az = acc_fz * norm;
+
+    // ---- 4. 估计重力方向（从当前四元数） ----
+    q0 = atti_q0; q1 = atti_q1; q2 = atti_q2; q3 = atti_q3;
+    float vx = 2.0f * (q1 * q3 - q0 * q2);
+    float vy = 2.0f * (q0 * q1 + q2 * q3);
+    float vz = q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3;
+
+    // ---- 5. 误差 = 测量加速度 × 估计重力（叉积） ----
+    ex = ay * vz - az * vy;
+    ey = az * vx - ax * vz;
+    ez = ax * vy - ay * vx;
+
+    // ---- 6. PI 修正陀螺仪 ----
+    float halfT = 0.5f * ATTI_DT;
+    atti_I_ex += halfT * ex;
+    atti_I_ey += halfT * ey;
+    atti_I_ez += halfT * ez;
+    gx = gx + ATTI_KP * ex + ATTI_KI * atti_I_ex;
+    gy = gy + ATTI_KP * ey + ATTI_KI * atti_I_ey;
+    gz = gz + ATTI_KP * ez + ATTI_KI * atti_I_ez;
+
+    // ---- 7. 一阶龙格库塔更新四元数 ----
+    q0 = atti_q0 + (-q1 * gx - q2 * gy - q3 * gz) * halfT;
+    q1 = atti_q1 + ( atti_q0 * gx + q2 * gz - q3 * gy) * halfT;
+    q2 = atti_q2 + ( atti_q0 * gy - q1 * gz + q3 * gx) * halfT;
+    q3 = atti_q3 + ( atti_q0 * gz + q1 * gy - q2 * gx) * halfT;
+
+    // ---- 8. 归一化四元数 ----
+    norm = fast_inv_sqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+    atti_q0 = q0 * norm; atti_q1 = q1 * norm;
+    atti_q2 = q2 * norm; atti_q3 = q3 * norm;
+
+    // ---- 9. 提取偏航角 Yaw（°），左=负，右=正 ----
+    atti_yaw = atan2f(2.0f * (atti_q1 * atti_q2 + atti_q0 * atti_q3),
+                      -2.0f * atti_q2 * atti_q2 - 2.0f * atti_q3 * atti_q3 + 1.0f) * 57.29578f;
+}
+
+// ---- 角度 PID：偏航角稳定控制 ----
+float angle_pid_error = 0;
+float angle_pid_outd = 0;
+float angle_pid_outp = 0;
+float angle_kp = 0;
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：angle_pid_set
+// 功能：角度 PID（偏航角稳定）
+// 参数：target —— 目标角度（上一次偏航角，°）
+// 参数：actual —— 实际角度（当前偏航角，°）
+// 返回：float —— 舵机角度（左=负，右=正），限幅 ±12°
+//
+// 工作逻辑：
+//   error = target - actual = prev_yaw - curr_yaw = -∆yaw
+//   若车向右转（curr > prev）→ error < 0 → 输出负 → 左转 ← 抑制过度右转
+//   若车向左转（curr < prev）→ error > 0 → 输出正 → 右转 ← 抑制过度左转
+//-------------------------------------------------------------------------------------------------------------------
+float angle_pid_set(float target, float actual)
+{
+    static uint8 first = 1;
+    angle_pid_error = target - actual;
+    if(first) { angle_pid_outp = angle_pid_error; first = 0; return 0.0f; }
+    angle_pid_outd = (angle_pid_error - angle_pid_outp) * angle_lowpass
+                   + angle_pid_outd * (1.0f - angle_lowpass);
+    angle_pid_outp = angle_pid_error;
+    angle_kp = angle_kp_a + (angle_pid_error * angle_pid_error) * angle_kp_b;
+    float out = -(angle_kp * angle_pid_outp + angle_kd * angle_pid_outd);
+    if(out > 12.0f)  out = 12.0f;
+    if(out < -12.0f) out = -12.0f;
+    return out;
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：servo_fusion
+// 功能：融合角度 PID 和 IMU PID 的输出
+// 参数：angle_out —— 角度 PID 输出
+// 参数：IMU_out   —— IMU PID 输出
+// 返回：融合后的舵机角度
+// 公式：out = α × angle_out + (1-α) × IMU_out
+//-------------------------------------------------------------------------------------------------------------------
+float servo_fusion(float angle_out, float IMU_out)
+{
+    float out = servo_fusion_alpha * angle_out + (1.0f - servo_fusion_alpha) * IMU_out;
+    if(out > 12.0f)  out = 12.0f;
+    if(out < -12.0f) out = -12.0f;
+    return out;
 }
 
 
