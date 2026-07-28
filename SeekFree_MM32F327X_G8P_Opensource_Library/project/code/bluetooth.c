@@ -297,10 +297,5 @@ void bluetooth_receive_process(void)
 
 float get_gyro_z(void)
 {
-    static float filtered = 0.0f;
-    static uint8 first = 1;
-    float raw = imu963ra_gyro_transition(imu963ra_gyro_z);
-    if(first) { filtered = raw; first = 0; }
-    else      { filtered = 0.3f * raw + 0.7f * filtered; }
-    return filtered;
+    return imu963ra_gyro_transition(imu963ra_gyro_z);
 }
