@@ -22,7 +22,7 @@
 static uint8 bt_rx_fifo_buf[128];
 static fifo_struct bt_rx_fifo;
 
-float turn_rate=0.4f;
+float turn_rate=0.3f;
 
 float image_ki=7;
 //==================================================== 蓝牙初始化 ====================================================

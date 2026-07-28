@@ -250,11 +250,13 @@ menu_need_refresh = 1;                                                        //
                     float angle_out = angle_pid_set(prev_yaw, atti_yaw);
                     prev_yaw = atti_yaw;
 
+                    //弯道减速
+                    float actual_motor_duty=motor_duty-abs(image_pid_error*turn_rate);
                     // 融合 IMU PID 和角度 PID 输出
                     float final_servo = servo_fusion(angle_out, servo_angle);
                     servo_set_angle(final_servo);
 
-                    ackermann_differential( final_servo,  motor_duty, &left_duty, &right_duty);
+                    ackermann_differential( final_servo,  actual_motor_duty, &left_duty, &right_duty);
 
                     motor_set_duty(left_duty, right_duty);
                 }
