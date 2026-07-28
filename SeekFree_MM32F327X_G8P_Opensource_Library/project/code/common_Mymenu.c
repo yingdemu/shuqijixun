@@ -31,7 +31,7 @@ extern uint8 fixed_threshold;
 // image_kp_a: 线性比例系数（小偏差主导）  image_kp_b: 三次比例系数（大偏差主导）
 // image_kd: 微分系数 —— 抑制振荡和超调
 float image_kp_a = 4.17f;                                                       // 图像 Kp_a（线性项/小弯）
-float image_kp_b = 0.04f;                                                      // 图像 Kp_b（三次项/大弯）
+float image_kp_b = 0.069f;                                                      // 图像 Kp_b（三次项/大弯）
 float image_kd = 9.670f;                                                         // 图像 Kd
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
