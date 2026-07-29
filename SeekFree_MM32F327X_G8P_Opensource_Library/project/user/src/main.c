@@ -62,6 +62,7 @@
 #include "common_Mymenu.h"
 #include "line_follow.h"
 #include "control.h"
+#include "encoder.h"
 #include "bluetooth.h"
 #include "zf_device_imu963ra.h"
 
@@ -133,6 +134,10 @@ int main(void)
     control_init();
     ips200_show_string(0, 8 * 16, "Control OK!     ");
 
+    // ---- 第8.5步：初始化编码器 ----
+    encoder_init();
+    ips200_show_string(0, 9 * 16, "Encoder OK!     ");
+
     // ---- 第9.5步：初始化 IMU963RA 陀螺仪 ----
     while(imu963ra_init())
     {
@@ -155,8 +160,8 @@ menu_need_refresh = 1;                                                        //
     interrupt_set_priority(PIT_PRIORITY, 0);
 
     // ---- 第11步：启动微秒定时器（用于测量图像处理耗时） ----
-    timer_init(TIM_3, TIMER_US);                                                // TIM3 配置为微秒计数器（TIM2已被舵机PWM占用）
-    timer_start(TIM_3);                                                         // 启动计数
+    timer_init(TIM_7, TIMER_US);                                                // TIM7 配置为微秒计数器（TIM3已被编码器占用）
+    timer_start(TIM_7);                                                         // 启动计数
 
     // ---- 短暂延时 ----
     system_delay_ms(300);
@@ -199,9 +204,9 @@ menu_need_refresh = 1;                                                        //
         {
             // ==================== 巡线处理 ====================
             {
-                uint16 t_start = timer_get(TIM_3);                              // 开始计时（µs）
+                uint16 t_start = timer_get(TIM_7);                              // 开始计时（µs）
                 line_follow_process();
-                uint16 t_end = timer_get(TIM_3);                                // 结束计时（µs）
+                uint16 t_end = timer_get(TIM_7);                                // 结束计时（µs）
                 uint16 elapsed_us = (t_end >= t_start) ? (t_end - t_start) : (65535 - t_start + t_end + 1);
 
                 //当一帧处理完成时，通过蓝牙发送耗时
@@ -259,9 +264,9 @@ menu_need_refresh = 1;                                                        //
                     float actual_motor_duty=motor_duty-abs(image_pid_error*turn_rate);
                     // 融合 IMU PID 和角度 PID 输出
                     float final_servo = servo_fusion(angle_out, servo_angle);
-                    if(final_servo>8){
+                    if(final_servo>10){
                         final_servo=12;
-                    }else if(final_servo<-8)
+                    }else if(final_servo<-10)
                     {
                         final_servo=-12;
                     }
@@ -270,6 +275,9 @@ menu_need_refresh = 1;                                                        //
                     ackermann_differential( final_servo,  motor_duty, &left_duty, &right_duty);
 
                     motor_set_duty(left_duty, right_duty);
+
+                    // 蓝牙发送编码器速度
+                    serial_printf("ENC:%d,%d\r\n", encoder_speed_1, encoder_speed_2);
                 }
                 }
             }
@@ -288,6 +296,7 @@ void pit_handler (void)
 {
     key_scanner();
     menu_key_process();
+    encoder_update();                                                               // 读取编码器速度
     atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
 }
 
