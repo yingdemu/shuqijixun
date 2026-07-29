@@ -52,6 +52,11 @@
 //
 // ======================================================================
 
+
+
+
+
+//可以试一下 angle_kd=0.460  ,ackermann_gain=12.200;A
 #include "zf_common_headfile.h"
 #include "common_menu.h"
 #include "common_Mymenu.h"
@@ -254,9 +259,15 @@ menu_need_refresh = 1;                                                        //
                     float actual_motor_duty=motor_duty-abs(image_pid_error*turn_rate);
                     // 融合 IMU PID 和角度 PID 输出
                     float final_servo = servo_fusion(angle_out, servo_angle);
+                    if(final_servo>8){
+                        final_servo=12;
+                    }else if(final_servo<-8)
+                    {
+                        final_servo=-12;
+                    }
                     servo_set_angle(final_servo);
 
-                    ackermann_differential( final_servo,  actual_motor_duty, &left_duty, &right_duty);
+                    ackermann_differential( final_servo,  motor_duty, &left_duty, &right_duty);
 
                     motor_set_duty(left_duty, right_duty);
                 }
