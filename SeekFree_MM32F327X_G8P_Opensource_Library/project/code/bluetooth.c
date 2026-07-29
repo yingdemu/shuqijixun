@@ -99,6 +99,9 @@ extern float angle_kp_a;
 extern float angle_kp_b;
 extern float angle_kd;
 extern float servo_fusion_alpha;
+extern float speed_kp;
+extern float speed_ki;
+extern float speed_kd;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：bluetooth_receive_process
@@ -280,6 +283,21 @@ void bluetooth_receive_process(void)
                 {
                     servo_fusion_alpha = val;
                     serial_printf("OK servo_fusion_alpha=%.3f\r\n", servo_fusion_alpha);
+                }
+                else if(strcmp(name, "speed_kp") == 0)
+                {
+                    speed_kp = val;
+                    serial_printf("OK speed_kp=%.3f\r\n", speed_kp);
+                }
+                else if(strcmp(name, "speed_ki") == 0)
+                {
+                    speed_ki = val;
+                    serial_printf("OK speed_ki=%.3f\r\n", speed_ki);
+                }
+                else if(strcmp(name, "speed_kd") == 0)
+                {
+                    speed_kd = val;
+                    serial_printf("OK speed_kd=%.3f\r\n", speed_kd);
                 }
                 else
                 {

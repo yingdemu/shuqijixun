@@ -45,6 +45,12 @@ float IMU_kp_a =0.04f;
 float IMU_kp_b =0.0f;
 float IMU_kd =0.869f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
+
+float speed_kp = 0.1f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+float speed_ki = 0.01f;                                                           // 速度I（稳态误差消除）
+float speed_kd = 0.0f;                                                            // 速度D
+float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
+
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 33;                                                             //电机占空比
@@ -102,6 +108,9 @@ static void my_create_Menus(void)
     //IMU_PID 文件夹 —— IMU PID参数子菜单
     Folder_Menu *IMU_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "IMU_pid");
 
+    // speed_pid 文件夹 —— 速度PID参数子菜单
+    Folder_Menu *speed_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "speed_pid");
+
     // angle_pid 文件夹 —— 角度PID参数子菜单
     Folder_Menu *angle_pid_folder = dynamicCreate_Menu_Folder(&myMenu, "angle_pid");
 
@@ -144,6 +153,13 @@ static void my_create_Menus(void)
     dynamicCreate_Menu_LimitNumberBox(angle_pid_folder, "angle_kp_b", &angle_kp_b, float_Box, -10.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(angle_pid_folder, "angle_kd", &angle_kd, float_Box, -10.0f, 10.0f);
     dynamicCreate_Menu_LimitNumberBox(angle_pid_folder, "angle_lowpass", &angle_lowpass, float_Box, 0.0f, 1.0f);
+
+    // ==================== 第二层：speed_pid 子菜单 ====================
+
+    dynamicCreate_Menu_LimitNumberBox(speed_pid_folder, "speed_kp", &speed_kp, float_Box, 0.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(speed_pid_folder, "speed_ki", &speed_ki, float_Box, 0.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(speed_pid_folder, "speed_kd", &speed_kd, float_Box, 0.0f, 10.0f);
+    dynamicCreate_Menu_LimitNumberBox(speed_pid_folder, "speed_lowpass", &speed_lowpass, float_Box, 0.0f, 1.0f);
 
     //=========================第一层，融合系数===============================
 

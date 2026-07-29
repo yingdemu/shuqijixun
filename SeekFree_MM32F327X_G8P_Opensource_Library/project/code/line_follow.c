@@ -27,6 +27,7 @@
 *********************************************************************************************************************/
 
 #include "line_follow.h"
+#include "control.h"
 
 //==================================================== 全局变量定义 ====================================================
 
@@ -615,6 +616,68 @@ float angle_pid_set(float target, float actual)
     if(out < -12.0f) out = -12.0f;
     return out;
 }
+
+
+
+
+// ---- 速度 PID 状态变量 ----
+float speed_pid_error = 0;
+float speed_pid_outd = 0;
+float speed_pid_outp = 0;
+float speed_kp_computed = 0;
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：speed_pid_set
+// 功能：速度闭环 PID（增量式，带抗饱和）
+// 参数：target —— 目标速度（脉冲/5ms，取左右轮平均）
+// 参数：actual —— 实际速度（脉冲/5ms，取左右轮平均）
+// 返回：float —— 电机基础占空比（0~MOTOR_DUTY_MAX）
+//
+// 逻辑：
+//   error = target - actual
+//   车速偏慢(actual < target) → error > 0 → 输出增加 → 加速
+//   车速偏快(actual > target) → error < 0 → 输出减少 → 减速
+//   增量式PID + 输出限幅 + 抗积分饱和
+//-------------------------------------------------------------------------------------------------------------------
+float speed_pid_set(float target, float actual)
+{
+    static uint8 first = 1;
+    static float speed_pid_out = 0.0f;                                            // 增量式输出（保持为 static）
+    static float error_prev = 0.0f;
+    static float error_prev2 = 0.0f;
+
+    speed_pid_error = target - actual;
+
+    if(first)
+    {
+        // 首帧：用当前 motor_duty 初始化输出，直接返回
+        speed_pid_out = (float)motor_duty;
+        error_prev = speed_pid_error;
+        error_prev2 = speed_pid_error;
+        first = 0;
+        return speed_pid_out;
+    }
+
+    // 增量式 PID：Δu = Kp*(e0-e1) + Ki*e0 + Kd*(e0-2*e1+e2)
+    float increment = speed_kp * (speed_pid_error - error_prev)
+                    + speed_ki * speed_pid_error
+                    + speed_kd * (speed_pid_error - 2.0f * error_prev + error_prev2);
+
+    speed_pid_out += increment;
+
+    // 抗积分饱和：输出达到限幅时不再累加同方向增量
+    if(speed_pid_out > (float)MOTOR_DUTY_MAX)
+        speed_pid_out = (float)MOTOR_DUTY_MAX;
+    else if(speed_pid_out < (float)MOTOR_DUTY_MIN)
+        speed_pid_out = (float)MOTOR_DUTY_MIN;
+
+    // 更新历史误差
+    error_prev2 = error_prev;
+    error_prev  = speed_pid_error;
+
+    return speed_pid_out;
+}
+
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：servo_fusion

@@ -68,6 +68,10 @@ extern float IMU_kp_b ;                                                         
 extern float IMU_kd ;                                                           // 电机微分系数 Kd（默认 1.0）
 extern float IMU_lowpass ;                                                       // IMU低通滤波系数（默认 0.8）
 
+extern float speed_kp;
+extern float speed_ki;
+extern float speed_kd;
+extern float speed_lowpass;                                                       // speed低通滤波系数（默认 0.8）
 
 
 extern bool car_go_flag;                                                         // 发车标志位（1=开始巡线，0=停止巡线）
