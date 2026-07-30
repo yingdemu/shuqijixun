@@ -56,6 +56,9 @@ float speed_ki = 1.026f;                                                        
 float speed_kd = 0.0f;                                                            // 速度D
 float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
+float speed_min = 160.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
+
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 25;                                                             //电机占空比
@@ -129,6 +132,8 @@ static void my_create_Menus(void)
     dynamicCreate_Menu_NumberBox(&myMenu, "thresh_mode", &threshold_mode, bool_Box);
     dynamicCreate_Menu_LimitNumberBox(&myMenu, "fix_thresh", &fixed_threshold, uint8_Box, 0, 255);
     dynamicCreate_Menu_LimitNumberBox(&myMenu, "motor_duty", &motor_duty,uint8_Box , 0, 30);
+    dynamicCreate_Menu_LimitNumberBox(&myMenu, "speed_min", &speed_min, float_Box, 0.0f, 500.0f);
+    dynamicCreate_Menu_LimitNumberBox(&myMenu, "decision_k", &speed_decision_k, float_Box, 0.0f, 5.0f);
 
 
     // ==================== 第二层：image_pid 子菜单 ====================

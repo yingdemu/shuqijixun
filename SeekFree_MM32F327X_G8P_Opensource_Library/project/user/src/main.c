@@ -259,8 +259,6 @@ menu_need_refresh = 1;                                                        //
                     float angle_out = angle_pid_set(prev_yaw, atti_yaw);
                     prev_yaw = atti_yaw;
 
-                    //弯道减速
-                    float actual_motor_duty=motor_duty-abs(image_pid_error*turn_rate);
                     // 融合 IMU PID 和角度 PID 输出
                     float final_servo = servo_fusion(angle_out, servo_angle);
                     if(final_servo>10){
@@ -271,21 +269,27 @@ menu_need_refresh = 1;                                                        //
                     }
                     servo_set_angle(final_servo);
 
-                    // 速度闭环：阿克曼产生目标 → 左右轮独立 PID 控制
-                    // 实测：1%占空比 ≈ 10脉冲/5ms
-                    float base_target = (actual_motor_duty) ;
+                    // ---- 速度决策（参考调教心得3）：直道快、弯道慢 ----
+                    // v_set = v_max - (v_max - v_min) * |舵角| * k_decision / Servo_Range
+                    float v_max = motor_duty * 10.0f;
+                    float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
+                    float v_target = v_max - (v_max - speed_min) * servo_dev * speed_decision_k / 12.0f;
+                    if(v_target < speed_min) v_target = speed_min;
 
-                    // 阿克曼：根据舵角计算左右轮目标速度（编码器单位）
-                    ackermann_differential(final_servo, base_target, &target_L, &target_R);
+                    // 阿克曼：根据舵角分配左右轮目标（编码器单位）
+                    ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
-                    // 左右轮独立速度 PID：各自追踪自己的目标
-                    float L_duty = speed_pid_set(target_L*10,(float)encoder_speed_1 );
-                    float R_duty = speed_pid_set(target_R*10, (float)encoder_speed_2);
+                    target_L=0;
+                    target_R=0;
+
+                    // 左右轮独立速度闭环
+                    float L_duty = speed_pid_set(target_L, (float)encoder_speed_1);
+                    float R_duty = speed_pid_set(target_R, (float)encoder_speed_2);
                     motor_set_duty(L_duty, R_duty);
 
-                    // 蓝牙发送编码器速度和占空比
-                    //serial_printf("DUTY:%.0f,%.0f\r\n",
-                     //               L_duty, R_duty);
+                    // 蓝牙发送
+                    serial_printf("SERVO:%.1f SPD_T:%.0f ENC:%d,%d\r\n",
+                                final_servo, v_target, encoder_speed_1, encoder_speed_2);
                 }
                 }
             }

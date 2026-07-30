@@ -102,6 +102,8 @@ extern float servo_fusion_alpha;
 extern float speed_kp;
 extern float speed_ki;
 extern float speed_kd;
+extern float speed_min;
+extern float speed_decision_k;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：bluetooth_receive_process
@@ -298,6 +300,16 @@ void bluetooth_receive_process(void)
                 {
                     speed_kd = val;
                     serial_printf("OK speed_kd=%.3f\r\n", speed_kd);
+                }
+                else if(strcmp(name, "speed_min") == 0)
+                {
+                    speed_min = val;
+                    serial_printf("OK speed_min=%.0f\r\n", speed_min);
+                }
+                else if(strcmp(name, "speed_decision_k") == 0)
+                {
+                    speed_decision_k = val;
+                    serial_printf("OK speed_decision_k=%.3f\r\n", speed_decision_k);
                 }
                 else
                 {

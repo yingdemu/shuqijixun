@@ -72,6 +72,8 @@ extern float speed_kp;
 extern float speed_ki;
 extern float speed_kd;
 extern float speed_lowpass;                                                       // speed低通滤波系数（默认 0.8）
+extern float speed_min;                                                           // 弯道最低速度（编码器单位）
+extern float speed_decision_k;                                                    // 速度决策系数
 
 
 extern bool car_go_flag;                                                         // 发车标志位（1=开始巡线，0=停止巡线）
