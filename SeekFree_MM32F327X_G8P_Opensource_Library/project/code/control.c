@@ -92,7 +92,7 @@ void servo_set_angle(float angle)
 //   motor_set_duty(20, 80);   → 左轮慢右轮快，向左转弯
 //   motor_set_duty(0, 0);     → 停止
 //-------------------------------------------------------------------------------------------------------------------
-void motor_set_duty(float right_duty,float left_duty )
+void motor_set_duty(float right_duty, float left_duty)
 {
     uint32 left_pwm, right_pwm;
 

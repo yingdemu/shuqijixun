@@ -216,7 +216,7 @@ float angle_pid_set(float target, float actual);
 // 返回：float —— 电机占空比
 //
 //-------------------------------------------------------------------------------------------------------------------
-float speed_pid_set(float target, float actual);
+float speed_pid_set(uint8 channel, float target, float actual);
 
 
 //-------------------------------------------------------------------------------------------------------------------

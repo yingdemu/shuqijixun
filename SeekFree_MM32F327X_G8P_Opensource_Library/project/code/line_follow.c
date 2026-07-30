@@ -620,18 +620,16 @@ float angle_pid_set(float target, float actual)
 
 
 
-// ---- 速度 PID 状态变量 ----
+// ---- 速度 PID 状态变量（左右轮独立） ----
 float speed_pid_error = 0;
-float speed_pid_outd = 0;
-float speed_pid_outp = 0;
-float speed_kp_computed = 0;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：speed_pid_set
-// 功能：速度闭环 PID（增量式，带抗饱和）
-// 参数：target —— 目标速度（脉冲/5ms，取左右轮平均）
-// 参数：actual —— 实际速度（脉冲/5ms，取左右轮平均）
-// 返回：float —— 电机基础占空比（0~MOTOR_DUTY_MAX）
+// 功能：速度闭环 PID（增量式，带抗饱和），左右轮独立状态
+// 参数：channel —— 0=左轮, 1=右轮
+// 参数：target  —— 目标速度（脉冲/5ms）
+// 参数：actual  —— 实际速度（脉冲/5ms）
+// 返回：float —— 电机占空比（-100~100）
 //
 // 逻辑：
 //   error = target - actual
@@ -639,43 +637,42 @@ float speed_kp_computed = 0;
 //   车速偏快(actual > target) → error < 0 → 输出减少 → 减速
 //   增量式PID + 输出限幅 + 抗积分饱和
 //-------------------------------------------------------------------------------------------------------------------
-float speed_pid_set(float target, float actual)
+float speed_pid_set(uint8 channel, float target, float actual)
 {
-    static uint8 first = 1;
-    static float speed_pid_out = 0.0f;                                            // 增量式输出（保持为 static）
-    static float error_prev = 0.0f;
-    static float error_prev2 = 0.0f;
+    static uint8 first[2] = {1, 1};
+    static float speed_pid_out[2] = {0.0f, 0.0f};
+    static float error_prev[2]  = {0.0f, 0.0f};
+    static float error_prev2[2] = {0.0f, 0.0f};
 
     speed_pid_error = target - actual;
 
-    if(first)
+    if(first[channel])
     {
-        // 首帧：用当前 motor_duty 初始化输出，直接返回
-        speed_pid_out = (float)motor_duty;
-        error_prev = speed_pid_error;
-        error_prev2 = speed_pid_error;
-        first = 0;
-        return speed_pid_out;
+        speed_pid_out[channel] = (float)motor_duty;
+        error_prev[channel]  = speed_pid_error;
+        error_prev2[channel] = speed_pid_error;
+        first[channel] = 0;
+        return speed_pid_out[channel];
     }
 
     // 增量式 PID：Δu = Kp*(e0-e1) + Ki*e0 + Kd*(e0-2*e1+e2)
-    float increment = speed_kp * (speed_pid_error - error_prev)
+    float increment = speed_kp * (speed_pid_error - error_prev[channel])
                     + speed_ki * speed_pid_error
-                    + speed_kd * (speed_pid_error - 2.0f * error_prev + error_prev2);
+                    + speed_kd * (speed_pid_error - 2.0f * error_prev[channel] + error_prev2[channel]);
 
-    speed_pid_out += increment;
+    speed_pid_out[channel] += increment;
 
-    // 抗积分饱和：输出达到限幅时不再累加同方向增量
-    if(speed_pid_out > (float)MOTOR_DUTY_MAX)
-        speed_pid_out = (float)MOTOR_DUTY_MAX;
-    else if(speed_pid_out < (float)MOTOR_DUTY_MIN)
-        speed_pid_out = (float)MOTOR_DUTY_MIN;
+    // 抗积分饱和
+    if(speed_pid_out[channel] > (float)MOTOR_DUTY_MAX)
+        speed_pid_out[channel] = (float)MOTOR_DUTY_MAX;
+    else if(speed_pid_out[channel] < (float)MOTOR_DUTY_MIN)
+        speed_pid_out[channel] = (float)MOTOR_DUTY_MIN;
 
     // 更新历史误差
-    error_prev2 = error_prev;
-    error_prev  = speed_pid_error;
+    error_prev2[channel] = error_prev[channel];
+    error_prev[channel]  = speed_pid_error;
 
-    return speed_pid_out;
+    return speed_pid_out[channel];
 }
 
 

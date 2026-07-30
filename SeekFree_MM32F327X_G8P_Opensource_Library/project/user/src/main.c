@@ -283,13 +283,13 @@ menu_need_refresh = 1;                                                        //
                     target_R=0;
 
                     // 左右轮独立速度闭环
-                    float L_duty = speed_pid_set(target_L, (float)encoder_speed_1);
-                    float R_duty = speed_pid_set(target_R, (float)encoder_speed_2);
+                    float L_duty = speed_pid_set(0, target_L, (float)encoder_speed_1);
+                    float R_duty = speed_pid_set(1, target_R, (float)encoder_speed_2);
                     motor_set_duty(L_duty, R_duty);
 
                     // 蓝牙发送
-                    serial_printf("SERVO:%.1f SPD_T:%.0f ENC:%d,%d\r\n",
-                                final_servo, v_target, encoder_speed_1, encoder_speed_2);
+                     printf("%.0f,%d,%d\r\n",
+                                target_L, encoder_speed_1, encoder_speed_2);
                 }
                 }
             }
