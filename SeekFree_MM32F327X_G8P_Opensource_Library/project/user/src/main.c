@@ -279,13 +279,13 @@ menu_need_refresh = 1;                                                        //
                     ackermann_differential(final_servo, base_target, &target_L, &target_R);
 
                     // 左右轮独立速度 PID：各自追踪自己的目标
-                    float L_duty = speed_pid_set(target_L*10, (float)encoder_speed_1);
+                    float L_duty = speed_pid_set(target_L*10,(float)encoder_speed_1 );
                     float R_duty = speed_pid_set(target_R*10, (float)encoder_speed_2);
                     motor_set_duty(L_duty, R_duty);
 
                     // 蓝牙发送编码器速度和占空比
-                    serial_printf("T:%.0f,%.0f ENC:%d,%d DUTY:%.0f,%.0f\r\n",
-                                    target_L, target_R, encoder_speed_1, encoder_speed_2, L_duty, R_duty);
+                    //serial_printf("DUTY:%.0f,%.0f\r\n",
+                     //               L_duty, R_duty);
                 }
                 }
             }
