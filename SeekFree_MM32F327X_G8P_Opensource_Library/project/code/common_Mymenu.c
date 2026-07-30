@@ -51,9 +51,9 @@ float IMU_lowpass = 0.8f;                                                       
 // float speed_kd = 0.1618f;                                                            // 速度D
 // float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
-float speed_kp = 0.081f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
-float speed_ki = 1.026f;                                                           // 速度I（稳态误差消除）
-float speed_kd = 0.0f;                                                            // 速度D
+float speed_kp = 0.1400f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+float speed_ki = 0.0400f;                                                           // 速度I（稳态误差消除）
+float speed_kd = 0.0500f;                                                            // 速度D
 float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
 float speed_min = 160.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）

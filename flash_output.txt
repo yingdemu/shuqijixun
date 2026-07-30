@@ -1,0 +1,3 @@
+Load "C:\\Users\\24583\\Desktop\\shu_jixun\\SeekFree_MM32F327X_G8P_Opensource_Library\\project\\mdk\\Objects\\MM32F327X_G8P.axf" 
+Erase Done.Programming Done.Application running ...
+Flash Load finished at 18:28:53
