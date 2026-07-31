@@ -61,7 +61,7 @@ float speed_decision_k = 0.8f;                                                  
 float v_max_straight = 210.0f;                                                    // 直道目标速度（编码器单位）
 float v_max_turn_cancel = 140.0f;                                                    // 弯道超时目标速度（编码器单位）
 float v_max_turn = 130.0f;                                                        // 弯道基础速度（编码器单位）
-float v_max_turn_start = 80;                                                       // 弯道开始时减速速度（编码器单位）
+float v_max_turn_start = 100;                                                       // 弯道开始时减速速度（编码器单位）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 25;                                                             //电机占空比

@@ -86,7 +86,10 @@ void motor_set_duty(float right_duty, float left_duty);
 #define ACKERMANN_TRACK          (0.154f)                     // 后轮轮距 W：左右后轮中心距离（单位：m）
 #define ACKERMANN_DEADZONE_DEG   (3.00f)                     // 死区（°）舵机打角小于此值不产生差速
 
+extern float ackermann_gain_big;                                    // 阿克曼差速增益（蓝牙可调，默认1.0）
+extern float ackermann_gain_small;                                    // 阿克曼差速增益（蓝牙可调，默认1.0）
 extern float ackermann_gain;                                    // 阿克曼差速增益（蓝牙可调，默认1.0）
+
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数简介     阿克曼差速计算：根据舵机打角计算左右电机差速占空比
