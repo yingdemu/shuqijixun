@@ -198,6 +198,7 @@ int main(void)
             prev_yaw2 = atti_yaw;
             float final_servo2 = servo_fusion(angle_out2, servo_angle2);
             servo_set_angle(final_servo2);
+            prev_servo_angle = final_servo2;
         }
         else
         {
@@ -261,13 +262,22 @@ int main(void)
 
                     // 融合 IMU PID 和角度 PID 输出
                     float final_servo = servo_fusion(angle_out, servo_angle);
-                    if(final_servo>10){
-                        final_servo=12;
-                    }else if(final_servo<-10)
+
+                    // 连续限幅 ±12°（servo_set_angle 内部也会再做一次）
+                    if(final_servo > 10.0f)  final_servo = 12.0f;
+                    if(final_servo < -10.0f) final_servo = -12.0f;
+
+                    // 舵机输出速率限制：最大 4°/帧，防止突变
                     {
-                        final_servo=-12;
+                        static float prev_servo_out = 0.0f;
+                        float delta = final_servo - prev_servo_out;
+                        if(delta > 4.0f)       final_servo = prev_servo_out + 4.0f;
+                        else if(delta < -4.0f) final_servo = prev_servo_out - 4.0f;
+                        prev_servo_out = final_servo;
                     }
+
                     servo_set_angle(final_servo);
+                    prev_servo_angle = final_servo;
 
                     // ---- 速度决策（参考调教心得3）：直道快、弯道慢 ----
                     // v_set = v_max - (v_max - v_min) * |舵角| * k_decision / Servo_Range
@@ -277,7 +287,7 @@ int main(void)
                     if(v_target < speed_min) v_target = speed_min;
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_differential(final_servo, v_target, &target_L, &target_R);
+                    ackermann_differential(final_servo, motor_duty*6, &target_L, &target_R);
 
                     // 左右轮独立速度闭环
                     float L_duty = speed_pid_set(0, target_L, (float)encoder_speed_1);

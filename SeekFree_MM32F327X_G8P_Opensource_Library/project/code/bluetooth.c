@@ -14,6 +14,7 @@
 *********************************************************************************************************************/
 
 #include "bluetooth.h"
+#include "common_Mymenu.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -315,6 +316,12 @@ void bluetooth_receive_process(void)
                 {
                     serial_printf("ERR %s\r\n", name);
                 }
+            }
+            else if(strncmp(p, "[car stop]", 10) == 0)
+            {
+                car_go_flag = 0;
+                motor_set_duty(0, 0);
+                serial_printf("OK car stop\r\n");
             }
             idx = 0;                                                            // 解析完清缓冲
             }

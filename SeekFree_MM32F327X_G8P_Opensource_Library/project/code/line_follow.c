@@ -419,6 +419,10 @@ float image_pid_set(float target,float actual)
     image_pid_outd = (image_pid_error - image_pid_outp)*image_lowpass+image_pid_outd*(1-image_lowpass);
     image_pid_outp = image_pid_error;
     image_kp=image_kp_a + (image_pid_error*image_pid_error)*image_kp_b;
+    {
+        float abs_img_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+        if(abs_img_err < 12.0f) image_kp = image_kp_a;
+    }
     return (-(image_kp*image_pid_outp + image_kd*image_pid_outd ));
 }
 
@@ -436,6 +440,10 @@ float IMU_pid_set(float target,float actual)
     IMU_pid_outd = (IMU_pid_error - IMU_pid_outp)*IMU_lowpass+IMU_pid_outd*(1-IMU_lowpass);
     IMU_pid_outp = IMU_pid_error;
     IMU_kp=IMU_kp_a + (IMU_pid_error*IMU_pid_error)*IMU_kp_b;
+    {
+        float abs_img_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+        if(abs_img_err < 12.0f) IMU_kp = IMU_kp_a;
+    }
     finall_out= -(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd );
     if(finall_out >12){
         finall_out=12;
@@ -486,6 +494,9 @@ float angle_lowpass = 0.8f;
 
 // ---- 融合系数 ----
 float servo_fusion_alpha = 0.10f;                                                // 0=纯IMU_PID, 1=纯角度PID
+
+// ---- 上一帧舵机角度（用于小角度kp_b抑制） ----
+float prev_servo_angle = 0.0f;
 
 //---- 上次偏航角 ----
 static float prev_angle_yaw = 0.0f;
@@ -626,6 +637,10 @@ float angle_pid_set(float target, float actual)
                    + angle_pid_outd * (1.0f - angle_lowpass);
     angle_pid_outp = angle_pid_error;
     angle_kp = angle_kp_a + (angle_pid_error * angle_pid_error) * angle_kp_b;
+    {
+        float abs_img_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+        if(abs_img_err < 12.0f) angle_kp = angle_kp_a;
+    }
     float out = -(angle_kp * angle_pid_outp + angle_kd * angle_pid_outd);
     if(out > 12.0f)  out = 12.0f;
     if(out < -12.0f) out = -12.0f;
