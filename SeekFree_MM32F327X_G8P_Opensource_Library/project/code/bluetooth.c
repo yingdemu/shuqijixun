@@ -327,5 +327,12 @@ void bluetooth_receive_process(void)
 
 float get_gyro_z(void)
 {
-    return imu963ra_gyro_transition(imu963ra_gyro_z);
+    // 一阶低通滤波：滤除陀螺仪Z轴角速度的高频噪声
+    #define GYRO_LOWPASS 0.3f
+    static float filtered = 0.0f;
+    static uint8 first = 1;
+    float raw = imu963ra_gyro_transition(imu963ra_gyro_z);
+    if(first) { filtered = raw; first = 0; }
+    else      { filtered = GYRO_LOWPASS * raw + (1.0f - GYRO_LOWPASS) * filtered; }
+    return filtered;
 }

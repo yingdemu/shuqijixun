@@ -153,7 +153,7 @@ int main(void)
     menu_init();
     // ips200_clear();                                                             // 首次绘制前清屏
     // menu_show_All();
-menu_need_refresh = 1;                                                        // 首次绘制前刷新菜单
+    menu_need_refresh = 1;                                                        // 首次绘制前刷新菜单
     // ---- 第10步：所有初始化完成后，启动 PIT 周期中断（按键扫描 + 菜单处理） ----
     pit_ms_init(PIT, 5);
     interrupt_set_priority(PIT_PRIORITY, 0);
@@ -271,7 +271,7 @@ menu_need_refresh = 1;                                                        //
 
                     // ---- 速度决策（参考调教心得3）：直道快、弯道慢 ----
                     // v_set = v_max - (v_max - v_min) * |舵角| * k_decision / Servo_Range
-                    float v_max = motor_duty * 10.0f;
+                    float v_max = motor_duty * 6.0f;
                     float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
                     float v_target = v_max - (v_max - speed_min) * servo_dev * speed_decision_k / 12.0f;
                     if(v_target < speed_min) v_target = speed_min;
@@ -285,8 +285,7 @@ menu_need_refresh = 1;                                                        //
                     motor_set_duty(L_duty, R_duty);
 
                     // // 蓝牙发送
-                    // printf("%.0f,%.0f\r\n",
-                    //             target_L, (float)encoder_speed_1);
+                    serial_printf("%.0f,%.0f\r\n",L_duty, R_duty);
                 }
                 }
             }

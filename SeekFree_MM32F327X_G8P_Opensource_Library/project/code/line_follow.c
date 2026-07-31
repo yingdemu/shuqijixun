@@ -305,24 +305,39 @@ int16 calc_deviation(uint8 look_ahead_rows)
 
 float get_weight_position(uint8 *center_line)
 {
-
     float weighted_sum = 0.0f;
     float weight_total = 0.0f;
 
     int16 i;
     for(i = 0; i < IMG_H; i++)
     {
-        if(center_line_valid[i] == 1)                                           // 只使用真实边界点对应的中线
+        if(center_line_valid[i] == 1)
         {
             weighted_sum += (float)center_line[i] * weight[i];
             weight_total += weight[i];
         }
     }
 
+    float raw_pos;
     if(weight_total > 0.0f)
-        return weighted_sum / weight_total;
+        raw_pos = weighted_sum / weight_total;
     else
-        return 0.0f;
+        raw_pos = 0.0f;
+
+    // 一阶低通滤波：滤除中线位置的帧间抖动
+    #define POS_LOWPASS 0.3f
+    static float filtered_pos = 0.0f;
+    static uint8 first_run = 1;
+    if(first_run)
+    {
+        filtered_pos = raw_pos;
+        first_run = 0;
+    }
+    else
+    {
+        filtered_pos = POS_LOWPASS * raw_pos + (1.0f - POS_LOWPASS) * filtered_pos;
+    }
+    return filtered_pos;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -470,7 +485,7 @@ float angle_kd  = 0.02f;
 float angle_lowpass = 0.8f;
 
 // ---- 融合系数 ----
-float servo_fusion_alpha = 0.01f;                                                // 0=纯IMU_PID, 1=纯角度PID
+float servo_fusion_alpha = 0.10f;                                                // 0=纯IMU_PID, 1=纯角度PID
 
 //---- 上次偏航角 ----
 static float prev_angle_yaw = 0.0f;
