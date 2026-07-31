@@ -286,7 +286,7 @@ int main(void)
                     // 条件3: 左右边界未丢线（不贴边）
                     uint8 is_straight = 0;
                     {
-                        uint8 row = 5;
+                        uint8 row = 4;
                         uint8 col = IMG_W / 2;
                         if(binary_image[row][col] == WHITE &&
                            binary_image[row][col-1] == WHITE &&
@@ -294,8 +294,8 @@ int main(void)
                         {
                             if(left_valid[row] && right_valid[row])
                             {
-                                if(left_boundary[row] != 1 &&
-                                   right_boundary[row] != IMG_W - 2)
+                                if(left_boundary[row] >= 5 &&
+                                   right_boundary[row] <= IMG_W - 6)
                                 {
                                     is_straight = 1;
                                 }
@@ -313,7 +313,14 @@ int main(void)
                     else
                     {
                         // 弯道状态1：首次检测到弯道或计时器未满20次
-                        if(turn_timer_cnt < 20)
+
+                        if(turn_timer_cnt<8){
+
+                            if(turn_timer_cnt == 0) turn_timer_cnt = 1;           // 启动计时（PIT中断会累加）
+                            v_target = v_max_turn_start;
+
+
+                        }else if(turn_timer_cnt < 20)
                         {
                             if(turn_timer_cnt == 0) turn_timer_cnt = 1;           // 启动计时（PIT中断会累加）
                             float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
@@ -323,8 +330,8 @@ int main(void)
                         else
                         {
                             // 100ms已到：恢复直道速度，清零准备下一轮
-                            turn_timer_cnt = 0;
-                            v_target = v_max_straight;
+                            //turn_timer_cnt = 0;
+                            v_target = v_max_turn_cancel;
                         }
                     }
 
