@@ -295,7 +295,7 @@ int main(void)
                     motor_set_duty(L_duty, R_duty);
 
                     // // 蓝牙发送
-                    serial_printf("%.0f,%.0f\r\n",L_duty, R_duty);
+                    //serial_printf("%.3f,%.3f\r\n",L_duty, R_duty);
                 }
                 }
             }
