@@ -59,7 +59,7 @@ float speed_lowpass = 0.8f;                                                     
 float speed_min = 110.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 0.8f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
 float v_max_straight = 210.0f;                                                    // 直道目标速度（编码器单位）
-float v_max_turn_cancel = 140.0f;                                                    // 弯道超时目标速度（编码器单位）
+float v_max_turn_cancel = 130.0f;                                                    // 弯道超时目标速度（编码器单位）
 float v_max_turn = 130.0f;                                                        // 弯道基础速度（编码器单位）
 float v_max_turn_start = 100;                                                       // 弯道开始时减速速度（编码器单位）
 //-----发车标志位-----
