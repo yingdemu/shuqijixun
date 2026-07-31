@@ -106,6 +106,8 @@ extern float speed_ki;
 extern float speed_kd;
 extern float speed_min;
 extern float speed_decision_k;
+extern float v_max_straight;
+extern float v_max_turn;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：bluetooth_receive_process
@@ -319,6 +321,16 @@ void bluetooth_receive_process(void)
                 {
                     speed_decision_k = val;
                     serial_printf("OK speed_decision_k=%.3f\r\n", speed_decision_k);
+                }
+                else if(strcmp(name, "v_max_straight") == 0)
+                {
+                    v_max_straight = val;
+                    serial_printf("OK v_max_straight=%.0f\r\n", v_max_straight);
+                }
+                else if(strcmp(name, "v_max_turn") == 0)
+                {
+                    v_max_turn = val;
+                    serial_printf("OK v_max_turn=%.0f\r\n", v_max_turn);
                 }
                 else
                 {

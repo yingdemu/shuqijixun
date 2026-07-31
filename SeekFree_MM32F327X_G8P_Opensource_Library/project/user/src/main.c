@@ -279,15 +279,44 @@ int main(void)
                     servo_set_angle(final_servo);
                     prev_servo_angle = final_servo;
 
-                    // ---- 速度决策（参考调教心得3）：直道快、弯道慢 ----
-                    // v_set = v_max - (v_max - v_min) * |舵角| * k_decision / Servo_Range
-                    float v_max = motor_duty * 6.0f;
-                    float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
-                    float v_target = v_max - (v_max - speed_min) * servo_dev * speed_decision_k / 12.0f;
-                    if(v_target < speed_min) v_target = speed_min;
+                    // ---- 直道/弯道判别 ----
+                    // 条件1: 图像顶部中央3像素全白（前方是赛道）
+                    // 条件2: 左右边界来自八邻域有效爬线
+                    // 条件3: 左右边界未丢线（不贴边）
+                    uint8 is_straight = 0;
+                    {
+                        uint8 row = 5;
+                        uint8 col = IMG_W / 2;
+                        if(binary_image[row][col] == WHITE &&
+                           binary_image[row][col-1] == WHITE &&
+                           binary_image[row][col+1] == WHITE)
+                        {
+                            if(left_valid[row] && right_valid[row])
+                            {
+                                if(left_boundary[row] != 1 &&
+                                   right_boundary[row] != IMG_W - 2)
+                                {
+                                    is_straight = 1;
+                                }
+                            }
+                        }
+                    }
+
+                    // ---- 速度决策 ----
+                    float v_target;
+                    if(is_straight)
+                    {
+                        v_target = v_max_straight;                                // 直道：全速，不降速
+                    }
+                    else
+                    {
+                        float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
+                        v_target = v_max_turn - (v_max_turn - speed_min) * servo_dev * speed_decision_k / 12.0f;
+                        if(v_target < speed_min) v_target = speed_min;
+                    }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_differential(final_servo, motor_duty*6, &target_L, &target_R);
+                    ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
                     // 左右轮独立速度闭环
                     float L_duty = speed_pid_set(0, target_L, (float)encoder_speed_1);

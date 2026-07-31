@@ -56,8 +56,10 @@ float speed_ki = 0.0196f;                                                       
 float speed_kd = 0.0386f;                                                            // 速度D
 float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
-float speed_min = 110.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_min = 100.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
+float v_max_straight = 150.0f;                                                    // 直道目标速度（编码器单位）
+float v_max_turn = 120.0f;                                                        // 弯道基础速度（编码器单位）
 
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
