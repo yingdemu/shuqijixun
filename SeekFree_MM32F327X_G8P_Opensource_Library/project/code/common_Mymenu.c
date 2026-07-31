@@ -51,17 +51,17 @@ float IMU_lowpass = 0.8f;                                                       
 // float speed_kd = 0.1618f;                                                            // 速度D
 // float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
-float speed_kp = 0.1400f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
-float speed_ki = 0.0400f;                                                           // 速度I（稳态误差消除）
-float speed_kd = 0.0500f;                                                            // 速度D
+float speed_kp = 0.1885f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+float speed_ki = 0.0196f;                                                           // 速度I（稳态误差消除）
+float speed_kd = 0.0386f;                                                            // 速度D
 float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
-float speed_min = 160.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_min = 130.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
 
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
-uint8 motor_duty = 25;                                                             //电机占空比
+uint8 motor_duty = 20;                                                             //电机占空比
 //==================================================== 菜单全局变量 ====================================================
 
 Folder_Menu myMenu;                                                             // 菜单根节点（主菜单）

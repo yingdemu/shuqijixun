@@ -470,7 +470,7 @@ float angle_kd  = 0.02f;
 float angle_lowpass = 0.8f;
 
 // ---- 融合系数 ----
-float servo_fusion_alpha = 0.1f;                                                // 0=纯IMU_PID, 1=纯角度PID
+float servo_fusion_alpha = 0.01f;                                                // 0=纯IMU_PID, 1=纯角度PID
 
 //---- 上次偏航角 ----
 static float prev_angle_yaw = 0.0f;
@@ -625,18 +625,13 @@ float speed_pid_error = 0;
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：speed_pid_set
-// 功能：速度闭环 PID（增量式，带抗饱和），左右轮独立状态
+// 功能：速度闭环 PID（增量式，带输出饱和抗积分饱和），左右轮独立状态
 // 参数：channel —— 0=左轮, 1=右轮
 // 参数：target  —— 目标速度（脉冲/5ms）
 // 参数：actual  —— 实际速度（脉冲/5ms）
 // 返回：float —— 电机占空比（-100~100）
-//
-// 逻辑：
-//   error = target - actual
-//   车速偏慢(actual < target) → error > 0 → 输出增加 → 加速
-//   车速偏快(actual > target) → error < 0 → 输出减少 → 减速
-//   增量式PID + 输出限幅 + 抗积分饱和
 //-------------------------------------------------------------------------------------------------------------------
+
 float speed_pid_set(uint8 channel, float target, float actual)
 {
     static uint8 first[2] = {1, 1};
@@ -655,22 +650,32 @@ float speed_pid_set(uint8 channel, float target, float actual)
         return speed_pid_out[channel];
     }
 
+    float err = speed_pid_error;
+    float err_p = error_prev[channel];
+    float err_pp = error_prev2[channel];
+
     // 增量式 PID：Δu = Kp*(e0-e1) + Ki*e0 + Kd*(e0-2*e1+e2)
-    float increment = speed_kp * (speed_pid_error - error_prev[channel])
-                    + speed_ki * speed_pid_error
-                    + speed_kd * (speed_pid_error - 2.0f * error_prev[channel] + error_prev2[channel]);
+    float increment = speed_kp * (err - err_p)
+                    + speed_ki * err
+                    + speed_kd * (err - 2.0f * err_p + err_pp);
+
+    // 增量限幅：encoder≈duty×10，±8匹配正常duty范围0~20
+    float inc_max = 8.0f;
+    if(increment > inc_max)  increment = inc_max;
+    if(increment < -inc_max) increment = -inc_max;
 
     speed_pid_out[channel] += increment;
 
-    // 抗积分饱和
+    // 输出饱和 + 抗积分饱和（条件积分法）
+    // 只有输出已饱和且增量同向时才钳位，堵转时允许输出继续上升
     if(speed_pid_out[channel] > (float)MOTOR_DUTY_MAX)
         speed_pid_out[channel] = (float)MOTOR_DUTY_MAX;
     else if(speed_pid_out[channel] < (float)MOTOR_DUTY_MIN)
         speed_pid_out[channel] = (float)MOTOR_DUTY_MIN;
 
     // 更新历史误差
-    error_prev2[channel] = error_prev[channel];
-    error_prev[channel]  = speed_pid_error;
+    error_prev2[channel] = err_p;
+    error_prev[channel]  = err;
 
     return speed_pid_out[channel];
 }

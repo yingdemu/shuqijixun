@@ -279,17 +279,14 @@ menu_need_refresh = 1;                                                        //
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
-                    target_L=0;
-                    target_R=0;
-
                     // 左右轮独立速度闭环
                     float L_duty = speed_pid_set(0, target_L, (float)encoder_speed_1);
                     float R_duty = speed_pid_set(1, target_R, (float)encoder_speed_2);
                     motor_set_duty(L_duty, R_duty);
 
-                    // 蓝牙发送
-                     printf("%.0f,%d,%d\r\n",
-                                target_L, encoder_speed_1, encoder_speed_2);
+                    // // 蓝牙发送
+                    // printf("%.0f,%.0f\r\n",
+                    //             target_L, (float)encoder_speed_1);
                 }
                 }
             }
