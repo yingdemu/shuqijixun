@@ -78,6 +78,7 @@
 
 
 float target_L=0, target_R=0;                                                     // 阿克曼输出的左右轮目标速度（编码器单位）
+uint8 turn_timer_cnt = 0;                                                         // 弯道状态1计时：PIT累加，0=空闲，1~19=状态1，≥20=到期
 
 int main(void)
 {
@@ -302,17 +303,29 @@ int main(void)
                         }
                     }
 
-                    // ---- 速度决策 ----
+                    // ---- 速度决策：直道全速，弯道100ms降速 ----
                     float v_target;
                     if(is_straight)
                     {
-                        v_target = v_max_straight;                                // 直道：全速，不降速
+                        turn_timer_cnt = 0;                                       // 直道：清零计时器
+                        v_target = v_max_straight;
                     }
                     else
                     {
-                        float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
-                        v_target = v_max_turn - (v_max_turn - speed_min) * servo_dev * speed_decision_k / 12.0f;
-                        if(v_target < speed_min) v_target = speed_min;
+                        // 弯道状态1：首次检测到弯道或计时器未满20次
+                        if(turn_timer_cnt < 20)
+                        {
+                            if(turn_timer_cnt == 0) turn_timer_cnt = 1;           // 启动计时（PIT中断会累加）
+                            float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
+                            v_target = v_max_turn - (v_max_turn - speed_min) * servo_dev * speed_decision_k / 12.0f;
+                            if(v_target < speed_min) v_target = speed_min;
+                        }
+                        else
+                        {
+                            // 100ms已到：恢复直道速度，清零准备下一轮
+                            turn_timer_cnt = 0;
+                            v_target = v_max_straight;
+                        }
                     }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
@@ -345,6 +358,7 @@ void pit_handler (void)
     menu_key_process();
     encoder_update();                                                               // 读取编码器速度
     atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
+    if(turn_timer_cnt > 0 && turn_timer_cnt < 20) turn_timer_cnt++;                // 弯道状态1计时（5ms/次，累加到20=100ms）
 }
 
 //-------------------------------------------------------------------------------------------------------------------
