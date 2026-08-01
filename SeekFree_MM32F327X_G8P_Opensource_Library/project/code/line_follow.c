@@ -489,7 +489,7 @@ float atti_yaw = 0.0f;                                                          
 // ---- 角度 PID 参数（蓝牙可调） ----
 float angle_kp_a = 0.0f;
 float angle_kp_b = 0.0f;
-float angle_kd  = 0.02f;
+float angle_kd  = 0.12f;
 float angle_lowpass = 0.8f;
 
 // ---- 融合系数 ----

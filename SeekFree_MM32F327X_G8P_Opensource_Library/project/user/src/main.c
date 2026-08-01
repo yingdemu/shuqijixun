@@ -73,7 +73,7 @@
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
-#define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
+#define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
 
 // ==================== 主函数 ====================
 
@@ -329,19 +329,24 @@ int main(void)
 
                     if(is_straight)
                     {
+                        servo_fusion_alpha = 0.2f;  // 直道时增加 IMU PID 权重，减少抖动
                         turn_timer_cnt = 0;
 
-                        if(!prev_straight)
+                        if(!prev_straight){
                             straight_rec_cnt = 40;                                 // 40 × 5ms = 0.2s
                         prev_straight = 1;
+                        }
 
-                        if(straight_rec_cnt > 0)
+                        if(straight_rec_cnt > 0){
                             v_target = v_max_straight_start;
-                        else
-                            v_target = v_max_straight;
+}
+                        else{
+
+                            v_target = v_max_straight;}
                     }
                     else
                     {
+                        servo_fusion_alpha = 0.10f;  // 弯道时增加角度 PID 权重，减少过度转向
                         straight_rec_cnt = 0;                                      // 弯道清零
                         prev_straight = 0;
                         if(turn_timer_cnt<50){
@@ -361,6 +366,8 @@ int main(void)
                     }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
+                    ackermann_gain_big=1.5 + 0.15 *(abs(final_servo)-4.0f);
+
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
                     // 左右轮独立速度闭环

@@ -21,7 +21,7 @@
 
 // 阿克曼差速全局变量
 float ackermann_gain_big = 1.9f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
-float ackermann_gain_small = 1.0f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
+float ackermann_gain_small = 0.0f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
 float ackermann_gain = 1.0f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
 
 
@@ -193,8 +193,8 @@ void ackermann_differential(float servo_angle_deg, float base_duty, float *left_
     float tan_angle = angle_rad;                                                  // 小角度近似 tan(θ) ≈ θ（<12° 误差<2%）
     // 如需精确计算可替换为：tan_angle = tanf(angle_rad);
 
-    if(abs_angle>8){ackermann_gain = ackermann_gain_big;
-    }else {ackermann_gain = ackermann_gain_small;}
+    // if(abs_angle>8){ackermann_gain = ackermann_gain_big;
+    // }else {ackermann_gain = ackermann_gain_small;}
 
     // 阿克曼差速因子：diff = tan(δ) × W / L × gain
     float diff = tan_angle * ACKERMANN_TRACK / ACKERMANN_WHEELBASE * ackermann_gain;
