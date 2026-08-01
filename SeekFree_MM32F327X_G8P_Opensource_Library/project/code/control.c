@@ -20,7 +20,7 @@
 #include "control.h"
 
 // 阿克曼差速全局变量
-float ackermann_gain_big = 1.5f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
+float ackermann_gain_big = 1.9f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
 float ackermann_gain_small = 1.0f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
 float ackermann_gain = 1.0f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
 

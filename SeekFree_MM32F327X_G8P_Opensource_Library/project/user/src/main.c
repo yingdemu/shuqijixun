@@ -72,13 +72,15 @@
 #define IPS200_TYPE             (IPS200_TYPE_SPI)                     // 双排排针并口 → IPS200_TYPE_PARALLEL8
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
-#define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号 在 mm32f3277gx.h 头文件中查看 IRQn_Type 枚举体
+#define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
+#define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
 
 // ==================== 主函数 ====================
 
 
 float target_L=0, target_R=0;                                                     // 阿克曼输出的左右轮目标速度（编码器单位）
 uint8 turn_timer_cnt = 0;                                                         // 弯道状态1计时：PIT累加，0=空闲
+uint8 straight_rec_cnt = 0;                                                       // 直道恢复计时：PIT递减，0=已恢复
 
 int main(void)
 {
@@ -297,6 +299,16 @@ int main(void)
                     if(final_servo > 10.0f)  final_servo = 12.0f;
                     if(final_servo < -10.0f) final_servo = -12.0f;
 
+                    // 弯道时对舵机打角互补滤波，减少抖动
+                    if(!is_straight)
+                    {
+                        static float servo_filt = 0.0f;
+                        static uint8 filt_init = 1;
+                        if(filt_init) { servo_filt = final_servo; filt_init = 0; }
+                        else { servo_filt = SERVO_LOWPASS * final_servo + (1.0f - SERVO_LOWPASS) * servo_filt; }
+                        final_servo = servo_filt;
+                    }
+
                     // 舵机输出速率限制：最大 4°/帧，防止突变
                     {
                         static float prev_servo_out = 0.0f;
@@ -312,24 +324,35 @@ int main(void)
                     // ---- 速度决策：直道全速，弯道降速 ----
                     float v_target;
 
+                    // 0→1跳变检测
+                    static uint8 prev_straight = 0;
+
                     if(is_straight)
                     {
                         turn_timer_cnt = 0;
-                        v_target = v_max_straight;
+
+                        if(!prev_straight)
+                            straight_rec_cnt = 40;                                 // 40 × 5ms = 0.2s
+                        prev_straight = 1;
+
+                        if(straight_rec_cnt > 0)
+                            v_target = v_max_straight_start;
+                        else
+                            v_target = v_max_straight;
                     }
                     else
                     {
-                        if(turn_timer_cnt<120){
+                        straight_rec_cnt = 0;                                      // 弯道清零
+                        prev_straight = 0;
+                        if(turn_timer_cnt<50){
                             if(turn_timer_cnt == 0) turn_timer_cnt = 1;
-                            v_target = v_max_turn_start;
+                            v_target = speed_min;
                         }
-                        // else if(turn_timer_cnt < 50)
-                        // {
-                        //     if(turn_timer_cnt == 0) turn_timer_cnt = 1;
-                        //     float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
-                        //     v_target = v_max_turn - (v_max_turn - speed_min) * servo_dev * speed_decision_k / 12.0f;
-                        //     if(v_target < speed_min) v_target = speed_min;
-                        // }
+                        else if(turn_timer_cnt < 150)
+                        {
+                            v_target = v_max_turn_start;
+
+                        }
                         else
                         {
                             v_target = v_max_turn_cancel;
@@ -368,6 +391,7 @@ void pit_handler (void)
     encoder_update();                                                               // 读取编码器速度
     atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
     if(turn_timer_cnt > 0 && turn_timer_cnt < 120) turn_timer_cnt++;                // 弯道状态1计时（5ms/次）
+    if(straight_rec_cnt > 0) straight_rec_cnt--;                                    // 直道恢复计时（5ms/次）
 }
 
 //-------------------------------------------------------------------------------------------------------------------
