@@ -262,8 +262,8 @@ int main(void)
                         {
                             if(left_valid[row] && right_valid[row])
                             {
-                                if(left_boundary[row] >= 6 &&
-                                   right_boundary[row] <= IMG_W - 6)
+                                if(left_boundary[row] >= 10 &&
+                                   right_boundary[row] <= IMG_W - 10)
                                 {
                                     is_straight = 1;
                                 }
@@ -317,7 +317,7 @@ int main(void)
                     }
                     else
                     {
-                        if(turn_timer_cnt<100){
+                        if(turn_timer_cnt<120){
                             if(turn_timer_cnt == 0) turn_timer_cnt = 1;
                             v_target = v_max_turn_start;
                         }
@@ -364,7 +364,7 @@ void pit_handler (void)
     menu_key_process();
     encoder_update();                                                               // 读取编码器速度
     atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
-    if(turn_timer_cnt > 0 && turn_timer_cnt < 100) turn_timer_cnt++;                // 弯道状态1计时（5ms/次）
+    if(turn_timer_cnt > 0 && turn_timer_cnt < 120) turn_timer_cnt++;                // 弯道状态1计时（5ms/次）
 }
 
 //-------------------------------------------------------------------------------------------------------------------

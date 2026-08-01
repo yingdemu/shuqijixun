@@ -702,25 +702,24 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：find_key_points
-// 功能：从八邻域爬线结果（left_edge/right_edge）中寻找 A/B/C/D
-// 参数：image —— 二值化图像（保留兼容，不再使用）
+// 功能：遍历 left_boundary[] / right_boundary[] 寻找 C/D 关键点
+// 参数：image —— 二值化图像
 // 返回：void
 //
 // 策略：
-//   A/B 点：直接复用 find_boundary_start 的左右起始点
-//   C 点：遍历 left_edge[]，从底部向上追踪，找到列坐标突变的位置（拐点）
-//         如果无突变，取最高点（行号最小）作为 C
-//   D 点：遍历 right_edge[]，同上逻辑
+//   A/B 点：固定为底部边框内侧
+//   C 点：遍历 left_boundary[]（IMG_H/3 → 4行），找左下两白+右上白的断开点
+//   D 点：遍历 right_boundary[]（IMG_H/3 → 4行），找右下两白+左上白的断开点
 //-------------------------------------------------------------------------------------------------------------------
 void find_key_points(uint8 image[IMG_H][IMG_W])
 {
-    int16 k;
+    int16 r;
 
-    // ---- 1. A/B点直接使用 find_boundary_start 的结果 ----
-    point_A_row = left_start_row;
-    point_A_col = left_start_col;
-    point_B_row = right_start_row;
-    point_B_col = right_start_col;
+    // ---- 1. A/B点固定为图像底部边框内侧 ----
+    point_A_row = IMG_H - 3;
+    point_A_col = 2;
+    point_B_row = IMG_H - 3;
+    point_B_col = IMG_W - 3;
 
     // ---- 2. 初始化 C/D 点 ----
     point_C_row = 0;
@@ -728,65 +727,41 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
     point_D_row = 0;
     point_D_col = 0;
 
-    // ---- 3. 从左边界点数组找 C 点 ----
-    // 遍历 left_edge，找上面一行和上面两行同时为白的点 → 边界在此断开 → 拐点
-    for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
+    // ---- 3. 遍历 left_boundary[] 找 C 点（IMG_H * 3 / 4 → 4） ----
+    for(r = IMG_H * 3 / 4; r >= 4; r--)
     {
-        if(!left_edge[k].flag) continue;
+        if(!left_valid[r]) continue;                                              // 必须是八邻域有效的边界点
 
-        int16 r = left_edge[k].row;
-        int16 c = left_edge[k].col;
+        int16 c = (int16)left_boundary[r];
 
-        if(r >= 3 && c >= 2 && c < IMG_W - 2
-           && image[r - 1][c] == WHITE
-           && image[r - 2][c] == WHITE)
+        if(c < 2 || c > IMG_W - 3) continue;
+
+        // 左下方(r+1,c-1)和左下方左下方(r+2,c-2)为白 + 右上方(r-1,c+2)为白
+        if(image[r + 1][c - 1] == WHITE && image[r + 2][c - 2] == WHITE
+           && image[r - 1][c + 2] == WHITE && image[r + 2][c - 4] == WHITE)
         {
             point_C_row = (uint8)r;
             point_C_col = (uint8)c;
             break;
         }
     }
-    // 如果没找到符合条件的拐点，取最高点（行号最小）
-    if(point_C_row == 0)
+
+    // ---- 4. 遍历 right_boundary[] 找 D 点（IMG_H * 3 / 4 → 4） ----
+    for(r = IMG_H * 3 / 4; r >= 4; r--)
     {
-        for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
-        {
-            if(!left_edge[k].flag) continue;
-            if(point_C_row == 0 || left_edge[k].row < point_C_row)
-            {
-                point_C_row = left_edge[k].row;
-                point_C_col = left_edge[k].col;
-            }
-        }
-    }
+        if(!right_valid[r]) continue;
 
-    // ---- 4. 从右边界点数组找 D 点 ----
-    for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
-    {
-        if(!right_edge[k].flag) continue;
+        int16 c = (int16)right_boundary[r];
 
-        int16 r = right_edge[k].row;
-        int16 c = right_edge[k].col;
+        if(c < 2 || c > IMG_W - 3) continue;
 
-        if(r >= 3 && c >= 2 && c < IMG_W - 2
-           && image[r - 1][c] == WHITE
-           && image[r - 2][c] == WHITE)
+        // 右下方(r+1,c+1)和右下方右下方(r+2,c+2)为白 + 左上方(r-1,c-1)为白
+        if(image[r + 1][c + 1] == WHITE && image[r + 2][c + 2] == WHITE
+           && image[r - 1][c - 2] == WHITE && image[r + 2][c + 4] == WHITE)
         {
             point_D_row = (uint8)r;
             point_D_col = (uint8)c;
             break;
-        }
-    }
-    if(point_D_row == 0)
-    {
-        for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
-        {
-            if(!right_edge[k].flag) continue;
-            if(point_D_row == 0 || right_edge[k].row < point_D_row)
-            {
-                point_D_row = right_edge[k].row;
-                point_D_col = right_edge[k].col;
-            }
         }
     }
 }
@@ -810,108 +785,55 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
 //-------------------------------------------------------------------------------------------------------------------
 void crossroad_fix(uint8 image[IMG_H][IMG_W])
 {
-    // ---- 1. 检查C、D点是否存在 ----
-    if(point_C_row == 0 || point_D_row == 0)
-        return;
+    float k_left, k_right;
+    int16 i;
 
-    // ---- 2. A-C / B-D 行距检查：太近不补（< 10行说明拐点不可靠） ----
+    // ======== 补左侧线（C→A，从上向下画） ========
+    if(point_C_row > 0 && point_C_row != point_A_row)
     {
-        int16 ac_diff = (point_A_row > point_C_row) ? (point_A_row - point_C_row) : (point_C_row - point_A_row);
-        int16 bd_diff = (point_B_row > point_D_row) ? (point_B_row - point_D_row) : (point_D_row - point_B_row);
-        if(ac_diff < 10 || bd_diff < 10)
-            return;
-    }
+        k_left = (float)(point_C_col - point_A_col) / (float)(point_C_row - point_A_row);
 
-    // ---- 2.5 C-D 列距检查：左右拐点列距离太近不补（< 10像素说明不是真十字） ----
-    {
-        int16 cd_col_diff = (point_C_col > point_D_col) ? (point_C_col - point_D_col) : (point_D_col - point_C_col);
-        if(cd_col_diff < 10)
-            return;
-    }
-
-    // ---- 3. 取 C/D 中远端（行号小=更远），检查上方白点比例 ----
-    {
-        uint8 far_row, far_col;
-        if(point_C_row < point_D_row)
-            { far_row = point_C_row; far_col = point_C_col; }
-        else
-            { far_row = point_D_row; far_col = point_D_col; }
-
-        // 远端点的上面5行，列±2范围统计白点，>4/5确认为十字
-        uint8 white_count = 0, total = 0;
+        for(i = point_C_row; i <= point_A_row && i < IMG_H; i++)
         {
-            int16 r;
-            for(r = far_row - 1; r > far_row - 6 && r > 0; r--)
+            int16 offset = (int16)((i - point_C_row) * k_left);
+            int16 draw_col = point_C_col + offset;
+
+            if(draw_col > 2 && draw_col < IMG_W - 2)
             {
-                int16 cs = (far_col >= 2) ? far_col - 2 : 0;
-                int16 ce = (far_col <= IMG_W - 3) ? far_col + 2 : IMG_W - 1;
-                int16 c;
-                for(c = cs; c <= ce; c++)
-                {
-                    if(image[r][c] == WHITE) white_count++;
-                    total++;
-                }
+                image[i][draw_col] = BLACK;
+                image[i][draw_col - 1] = BLACK;
+                left_boundary[i] = (uint8)draw_col;
             }
         }
-        if(total == 0 || white_count * 5 <= total * 4)                          // 白≤4/5，不是十字
-            return;
+    }
 
-        // ---- 确认为十字路口，补线 ----
+    // ======== 补右侧线（D→B，从上向下画） ========
+    if(point_D_row > 0 && point_D_row != point_B_row)
+    {
+        k_right = (float)(point_D_col - point_B_col) / (float)(point_D_row - point_B_row);
+
+        for(i = point_D_row; i <= point_B_row && i < IMG_H; i++)
         {
-            float k_left, k_right;
-            int16 i;
+            int16 offset = (int16)((i - point_D_row) * k_right);
+            int16 draw_col = point_D_col + offset;
 
-            // ======== 补左侧延长线（A→C），同步写入 left_boundary ========
-            if(point_C_row != point_A_row)
+            if(draw_col > 2 && draw_col < IMG_W - 2)
             {
-                k_left = (float)(point_C_col - point_A_col) / (float)(point_C_row - point_A_row);
-
-                for(i = point_C_row; i > point_C_row - 38 && i > 0; i--)
-                {
-                    int16 offset = (int16)((i - point_C_row) * k_left);
-                    int16 draw_col = point_C_col + offset;
-
-                    if(draw_col > 2 && draw_col < IMG_W - 2)
-                    {
-                        image[i][draw_col] = BLACK;
-                        image[i][draw_col - 1] = BLACK;
-                        // 直接覆写左边界
-                        left_boundary[i] = (uint8)draw_col;
-                    }
-                }
+                image[i][draw_col] = BLACK;
+                image[i][draw_col - 1] = BLACK;
+                right_boundary[i] = (uint8)draw_col;
             }
+        }
+    }
 
-            // ======== 补右侧延长线（B→D），同步写入 right_boundary ========
-            if(point_D_row != point_B_row)
-            {
-                k_right = (float)(point_D_col - point_B_col) / (float)(point_D_row - point_B_row);
-
-                for(i = point_D_row; i > point_D_row - 38 && i > 0; i--)
-                {
-                    int16 offset = (int16)((i - point_D_row) * k_right);
-                    int16 draw_col = point_D_col + offset;
-
-                    if(draw_col > 2 && draw_col < IMG_W - 2)
-                    {
-                        image[i][draw_col] = BLACK;
-                        image[i][draw_col - 1] = BLACK;
-                        // 直接覆写右边界
-                        right_boundary[i] = (uint8)draw_col;
-                    }
-                }
-            }
-
-            // ---- 补线后重算被覆写行的中线 ----
-            for(i = 0; i < IMG_H; i++)
-            {
-                // 只对补线区域的行重算（i 在 C~C-38 或 D~D-38 范围内）
-                if((i <= point_C_row && i > point_C_row - 38)
-                   || (i <= point_D_row && i > point_D_row - 38))
-                {
-                    if(left_boundary[i] < right_boundary[i])
-                        center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
-                }
-            }
+    // ---- 补线后重算被覆写行的中线 ----
+    for(i = 0; i < IMG_H; i++)
+    {
+        if((i >= point_C_row && i <= point_A_row)
+           || (i >= point_D_row && i <= point_B_row))
+        {
+            if(left_boundary[i] < right_boundary[i])
+                center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
         }
     }
 }
@@ -1619,11 +1541,11 @@ void image_process_pipeline(void)
     // ---- 第6步：八邻域边界追踪（先爬线，得到左右边界点数组） ----
     boundary_trace(binary_image);
 
-    // ---- 第7步：从边界点中找 A/B/C/D 关键点（遍历 left_edge/right_edge） ----
-    find_key_points(binary_image);
-
-    // ---- 第8步：提取赛道中线（先得到边界，后续补线可能覆写） ----
+    // ---- 第7步：提取赛道中线（得到 left_boundary[] / right_boundary[]） ----
     extract_centerline(binary_image);
+
+    // ---- 第8步：从 left_boundary[]/right_boundary[] 中找 A/B/C/D 关键点 ----
+    find_key_points(binary_image);
 
     // ---- 第9步：十字路口判断与补线 ----
     // 补线直接修改 left_boundary[] / right_boundary[]，不再重新爬线
