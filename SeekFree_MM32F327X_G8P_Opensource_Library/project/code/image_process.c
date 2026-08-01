@@ -734,11 +734,11 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
 
         int16 c = (int16)left_boundary[r];
 
-        if(c < 2 || c > IMG_W - 3) continue;
+        if(c < 2 || c > IMG_W /2) continue;
 
         // 左下方(r+1,c-1)和左下方左下方(r+2,c-2)为白 + 右上方(r-1,c+2)为白
-        if(image[r + 1][c - 1] == WHITE && image[r + 2][c - 2] == WHITE
-           && image[r - 1][c + 2] == WHITE && image[r + 2][c - 4] == WHITE)
+        if(image[r + 2][c - 1] == WHITE && image[r + 3][c - 2] == WHITE
+           && image[r - 1][c + 2] == WHITE && image[r + 4][c - 8] == WHITE )
         {
             point_C_row = (uint8)r;
             point_C_col = (uint8)c;
@@ -753,11 +753,11 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
 
         int16 c = (int16)right_boundary[r];
 
-        if(c < 2 || c > IMG_W - 3) continue;
+        if(c < IMG_W / 2 || c > IMG_W - 3) continue;
 
         // 右下方(r+1,c+1)和右下方右下方(r+2,c+2)为白 + 左上方(r-1,c-1)为白
-        if(image[r + 1][c + 1] == WHITE && image[r + 2][c + 2] == WHITE
-           && image[r - 1][c - 2] == WHITE && image[r + 2][c + 4] == WHITE)
+        if(image[r + 2][c + 1] == WHITE && image[r + 3][c + 2] == WHITE
+           && image[r - 1][c - 2] == WHITE && image[r + 4][c + 48] == WHITE)
         {
             point_D_row = (uint8)r;
             point_D_col = (uint8)c;
@@ -1548,8 +1548,20 @@ void image_process_pipeline(void)
     find_key_points(binary_image);
 
     // ---- 第9步：十字路口判断与补线 ----
-    // 补线直接修改 left_boundary[] / right_boundary[]，不再重新爬线
+    // 补线直接修改 left_boundary[] / right_boundary[]
     crossroad_fix(binary_image);
+
+    // ---- 第9.5步：用修正后的边界重新计算全线中线 ----
+    // crossroad_fix 修改了 left_boundary/right_boundary，需要刷新 center_line
+    {
+        int16 _i;
+        for(_i = 0; _i < IMG_H; _i++)
+        {
+            if(left_boundary[_i] != 0xFF && right_boundary[_i] != 0xFF
+               && left_boundary[_i] < right_boundary[_i])
+                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+        }
+    }
 
     // ---- 第10步：圆环检测 + 中线覆写 ----
     // 基于边沿宽度变化趋势更新圆环状态机
