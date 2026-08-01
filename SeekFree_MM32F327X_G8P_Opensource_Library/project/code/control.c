@@ -193,7 +193,7 @@ void ackermann_differential(float servo_angle_deg, float base_duty, float *left_
     float tan_angle = angle_rad;                                                  // 小角度近似 tan(θ) ≈ θ（<12° 误差<2%）
     // 如需精确计算可替换为：tan_angle = tanf(angle_rad);
 
-    if(abs_angle>10){ackermann_gain = ackermann_gain_big;
+    if(abs_angle>8){ackermann_gain = ackermann_gain_big;
     }else {ackermann_gain = ackermann_gain_small;}
 
     // 阿克曼差速因子：diff = tan(δ) × W / L × gain

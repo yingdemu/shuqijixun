@@ -96,7 +96,7 @@ extern float IMU_lowpass;
 extern float motor_kp_a;
 extern float motor_kp_b;
 extern float motor_kd;
-extern float ackermann_gain;
+extern float ackermann_gain_big;
 extern float angle_kp_a;
 extern float angle_kp_b;
 extern float angle_kd;
@@ -274,10 +274,10 @@ void bluetooth_receive_process(void)
                     turn_rate = val;
                     serial_printf("OK turn_rate=%.3f\r\n", turn_rate);
                 }
-                else if(strcmp(name, "ackermann_gain") == 0)
+                else if(strcmp(name, "ackermann_gain_big") == 0)
                 {
-                    ackermann_gain = val;
-                    serial_printf("OK ackermann_gain=%.3f\r\n", ackermann_gain);
+                    ackermann_gain_big = val;
+                    serial_printf("OK ackermann_gain_big=%.3f\r\n", ackermann_gain_big);
                 }
                 else if(strcmp(name, "angle_kp_a") == 0)
                 {

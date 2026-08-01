@@ -263,7 +263,9 @@ int main(void)
                             if(left_valid[row] && right_valid[row])
                             {
                                 if(left_boundary[row] >= 10 &&
-                                   right_boundary[row] <= IMG_W - 10)
+                                   right_boundary[row] <= IMG_W - 10 )
+//                                   && left_boundary[IMG_H-4]<=3 &&
+//                                   right_boundary[IMG_H-4]>=IMG_W-4)
                                 {
                                     is_straight = 1;
                                 }
@@ -331,6 +333,7 @@ int main(void)
                         else
                         {
                             v_target = v_max_turn_cancel;
+
                         }
                     }
 
