@@ -254,7 +254,7 @@ int main(void)
                     // ---- 直道/弯道判别（在使用中线前检测） ----
                     uint8 is_straight = 0;
                     {
-                        uint8 row = 4;
+                        uint8 row = 3;
                         uint8 col = IMG_W / 2;
                         if(binary_image[row][col] == WHITE &&
                            binary_image[row][col-1] == WHITE &&
@@ -276,7 +276,7 @@ int main(void)
                     // 直道时中线与图像中心 50% 滤波，减小不必要的转向修正
                     if(is_straight)
                     {
-                        weight_position = 0.6f * ((float)IMG_W / 2.0f) + 0.4f * weight_position;
+                        weight_position = 0.8f * ((float)IMG_W / 2.0f) + 0.2f * weight_position;
                     }
 
                     float groy_z = get_gyro_z();
@@ -317,16 +317,17 @@ int main(void)
                     }
                     else
                     {
-                        if(turn_timer_cnt<10){
+                        if(turn_timer_cnt<100){
                             if(turn_timer_cnt == 0) turn_timer_cnt = 1;
                             v_target = v_max_turn_start;
-                        }else if(turn_timer_cnt < 50)
-                        {
-                            if(turn_timer_cnt == 0) turn_timer_cnt = 1;
-                            float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
-                            v_target = v_max_turn - (v_max_turn - speed_min) * servo_dev * speed_decision_k / 12.0f;
-                            if(v_target < speed_min) v_target = speed_min;
                         }
+                        // else if(turn_timer_cnt < 50)
+                        // {
+                        //     if(turn_timer_cnt == 0) turn_timer_cnt = 1;
+                        //     float servo_dev = (final_servo > 0) ? final_servo : -final_servo;
+                        //     v_target = v_max_turn - (v_max_turn - speed_min) * servo_dev * speed_decision_k / 12.0f;
+                        //     if(v_target < speed_min) v_target = speed_min;
+                        // }
                         else
                         {
                             v_target = v_max_turn_cancel;
@@ -363,7 +364,7 @@ void pit_handler (void)
     menu_key_process();
     encoder_update();                                                               // 读取编码器速度
     atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
-    if(turn_timer_cnt > 0 && turn_timer_cnt < 50) turn_timer_cnt++;                // 弯道状态1计时（5ms/次）
+    if(turn_timer_cnt > 0 && turn_timer_cnt < 100) turn_timer_cnt++;                // 弯道状态1计时（5ms/次）
 }
 
 //-------------------------------------------------------------------------------------------------------------------
