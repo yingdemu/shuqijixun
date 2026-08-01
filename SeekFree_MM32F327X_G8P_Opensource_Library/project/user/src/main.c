@@ -262,8 +262,8 @@ int main(void)
                         {
                             if(left_valid[row] && right_valid[row])
                             {
-                                if(left_boundary[row] >= 15 &&
-                                   right_boundary[row] <= IMG_W - 15)
+                                if(left_boundary[row] >= 6 &&
+                                   right_boundary[row] <= IMG_W - 6)
                                 {
                                     is_straight = 1;
                                 }
@@ -276,7 +276,7 @@ int main(void)
                     // 直道时中线与图像中心 50% 滤波，减小不必要的转向修正
                     if(is_straight)
                     {
-                        weight_position = 0.8f * ((float)IMG_W / 2.0f) + 0.2f * weight_position;
+                        weight_position = 0.7f * ((float)IMG_W / 2.0f) + 0.3f * weight_position;
                     }
 
                     float groy_z = get_gyro_z();
