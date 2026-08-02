@@ -377,7 +377,7 @@ int main(void)
                     }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_gain=0.3 + 0.23 *(abs(final_servo)-4.0f);
+                    ackermann_gain=0.05 + 0.24 *(abs(final_servo)-3.5f);
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
