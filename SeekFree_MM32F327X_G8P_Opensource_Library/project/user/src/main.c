@@ -82,7 +82,7 @@
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.10f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (50)                                            // 直道恢复计时（40×5ms=0.2s）
-#define TURN_TIMER_THRESH1        (50)                                            // 弯道第一阶段
+#define TURN_TIMER_THRESH1        (60)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
 
 // ==================== 主函数 ====================
@@ -360,6 +360,23 @@ int main(void)
                         servo_fusion_alpha = TURN_FUSION_ALPHA;                     // 弯道：10%角度+90%IMU
                         straight_rec_cnt = 0;                                      // 弯道清零
                         prev_straight = 0;
+
+                        // 弯道中丢线侧翻转 → 重置转弯计时
+                        {
+                            uint8 row = RING_NEAR_ROW;
+                            uint8 left_lost  = (left_boundary[row] <= 2);
+                            uint8 right_lost = (right_boundary[row] >= IMG_W - 3);
+                            // 0=都没丢, 1=丢左边, 2=丢右边
+                            uint8 lost_side = left_lost ? 1 : (right_lost ? 2 : 0);
+                            static uint8 prev_lost_side = 0;
+                            if(prev_lost_side != 0 && lost_side != 0
+                               && lost_side != prev_lost_side)
+                            {
+                                turn_timer_cnt = 0;                                // 丢线侧翻转→重新计时
+                            }
+                            if(lost_side != 0) prev_lost_side = lost_side;
+                        }
+
                         if(turn_timer_cnt < TURN_TIMER_THRESH1){
                             if(turn_timer_cnt == 0) turn_timer_cnt = 1;
                             v_target = speed_min;
@@ -377,7 +394,7 @@ int main(void)
                     }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_gain=0.0 + 0.24 *(abs(final_servo)-3.0f);
+                    ackermann_gain=0.1 + 0.22 *(abs(final_servo)-3.0f);
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 

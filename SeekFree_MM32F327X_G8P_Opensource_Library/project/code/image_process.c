@@ -1534,6 +1534,84 @@ void image_process_pipeline(void)
     // ---- 第7步：提取赛道中线（得到 left_boundary[] / right_boundary[]） ----
     extract_centerline(binary_image);
 
+    // // ---- 第7.5步：右边界提前丢失补线 ----
+    // // 从IMG_H-2向3找一个有效的右边界点，若其列 < IMG_W/5则补线到(IMG_H-3, IMG_W/2)
+    // {
+    //     int16 r_last = -1;
+    //     int16 i;
+    //     for(i = IMG_H - 2; i >= 3; i--)
+    //     {
+    //         if(right_valid[i])
+    //         {
+    //             r_last = i;
+    //             break;
+    //         }
+    //     }
+    //     if(r_last >= 1 && right_boundary[r_last] < IMG_W / 5)
+    //     {
+    //         int16 c_start = (int16)right_boundary[r_last];
+    //         int16 r_end = IMG_H - 3;
+    //         int16 c_end = IMG_W / 2;
+    //         float k = (float)(c_end - c_start) / (float)(r_end - r_last);
+
+    //         for(i = r_last; i <= r_end && i < IMG_H; i++)
+    //         {
+    //             int16 draw_col = c_start + (int16)((i - r_last) * k);
+    //             if(draw_col > 2 && draw_col < IMG_W - 2)
+    //             {
+    //                 binary_image[i][draw_col] = BLACK;
+    //                 binary_image[i][draw_col - 1] = BLACK;
+    //                 right_boundary[i] = (uint8)draw_col;
+    //             }
+    //         }
+    //         // 重算受影响行的中线
+    //         for(i = r_last; i <= r_end && i < IMG_H; i++)
+    //         {
+    //             if(left_boundary[i] < right_boundary[i])
+    //                 center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
+    //         }
+    //     }
+    // }
+
+    // // ---- 第7.6步：左边界提前丢失补线 ----
+    // // 从IMG_H-2向3找一个有效的左边界点，若其列 > IMG_W*4/5则补线到(IMG_H-3, IMG_W/2)
+    // {
+    //     int16 l_last = -1;
+    //     int16 i;
+    //     for(i = IMG_H - 2; i >= 3; i--)
+    //     {
+    //         if(left_valid[i])
+    //         {
+    //             l_last = i;
+    //             break;
+    //         }
+    //     }
+    //     if(l_last >= 3 && left_boundary[l_last] > IMG_W * 4 / 5)
+    //     {
+    //         int16 c_start = (int16)left_boundary[l_last];
+    //         int16 r_end = IMG_H - 3;
+    //         int16 c_end = IMG_W / 2;
+    //         float k = (float)(c_end - c_start) / (float)(r_end - l_last);
+
+    //         for(i = l_last; i <= r_end && i < IMG_H; i++)
+    //         {
+    //             int16 draw_col = c_start + (int16)((i - l_last) * k);
+    //             if(draw_col > 2 && draw_col < IMG_W - 2)
+    //             {
+    //                 binary_image[i][draw_col] = BLACK;
+    //                 binary_image[i][draw_col - 1] = BLACK;
+    //                 left_boundary[i] = (uint8)draw_col;
+    //             }
+    //         }
+    //         // 重算受影响行的中线
+    //         for(i = l_last; i <= r_end && i < IMG_H; i++)
+    //         {
+    //             if(left_boundary[i] < right_boundary[i])
+    //                 center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
+    //         }
+    //     }
+    // }
+
     // ---- 第8步：从 left_boundary[]/right_boundary[] 中找 A/B/C/D 关键点 ----
     //find_key_points(binary_image);
 
