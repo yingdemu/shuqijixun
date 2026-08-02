@@ -1535,25 +1535,23 @@ void image_process_pipeline(void)
     extract_centerline(binary_image);
 
     // ---- 第8步：从 left_boundary[]/right_boundary[] 中找 A/B/C/D 关键点 ----
-    find_key_points(binary_image);
+    //find_key_points(binary_image);
 
     // ---- 第9步：十字路口判断与补线 ----
-    // 补线直接修改 left_boundary[] / right_boundary[]
-    crossroad_fix(binary_image);
+    //crossroad_fix(binary_image);
 
     // ---- 第9.5步：用修正后的边界刷新受影响行的中线 ----
-    {
-        int16 _i;
-        // 只重算 C→A 和 D→B 范围内的行
-        if(point_C_row > 0)
-            for(_i = point_C_row; _i <= point_A_row && _i < IMG_H; _i++)
-                if(left_boundary[_i] < right_boundary[_i])
-                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-        if(point_D_row > 0)
-            for(_i = point_D_row; _i <= point_B_row && _i < IMG_H; _i++)
-                if(left_boundary[_i] < right_boundary[_i])
-                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-    }
+    //{
+    //    int16 _i;
+    //    if(point_C_row > 0)
+    //        for(_i = point_C_row; _i <= point_A_row && _i < IMG_H; _i++)
+    //            if(left_boundary[_i] < right_boundary[_i])
+    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+    //    if(point_D_row > 0)
+    //        for(_i = point_D_row; _i <= point_B_row && _i < IMG_H; _i++)
+    //            if(left_boundary[_i] < right_boundary[_i])
+    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+    //}
 
     // ---- 第10步：圆环检测 + 中线覆写 ----
     // 基于边沿宽度变化趋势更新圆环状态机

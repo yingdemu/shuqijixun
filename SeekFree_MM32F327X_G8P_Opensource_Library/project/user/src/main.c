@@ -81,7 +81,7 @@
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.10f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (40)                                            // 直道恢复计时（40×5ms=0.2s）
+#define STRAIGHT_RECOVERY_TICKS   (100)                                            // 直道恢复计时（40×5ms=0.2s）
 #define TURN_TIMER_THRESH1        (50)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
 
@@ -377,7 +377,7 @@ int main(void)
                     }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_gain=0.5 + 0.1 *(abs(final_servo)-4.0f);
+                    ackermann_gain=0.3 + 0.1 *(abs(final_servo)-4.0f);
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
