@@ -73,15 +73,15 @@
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
-#define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
+#define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
 #define STRAIGHT_DETECT_ROW       (3)                                             // 直道检测行号
-#define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
+#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (10.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-10.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.10f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (100)                                            // 直道恢复计时（40×5ms=0.2s）
+#define STRAIGHT_RECOVERY_TICKS   (50)                                            // 直道恢复计时（40×5ms=0.2s）
 #define TURN_TIMER_THRESH1        (50)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
 
@@ -377,7 +377,7 @@ int main(void)
                     }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_gain=0.3 + 0.1 *(abs(final_servo)-4.0f);
+                    ackermann_gain=0.3 + 0.2 *(abs(final_servo)-4.0f);
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
