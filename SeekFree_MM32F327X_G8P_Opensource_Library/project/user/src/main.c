@@ -74,6 +74,16 @@
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
+#define STRAIGHT_DETECT_ROW       (3)                                             // 直道检测行号
+#define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
+#define SERVO_CLIP_MAX            (10.0f)                                         // 舵机限幅上界
+#define SERVO_CLIP_MIN            (-10.0f)                                        // 舵机限幅下界
+#define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
+#define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
+#define TURN_FUSION_ALPHA         (0.10f)                                         // 弯道 servo_fusion_alpha
+#define STRAIGHT_RECOVERY_TICKS   (40)                                            // 直道恢复计时（40×5ms=0.2s）
+#define TURN_TIMER_THRESH1        (50)                                            // 弯道第一阶段
+#define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
 
 // ==================== 主函数 ====================
 
@@ -256,7 +266,7 @@ int main(void)
                     // ---- 直道/弯道判别（在使用中线前检测） ----
                     uint8 is_straight = 0;
                     {
-                        uint8 row = 3;
+                        uint8 row = STRAIGHT_DETECT_ROW;
                         uint8 col = IMG_W / 2;
                         if(binary_image[row][col] == WHITE &&
                            binary_image[row][col-1] == WHITE &&
@@ -277,10 +287,11 @@ int main(void)
 
                     float weight_position = get_weight_position(center_line);
 
-                    // 直道时中线与图像中心 50% 滤波，减小不必要的转向修正
+                    // 直道时中线与图像中心混合滤波，减小不必要的转向修正
                     if(is_straight)
                     {
-                        weight_position = 0.7f * ((float)IMG_W / 2.0f) + 0.3f * weight_position;
+                        weight_position = STRAIGHT_BLEND * ((float)IMG_W / 2.0f)
+                                        + (1.0f - STRAIGHT_BLEND) * weight_position;
                     }
 
                     float groy_z = get_gyro_z();
@@ -295,9 +306,9 @@ int main(void)
                     // 融合 IMU PID 和角度 PID 输出
                     float final_servo = servo_fusion(angle_out, servo_angle);
 
-                    // 连续限幅 ±12°（servo_set_angle 内部也会再做一次）
-                    if(final_servo > 10.0f)  final_servo = 12.0f;
-                    if(final_servo < -10.0f) final_servo = -12.0f;
+                    // 连续限幅（servo_set_angle 内部也会再做一次）
+                    if(final_servo > SERVO_CLIP_MAX)  final_servo = 12.0f;
+                    if(final_servo < SERVO_CLIP_MIN) final_servo = -12.0f;
 
                     // 弯道时对舵机打角互补滤波，减少抖动
                     if(!is_straight)
@@ -309,12 +320,12 @@ int main(void)
                         final_servo = servo_filt;
                     }
 
-                    // 舵机输出速率限制：最大 4°/帧，防止突变
+                    // 舵机输出速率限制
                     {
                         static float prev_servo_out = 0.0f;
                         float delta = final_servo - prev_servo_out;
-                        if(delta > 4.0f)       final_servo = prev_servo_out + 4.0f;
-                        else if(delta < -4.0f) final_servo = prev_servo_out - 4.0f;
+                        if(delta > SERVO_RATE_LIMIT)       final_servo = prev_servo_out + SERVO_RATE_LIMIT;
+                        else if(delta < -SERVO_RATE_LIMIT) final_servo = prev_servo_out - SERVO_RATE_LIMIT;
                         prev_servo_out = final_servo;
                     }
 
@@ -329,11 +340,11 @@ int main(void)
 
                     if(is_straight)
                     {
-                        servo_fusion_alpha = 0.2f;  // 直道时增加 IMU PID 权重，减少抖动
+                        servo_fusion_alpha = STRAIGHT_FUSION_ALPHA;                 // 直道：20%角度+80%IMU
                         turn_timer_cnt = 0;
 
                         if(!prev_straight){
-                            straight_rec_cnt = 40;                                 // 40 × 5ms = 0.2s
+                            straight_rec_cnt = STRAIGHT_RECOVERY_TICKS;            // ×5ms = 0.2s
                         prev_straight = 1;
                         }
 
@@ -346,14 +357,14 @@ int main(void)
                     }
                     else
                     {
-                        servo_fusion_alpha = 0.10f;  // 弯道时增加角度 PID 权重，减少过度转向
+                        servo_fusion_alpha = TURN_FUSION_ALPHA;                     // 弯道：10%角度+90%IMU
                         straight_rec_cnt = 0;                                      // 弯道清零
                         prev_straight = 0;
-                        if(turn_timer_cnt<50){
+                        if(turn_timer_cnt < TURN_TIMER_THRESH1){
                             if(turn_timer_cnt == 0) turn_timer_cnt = 1;
                             v_target = speed_min;
                         }
-                        else if(turn_timer_cnt < 150)
+                        else if(turn_timer_cnt < TURN_TIMER_THRESH2)
                         {
                             v_target = v_max_turn_start;
 
@@ -366,7 +377,7 @@ int main(void)
                     }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_gain_big=1.5 + 0.15 *(abs(final_servo)-4.0f);
+                    ackermann_gain=0.5 + 0.1 *(abs(final_servo)-4.0f);
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
@@ -397,7 +408,7 @@ void pit_handler (void)
     menu_key_process();
     encoder_update();                                                               // 读取编码器速度
     atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
-    if(turn_timer_cnt > 0 && turn_timer_cnt < 120) turn_timer_cnt++;                // 弯道状态1计时（5ms/次）
+    if(turn_timer_cnt > 0 && turn_timer_cnt < TURN_TIMER_THRESH2) turn_timer_cnt++;  // 弯道状态1计时
     if(straight_rec_cnt > 0) straight_rec_cnt--;                                    // 直道恢复计时（5ms/次）
 }
 

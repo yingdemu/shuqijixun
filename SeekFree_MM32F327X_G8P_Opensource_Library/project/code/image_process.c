@@ -26,7 +26,9 @@ float filtered_threshold = 180.0f;                                              
 uint8 threshold_mode = 0;                                                       // 阈值模式：1=大津法，0=固定阈值
 uint8 fixed_threshold = 180;                                                    // 固定阈值默认值（0~255）
 
-#define THRESHOLD_ALPHA         0.3f                                            // 互补滤波系数（0~1，越小越平滑，越大越灵敏）
+#define THRESHOLD_ALPHA         0.3f                                            // 互补滤波系数
+#define GRAY_SCALE               256                                             // 灰度级 0~255
+#define KUAN                     30                                              // 两峰之间最小间隔（灰度级）
 
 // ---- 二值化后的图像 ----
 uint8 binary_image[IMG_H][IMG_W];                                               // 二值化图像：0=黑(边界线), 255=白(赛道)
@@ -107,9 +109,6 @@ uint8 ring_dbg_cur_ft = 0;                                                      
 //-------------------------------------------------------------------------------------------------------------------
 uint8 otsu_threshold_calc(uint8 *image)
 {
-    #define GRAY_SCALE 256                                                      // 灰度级 0~255
-    #define KUAN       30                                                       // 两峰之间最小间隔（灰度级）
-
     uint16 i, j;
     uint8 pixel_min = 255, pixel_max = 0;
     uint8 *data = image;
@@ -757,7 +756,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
 
         // 右下方(r+1,c+1)和右下方右下方(r+2,c+2)为白 + 左上方(r-1,c-1)为白
         if(image[r + 2][c + 1] == WHITE && image[r + 3][c + 2] == WHITE
-           && image[r - 1][c - 2] == WHITE && image[r + 4][c + 48] == WHITE)
+           && image[r - 1][c - 2] == WHITE && image[r + 4][c + 8] == WHITE)
         {
             point_D_row = (uint8)r;
             point_D_col = (uint8)c;
@@ -826,16 +825,7 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 补线后重算被覆写行的中线 ----
-    for(i = 0; i < IMG_H; i++)
-    {
-        if((i >= point_C_row && i <= point_A_row)
-           || (i >= point_D_row && i <= point_B_row))
-        {
-            if(left_boundary[i] < right_boundary[i])
-                center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
-        }
-    }
+    // 中线重算移到了流水线中，此处不再重复
 }
 
 //==================================================== 赛道中线提取 ====================================================
@@ -1551,16 +1541,18 @@ void image_process_pipeline(void)
     // 补线直接修改 left_boundary[] / right_boundary[]
     crossroad_fix(binary_image);
 
-    // ---- 第9.5步：用修正后的边界重新计算全线中线 ----
-    // crossroad_fix 修改了 left_boundary/right_boundary，需要刷新 center_line
+    // ---- 第9.5步：用修正后的边界刷新受影响行的中线 ----
     {
         int16 _i;
-        for(_i = 0; _i < IMG_H; _i++)
-        {
-            if(left_boundary[_i] != 0xFF && right_boundary[_i] != 0xFF
-               && left_boundary[_i] < right_boundary[_i])
-                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-        }
+        // 只重算 C→A 和 D→B 范围内的行
+        if(point_C_row > 0)
+            for(_i = point_C_row; _i <= point_A_row && _i < IMG_H; _i++)
+                if(left_boundary[_i] < right_boundary[_i])
+                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+        if(point_D_row > 0)
+            for(_i = point_D_row; _i <= point_B_row && _i < IMG_H; _i++)
+                if(left_boundary[_i] < right_boundary[_i])
+                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
     }
 
     // ---- 第10步：圆环检测 + 中线覆写 ----

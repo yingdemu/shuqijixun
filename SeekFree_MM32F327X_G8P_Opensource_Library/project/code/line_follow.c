@@ -36,7 +36,7 @@ uint8 line_data_ready = 0;                                                      
 
 
 
-uint8 weight[IMG_H]={   1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 ,
+static const uint8 weight[IMG_H]={   1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 ,
                         2 , 3 , 3 , 4 , 4 , 5 , 6 , 7 , 8 , 9 , 10 , 11 , 12 , 12 , 13 ,
                         14, 14, 15, 16, 16, 17, 18, 18, 19, 19, 18, 18, 17, 17, 16,
                         16, 15, 15, 14, 13, 13, 12, 12, 11, 11, 10, 10, 9 , 9 , 8 ,
@@ -200,7 +200,7 @@ uint8 get_center_line(uint8 row)
     }
     else
     {
-        return IMG_W / 2;                                                       // 默认返回图像中心（40）
+        return IMG_W / 2;                                                       // 默认返回图像中心（94）
     }
 }
 
@@ -361,8 +361,8 @@ void boundary_lost_compensate(void)
     }
     if(total_rows == 0) return;
 
-    uint8 left_lost_flag  = (left_lost   >= total_rows );
-    uint8 right_lost_flag = (right_lost  >= total_rows );
+    uint8 left_lost_flag  = (left_lost * 10  >= total_rows * 9);
+    uint8 right_lost_flag = (right_lost * 10 >= total_rows * 9);
 
     if(left_lost_flag && !right_lost_flag)
     {
@@ -408,9 +408,9 @@ void boundary_lost_compensate(void)
 
 // ---- 图像 PID：中线偏差 → 目标角速度 ----
 float image_pid_error=0;
-float image_pid_outd=0;
-float image_pid_outp=0;
-float image_kp=0;
+static float image_pid_outd=0;
+static float image_pid_outp=0;
+static float image_kp=0;
 float image_pid_set(float target,float actual)
 {
     static uint8 first = 1;
@@ -427,11 +427,11 @@ float image_pid_set(float target,float actual)
 }
 
 // ---- IMU PID：角速度闭环 → 舵机打角 ----
-float IMU_pid_error=0;
-float IMU_pid_outd=0;
-float IMU_pid_outp=0;
-float IMU_kp=0;
-float finall_out;
+static float IMU_pid_error=0;
+static float IMU_pid_outd=0;
+static float IMU_pid_outp=0;
+static float IMU_kp=0;
+static float finall_out;
 float IMU_pid_set(float target,float actual)
 {
     static uint8 first = 1;
@@ -454,10 +454,10 @@ float IMU_pid_set(float target,float actual)
 }
 
 // ---- 电机 PID：中线偏差 → 差速量 ----
-float motor_pid_error=0;
-float motor_pid_outd=0;
-float motor_pid_outp=0;
-float motor_kp=0;
+static float motor_pid_error=0;
+static float motor_pid_outd=0;
+static float motor_pid_outp=0;
+static float motor_kp=0;
 float motor_pid_set(float target,float actual)
 {
     static uint8 first = 1;
@@ -650,9 +650,6 @@ float angle_pid_set(float target, float actual)
 
 
 
-// ---- 速度 PID 状态变量（左右轮独立） ----
-float speed_pid_error = 0;
-
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：speed_pid_set
 // 功能：速度闭环 PID（增量式，带输出饱和抗积分饱和），左右轮独立状态
@@ -669,18 +666,17 @@ float speed_pid_set(uint8 channel, float target, float actual)
     static float error_prev[2]  = {0.0f, 0.0f};
     static float error_prev2[2] = {0.0f, 0.0f};
 
-    speed_pid_error = target - actual;
+    float err = target - actual;
 
     if(first[channel])
     {
         speed_pid_out[channel] = (float)motor_duty;
-        error_prev[channel]  = speed_pid_error;
-        error_prev2[channel] = speed_pid_error;
+        error_prev[channel]  = err;
+        error_prev2[channel] = err;
         first[channel] = 0;
         return speed_pid_out[channel];
     }
 
-    float err = speed_pid_error;
     float err_p = error_prev[channel];
     float err_pp = error_prev2[channel];
 
