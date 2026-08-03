@@ -714,7 +714,7 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
 //-------------------------------------------------------------------------------------------------------------------
 void find_key_points(uint8 image[IMG_H][IMG_W])
 {
-    int16 r;
+    int16 k;
 
     // ---- 1. A/B点固定为图像底部边框内侧 ----
     point_A_row = IMG_H - 3;
@@ -728,18 +728,17 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
     point_E_row = 0; point_E_col = 0;
     point_F_row = 0; point_F_col = 0;
 
-    // ---- 3. 遍历 left_boundary[] 找 C 点（IMG_H * 3 / 4 → 4） ----
-    for(r = IMG_H * 3 / 4; r >= 4; r--)
+    // ---- 3. 遍历 left_edge[] 找 C 点（IMG_H*3/4 → 4, col < IMG_W/2） ----
+    for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
     {
-        if(!left_valid[r]) continue;                                              // 必须是八邻域有效的边界点
+        if(!left_edge[k].flag) continue;
+        int16 r = left_edge[k].row;
+        int16 c = left_edge[k].col;
+        if(r < 4 || r > IMG_H * 3 / 4) continue;
+        if(c < 2 || c >= IMG_W / 2) continue;
 
-        int16 c = (int16)left_boundary[r];
-
-        if(c < 2 || c > IMG_W /2) continue;
-
-        // 左下方(r+1,c-1)和左下方左下方(r+2,c-2)为白 + 右上方(r-1,c+2)为白
         if(image[r + 2][c - 1] == WHITE && image[r + 3][c - 2] == WHITE
-           && image[r - 1][c + 2] == WHITE && image[r + 4][c - 8] == WHITE )
+           && image[r - 1][c + 2] == WHITE && image[r + 4][c - 8] == WHITE)
         {
             point_C_row = (uint8)r;
             point_C_col = (uint8)c;
@@ -747,16 +746,15 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 4. 遍历 right_boundary[] 找 D 点（IMG_H * 3 / 4 → 4） ----
-    for(r = IMG_H * 3 / 4; r >= 4; r--)
+    // ---- 4. 遍历 right_edge[] 找 D 点（IMG_H*3/4 → 4, col > IMG_W/2） ----
+    for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
     {
-        if(!right_valid[r]) continue;
+        if(!right_edge[k].flag) continue;
+        int16 r = right_edge[k].row;
+        int16 c = right_edge[k].col;
+        if(r < 4 || r > IMG_H * 3 / 4) continue;
+        if(c <= IMG_W / 2 || c > IMG_W - 3) continue;
 
-        int16 c = (int16)right_boundary[r];
-
-        if(c < IMG_W / 2 || c > IMG_W - 3) continue;
-
-        // 右下方(r+1,c+1)和右下方右下方(r+2,c+2)为白 + 左上方(r-1,c-1)为白
         if(image[r + 2][c + 1] == WHITE && image[r + 3][c + 2] == WHITE
            && image[r - 1][c - 2] == WHITE && image[r + 4][c + 8] == WHITE)
         {
@@ -766,17 +764,17 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 5. C未找到时，遍历 left_boundary[] 找 E 点（IMG_H-2 → IMG_H/3） ----
+    // ---- 5. C未找到时，遍历 left_edge[] 找 E 点（IMG_H-2 → IMG_H/3, col < IMG_W/2） ----
     if(point_C_row == 0)
     {
-        for(r = IMG_H - 2; r >= IMG_H / 3; r--)
+        for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
         {
-            if(!left_valid[r]) continue;
+            if(!left_edge[k].flag) continue;
+            int16 r = left_edge[k].row;
+            int16 c = left_edge[k].col;
+            if(r < IMG_H / 3 || r > IMG_H - 2) continue;
+            if(c < 2 || c >= IMG_W / 2) continue;
 
-            int16 c = (int16)left_boundary[r];
-            if(c < 2 || c > IMG_W - 3) continue;
-
-            // (r-2,c-2) 和 (r-1,c) 均为白 → E点
             if(r >= 4 && c >= 4
                && image[r - 2][c - 2] == WHITE && image[r - 1][c] == WHITE)
             {
@@ -787,17 +785,17 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 6. D未找到时，遍历 right_boundary[] 找 F 点（IMG_H-2 → IMG_H/3） ----
+    // ---- 6. D未找到时，遍历 right_edge[] 找 F 点（IMG_H-2 → IMG_H/3, col > IMG_W/2） ----
     if(point_D_row == 0)
     {
-        for(r = IMG_H - 2; r >= IMG_H / 3; r--)
+        for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
         {
-            if(!right_valid[r]) continue;
+            if(!right_edge[k].flag) continue;
+            int16 r = right_edge[k].row;
+            int16 c = right_edge[k].col;
+            if(r < IMG_H / 3 || r > IMG_H - 2) continue;
+            if(c <= IMG_W / 2 || c > IMG_W - 3) continue;
 
-            int16 c = (int16)right_boundary[r];
-            if(c < 2 || c > IMG_W - 3) continue;
-
-            // (r-2,c+2) 和 (r-1,c) 均为白 → F点
             if(r >= 4 && c < IMG_W - 4
                && image[r - 2][c + 2] == WHITE && image[r - 1][c] == WHITE)
             {

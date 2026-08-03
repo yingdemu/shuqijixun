@@ -436,7 +436,7 @@ int main(void)
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
                     {
-                        float raw_gain = 0.2f + 0.2f * (abs(final_servo) - 3.0f);
+                        float raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;
