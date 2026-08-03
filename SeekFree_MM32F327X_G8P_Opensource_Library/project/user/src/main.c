@@ -82,7 +82,7 @@
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.10f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（60×5ms=0.3s）
-#define TURN_TIMER_THRESH1        (120)                                            // 弯道第一阶段
+#define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
 #define DUTY_LOWPASS              (0.2f)
 
@@ -436,7 +436,7 @@ int main(void)
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
                     {
-                        float raw_gain = 0.0f + 0.24f * (abs(final_servo) - 3.0f);
+                        float raw_gain = 0.2f + 0.2f * (abs(final_servo) - 3.0f);
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;

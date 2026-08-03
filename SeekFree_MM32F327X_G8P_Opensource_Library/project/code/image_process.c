@@ -45,11 +45,13 @@ int16 right_start_row = 0, right_start_col = 0;                                 
 uint8 left_lose_rows = 0;                                                       // 左边界丢失行数
 uint8 right_lose_rows = 0;                                                      // 右边界丢失行数
 
-// ---- A/B/C/D 关键点 ----
+// ---- A/B/C/D/E/F 关键点 ----
 uint8 point_A_row = 0, point_A_col = 0;                                        // A点（左边界底部起点）
 uint8 point_B_row = 0, point_B_col = 0;                                        // B点（右边界底部起点）
 uint8 point_C_row = 0, point_C_col = 0;                                        // C点（左边界上部拐点）
 uint8 point_D_row = 0, point_D_col = 0;                                        // D点（右边界上部拐点）
+uint8 point_E_row = 0, point_E_col = 0;                                        // E点（左边界备用补线点）
+uint8 point_F_row = 0, point_F_col = 0;                                        // F点（右边界备用补线点）
 
 // ---- 赛道中线 ----
 uint8 center_line[IMG_H];                                                       // 中线数组
@@ -720,11 +722,11 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
     point_B_row = IMG_H - 3;
     point_B_col = IMG_W - 3;
 
-    // ---- 2. 初始化 C/D 点 ----
-    point_C_row = 0;
-    point_C_col = 0;
-    point_D_row = 0;
-    point_D_col = 0;
+    // ---- 2. 初始化 C/D/E/F 点 ----
+    point_C_row = 0; point_C_col = 0;
+    point_D_row = 0; point_D_col = 0;
+    point_E_row = 0; point_E_col = 0;
+    point_F_row = 0; point_F_col = 0;
 
     // ---- 3. 遍历 left_boundary[] 找 C 点（IMG_H * 3 / 4 → 4） ----
     for(r = IMG_H * 3 / 4; r >= 4; r--)
@@ -763,6 +765,48 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
             break;
         }
     }
+
+    // ---- 5. C未找到时，遍历 left_boundary[] 找 E 点（IMG_H-2 → IMG_H/3） ----
+    if(point_C_row == 0)
+    {
+        for(r = IMG_H - 2; r >= IMG_H / 3; r--)
+        {
+            if(!left_valid[r]) continue;
+
+            int16 c = (int16)left_boundary[r];
+            if(c < 2 || c > IMG_W - 3) continue;
+
+            // (r-2,c-2) 和 (r-1,c) 均为白 → E点
+            if(r >= 4 && c >= 4
+               && image[r - 2][c - 2] == WHITE && image[r - 1][c] == WHITE)
+            {
+                point_E_row = (uint8)r;
+                point_E_col = (uint8)c;
+                break;
+            }
+        }
+    }
+
+    // ---- 6. D未找到时，遍历 right_boundary[] 找 F 点（IMG_H-2 → IMG_H/3） ----
+    if(point_D_row == 0)
+    {
+        for(r = IMG_H - 2; r >= IMG_H / 3; r--)
+        {
+            if(!right_valid[r]) continue;
+
+            int16 c = (int16)right_boundary[r];
+            if(c < 2 || c > IMG_W - 3) continue;
+
+            // (r-2,c+2) 和 (r-1,c) 均为白 → F点
+            if(r >= 4 && c < IMG_W - 4
+               && image[r - 2][c + 2] == WHITE && image[r - 1][c] == WHITE)
+            {
+                point_F_row = (uint8)r;
+                point_F_col = (uint8)c;
+                break;
+            }
+        }
+    }
 }
 
 //==================================================== 十字路口判断与补线 ====================================================
@@ -786,16 +830,50 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
 {
     float k_left, k_right;
     int16 i;
+    uint8 use_left_row, use_left_col;
+    uint8 use_right_row, use_right_col;
 
-    // ======== 补左侧线（C→A，从上向下画） ========
-    if(point_C_row > 0 && point_C_row != point_A_row)
+    // ======== 确定左侧补线点（C优先，E备用） ========
+    if(point_C_row > 0)
     {
-        k_left = (float)(point_C_col - point_A_col) / (float)(point_C_row - point_A_row);
+        use_left_row = point_C_row;
+        use_left_col = point_C_col;
+    }
+    else if(point_E_row > 0)
+    {
+        use_left_row = point_E_row;
+        use_left_col = point_E_col;
+    }
+    else
+    {
+        use_left_row = 0;
+    }
 
-        for(i = point_C_row; i <= point_A_row && i < IMG_H; i++)
+    // ======== 确定右侧补线点（D优先，F备用） ========
+    if(point_D_row > 0)
+    {
+        use_right_row = point_D_row;
+        use_right_col = point_D_col;        
+    }
+    else if(point_F_row > 0)
+    {
+        use_right_row = point_F_row;
+        use_right_col = point_F_col;
+    }
+    else
+    {
+        use_right_row = 0;
+    }
+
+    // ======== 补左侧线（→A，从上向下画） ========
+    if(use_left_row > 0 && use_left_row != point_A_row)
+    {
+        k_left = (float)(use_left_col - point_A_col) / (float)(use_left_row - point_A_row);
+
+        for(i = use_left_row; i <= point_A_row && i < IMG_H; i++)
         {
-            int16 offset = (int16)((i - point_C_row) * k_left);
-            int16 draw_col = point_C_col + offset;
+            int16 offset = (int16)((i - use_left_row) * k_left);
+            int16 draw_col = use_left_col + offset;
 
             if(draw_col > 2 && draw_col < IMG_W - 2)
             {
@@ -806,15 +884,15 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ======== 补右侧线（D→B，从上向下画） ========
-    if(point_D_row > 0 && point_D_row != point_B_row)
+    // ======== 补右侧线（→B，从上向下画） ========
+    if(use_right_row > 0 && use_right_row != point_B_row)
     {
-        k_right = (float)(point_D_col - point_B_col) / (float)(point_D_row - point_B_row);
+        k_right = (float)(use_right_col - point_B_col) / (float)(use_right_row - point_B_row);
 
-        for(i = point_D_row; i <= point_B_row && i < IMG_H; i++)
+        for(i = use_right_row; i <= point_B_row && i < IMG_H; i++)
         {
-            int16 offset = (int16)((i - point_D_row) * k_right);
-            int16 draw_col = point_D_col + offset;
+            int16 offset = (int16)((i - use_right_row) * k_right);
+            int16 draw_col = use_right_col + offset;
 
             if(draw_col > 2 && draw_col < IMG_W - 2)
             {
@@ -1621,12 +1699,14 @@ void image_process_pipeline(void)
     // ---- 第9.5步：用修正后的边界刷新受影响行的中线 ----
     {
         int16 _i;
-        if(point_C_row > 0)
-            for(_i = point_C_row; _i <= point_A_row && _i < IMG_H; _i++)
+        uint8 _lr = (point_C_row > 0) ? point_C_row : point_E_row;
+        uint8 _rr = (point_D_row > 0) ? point_D_row : point_F_row;
+        if(_lr > 0)
+            for(_i = _lr; _i <= point_A_row && _i < IMG_H; _i++)
                 if(left_boundary[_i] < right_boundary[_i])
                     center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-        if(point_D_row > 0)
-            for(_i = point_D_row; _i <= point_B_row && _i < IMG_H; _i++)
+        if(_rr > 0)
+            for(_i = _rr; _i <= point_B_row && _i < IMG_H; _i++)
                 if(left_boundary[_i] < right_boundary[_i])
                     center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
     }
