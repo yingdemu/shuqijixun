@@ -81,8 +81,8 @@
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.10f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (50)                                            // 直道恢复计时（40×5ms=0.2s）
-#define TURN_TIMER_THRESH1        (60)                                            // 弯道第一阶段
+#define STRAIGHT_RECOVERY_TICKS   (40)                                            // 直道恢复计时（40×5ms=0.2s）
+#define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
 
 // ==================== 主函数 ====================
@@ -267,23 +267,51 @@ int main(void)
                     uint8 is_straight = 0;
                     {
                         uint8 row = STRAIGHT_DETECT_ROW;
-                        uint8 col = IMG_W / 2;
-                        if(binary_image[row][col] == WHITE &&
-                           binary_image[row][col-1] == WHITE &&
-                           binary_image[row][col+1] == WHITE)
+                        // 统计 IMG_W/3 ~ IMG_W*2/3 范围内的白点数量
+                        uint8 white_cnt = 0;
+                        {
+                            int16 c;
+                            for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
+                            {
+                                if(binary_image[row][c] == WHITE) white_cnt++;
+                            }
+                        }
+                        if(white_cnt >= 4)
                         {
                             if(left_valid[row] && right_valid[row])
                             {
                                 if(left_boundary[row] >= 10 &&
-                                   right_boundary[row] <= IMG_W - 10 )
-//                                   && left_boundary[IMG_H-4]<=3 &&
-//                                   right_boundary[IMG_H-4]>=IMG_W-4)
+                                   right_boundary[row] <= IMG_W - 10)
                                 {
                                     is_straight = 1;
                                 }
                             }
                         }
                     }
+
+                    // 直→弯转换校验：上一帧直道但本帧非直道时，需确认边界确实偏移
+                    //{
+                    //    static uint8 prev_was_straight = 0;
+                    //    if(prev_was_straight && !is_straight)
+                    //    {
+                    //        // 找左边界最后一个有效点
+                    //        int16 l_last = -1, r_last = -1;
+                    //        int16 i;
+                    //        for(i = 3; i <= IMG_H - 2; i++)
+                    //        {
+                    //            if(l_last < 0 && left_valid[i])  l_last = i;
+                    //            if(r_last < 0 && right_valid[i]) r_last = i;
+                    //            if(l_last >= 0 && r_last >= 0)  break;
+                    //        }
+                    //        uint8 confirm_turn = 0;
+                    //        if(l_last >= 0 && left_boundary[l_last] > IMG_W / 2)
+                    //            confirm_turn = 1;
+                    //        if(r_last >= 0 && right_boundary[r_last] < IMG_W / 2)
+                    //            confirm_turn = 1;
+                    //        if(!confirm_turn) is_straight = 1;
+                    //    }
+                    //    prev_was_straight = is_straight;
+                    //}
 
                     float weight_position = get_weight_position(center_line);
 
@@ -394,7 +422,7 @@ int main(void)
                     }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_gain=0.1 + 0.22 *(abs(final_servo)-3.0f);
+                    ackermann_gain=0.0 + 0.24 *(abs(final_servo)-3.5f);
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
