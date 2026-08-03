@@ -916,47 +916,43 @@ void menu_image_display_process(void)
         // ---- 分隔线 ----
         ips200_draw_line(0, 102, 239, 102, RGB565_RED);
 
-        // ---- 下半屏：显示圆环检测调试数据（替换原灰度图） ----
-        // 8×16字体，320宽=40字/行，y=106起共7行
+        // ---- 下半屏：状态信息 ----
         {
             char buf[40];
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 行1：标题
-            sprintf(buf, "        REF      CUR");
-            ips200_show_string(0, 106, buf);
-
-            // 行2：远端甲侧(左)
-            sprintf(buf, "farL  %3u      %3u", ring_dbg_ref_fl, ring_dbg_cur_fl);
-            ips200_show_string(0, 122, buf);
-
-            // 行3：远端乙侧(右)
-            sprintf(buf, "farR  %3u      %3u", ring_dbg_ref_fr, ring_dbg_cur_fr);
-            ips200_show_string(0, 138, buf);
-
-            // 行4：近端甲侧(左)
-            sprintf(buf, "nearL %3u      %3u", ring_dbg_ref_nl, ring_dbg_cur_nl);
-            ips200_show_string(0, 154, buf);
-
-            // 行5：近端乙侧(右)
-            sprintf(buf, "nearR %3u      %3u", ring_dbg_ref_nr, ring_dbg_cur_nr);
-            ips200_show_string(0, 170, buf);
-
-            // 行6：远端赛道宽度 + 近端赛道宽度（同行显示）
-            sprintf(buf, "farT  %3u>%3u  nearT %3u>%3u",
-                    ring_dbg_ref_ft, ring_dbg_cur_ft,
-                    ring_dbg_ref_nt, ring_dbg_cur_nt);
-            ips200_show_string(0, 186, buf);
-
-            // 行7：加权位置、阈值、圆环状态
+            // 直道/弯道判别
+            uint8 is_straight = 0;
             {
-                float pos = get_weight_position(center_line, 1);
-                const char *ring_names = "NPCIEOD";
-                sprintf(buf, "pos:%.1f OT:%3u R:%c", pos, otsu_threshold,
-                        ring_names[ring_state]);
-                ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
-                ips200_show_string(0, 202, buf);
-                ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+                uint8 row = 3;
+                uint8 white_cnt = 0;
+                int16 c;
+                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
+                    if(binary_image[row][c] == WHITE) white_cnt++;
+                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
+                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
+                    is_straight = 1;
+            }
+
+            // 行1：直道/弯道状态
+            if(is_straight)
+            {
+                ips200_set_color(RGB565_WHITE, RGB565_GREEN);
+                sprintf(buf, "  STRAIGHT  ");
+            }
+            else
+            {
+                ips200_set_color(RGB565_WHITE, RGB565_RED);
+                sprintf(buf, "   CURVE    ");
+            }
+            ips200_show_string(0, 106, buf);
+            ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+
+            // 行2：加权位置、阈值
+            {
+                float pos = get_weight_position(center_line, is_straight);
+                sprintf(buf, "pos:%.1f  OT:%3u", pos, otsu_threshold);
+                ips200_show_string(0, 122, buf);
             }
         }
 

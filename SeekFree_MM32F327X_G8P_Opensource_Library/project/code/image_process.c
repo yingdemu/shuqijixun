@@ -764,7 +764,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 5. C未找到时，遍历 left_edge[] 找 E 点（IMG_H-2 → IMG_H/3, col < IMG_W/2） ----
+    // ---- 5. C未找到时，遍历 left_edge[] 找 E 点（IMG_H-20 → IMG_H-3, col < IMG_W/2） ----
     if(point_C_row == 0)
     {
         for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
@@ -772,7 +772,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
             if(!left_edge[k].flag) continue;
             int16 r = left_edge[k].row;
             int16 c = left_edge[k].col;
-            if(r < IMG_H / 3 || r > IMG_H - 2) continue;
+            if(r < IMG_H - 20 || r > IMG_H - 3) continue;
             if(c < 2 || c >= IMG_W / 2) continue;
 
             if(r >= 4 && c >= 4
@@ -785,7 +785,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 6. D未找到时，遍历 right_edge[] 找 F 点（IMG_H-2 → IMG_H/3, col > IMG_W/2） ----
+    // ---- 6. D未找到时，遍历 right_edge[] 找 F 点（IMG_H-20 → IMG_H-3, col > IMG_W/2） ----
     if(point_D_row == 0)
     {
         for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
@@ -793,7 +793,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
             if(!right_edge[k].flag) continue;
             int16 r = right_edge[k].row;
             int16 c = right_edge[k].col;
-            if(r < IMG_H / 3 || r > IMG_H - 2) continue;
+            if(r < IMG_H - 20 || r > IMG_H - 3) continue;
             if(c <= IMG_W / 2 || c > IMG_W - 3) continue;
 
             if(r >= 4 && c < IMG_W - 4
@@ -831,44 +831,45 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
     uint8 use_left_row, use_left_col;
     uint8 use_right_row, use_right_col;
 
-    // ======== 确定左侧补线点（C优先，E备用） ========
-    if(point_C_row > 0)
-    {
-        use_left_row = point_C_row;
-        use_left_col = point_C_col;
-    }
-    else if(point_E_row > 0)
+    // ======== 确定左侧补线点（E优先，C备用） ========
+    if(point_E_row > 0)
     {
         use_left_row = point_E_row;
         use_left_col = point_E_col;
+    }
+    else if(point_C_row > 0)
+    {
+        use_left_row = point_C_row;
+        use_left_col = point_C_col;
     }
     else
     {
         use_left_row = 0;
     }
 
-    // ======== 确定右侧补线点（D优先，F备用） ========
-    if(point_D_row > 0)
-    {
-        use_right_row = point_D_row;
-        use_right_col = point_D_col;        
-    }
-    else if(point_F_row > 0)
+    // ======== 确定右侧补线点（F优先，D备用） ========
+    if(point_F_row > 0)
     {
         use_right_row = point_F_row;
         use_right_col = point_F_col;
+    }
+    else if(point_D_row > 0)
+    {
+        use_right_row = point_D_row;
+        use_right_col = point_D_col;
     }
     else
     {
         use_right_row = 0;
     }
 
-    // ======== 补左侧线（→A，从上向下画） ========
+    // ======== 补左侧线（→A，从7行画到IMG_H-3） ========
     if(use_left_row > 0 && use_left_row != point_A_row)
     {
         k_left = (float)(use_left_col - point_A_col) / (float)(use_left_row - point_A_row);
+        int16 start_row = (use_left_row > 7) ? use_left_row : 7;
 
-        for(i = use_left_row; i <= point_A_row && i < IMG_H; i++)
+        for(i = start_row; i <= point_A_row && i < IMG_H; i++)
         {
             int16 offset = (int16)((i - use_left_row) * k_left);
             int16 draw_col = use_left_col + offset;
@@ -882,12 +883,13 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ======== 补右侧线（→B，从上向下画） ========
+    // ======== 补右侧线（→B，从7行画到IMG_H-3） ========
     if(use_right_row > 0 && use_right_row != point_B_row)
     {
         k_right = (float)(use_right_col - point_B_col) / (float)(use_right_row - point_B_row);
+        int16 start_row = (use_right_row > 7) ? use_right_row : 7;
 
-        for(i = use_right_row; i <= point_B_row && i < IMG_H; i++)
+        for(i = start_row; i <= point_B_row && i < IMG_H; i++)
         {
             int16 offset = (int16)((i - use_right_row) * k_right);
             int16 draw_col = use_right_col + offset;
@@ -1689,25 +1691,25 @@ void image_process_pipeline(void)
     // }
 
     // ---- 第8步：从 left_boundary[]/right_boundary[] 中找 A/B/C/D 关键点 ----
-    find_key_points(binary_image);
+    //find_key_points(binary_image);
 
     // ---- 第9步：十字路口判断与补线 ----
-    crossroad_fix(binary_image);
+    //crossroad_fix(binary_image);
 
     // ---- 第9.5步：用修正后的边界刷新受影响行的中线 ----
-    {
-        int16 _i;
-        uint8 _lr = (point_C_row > 0) ? point_C_row : point_E_row;
-        uint8 _rr = (point_D_row > 0) ? point_D_row : point_F_row;
-        if(_lr > 0)
-            for(_i = _lr; _i <= point_A_row && _i < IMG_H; _i++)
-                if(left_boundary[_i] < right_boundary[_i])
-                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-        if(_rr > 0)
-            for(_i = _rr; _i <= point_B_row && _i < IMG_H; _i++)
-                if(left_boundary[_i] < right_boundary[_i])
-                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-    }
+    //{
+    //    int16 _i;
+    //    uint8 _lr = (point_C_row > 0) ? point_C_row : point_E_row;
+    //    uint8 _rr = (point_D_row > 0) ? point_D_row : point_F_row;
+    //    if(_lr > 0)
+    //        for(_i = _lr; _i <= point_A_row && _i < IMG_H; _i++)
+    //            if(left_boundary[_i] < right_boundary[_i])
+    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+    //    if(_rr > 0)
+    //        for(_i = _rr; _i <= point_B_row && _i < IMG_H; _i++)
+    //            if(left_boundary[_i] < right_boundary[_i])
+    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+    //}
 
     // ---- 第10步：圆环检测 + 中线覆写 ----
     // 基于边沿宽度变化趋势更新圆环状态机

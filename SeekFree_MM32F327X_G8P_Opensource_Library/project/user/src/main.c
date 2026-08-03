@@ -281,10 +281,11 @@ int main(void)
                         {
                             if(left_valid[row] && right_valid[row])
                             {
-                                if(left_boundary[row] >= 5 &&
-                                   right_boundary[row] <= IMG_W - 5
-                                   && right_boundary[row] >=IMG_W/2
-                                   && left_boundary[row] <=IMG_W/2)
+                                if(
+                                left_boundary[row] >= 5 &&
+                                    right_boundary[row] <= IMG_W - 5 &&
+                                    right_boundary[row] >=IMG_W/2
+                                    && left_boundary[row] <=IMG_W/2)
                                 {
                                     is_straight = 1;
                                 }
