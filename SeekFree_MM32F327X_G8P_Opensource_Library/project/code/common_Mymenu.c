@@ -950,7 +950,7 @@ void menu_image_display_process(void)
 
             // 行7：加权位置、阈值、圆环状态
             {
-                float pos = get_weight_position(center_line);
+                float pos = get_weight_position(center_line, 1);
                 const char *ring_names = "NPCIEOD";
                 sprintf(buf, "pos:%.1f OT:%3u R:%c", pos, otsu_threshold,
                         ring_names[ring_state]);

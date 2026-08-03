@@ -76,14 +76,15 @@
 #define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
 #define STRAIGHT_DETECT_ROW       (3)                                             // 直道检测行号
 #define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
-#define SERVO_CLIP_MAX            (10.0f)                                         // 舵机限幅上界
-#define SERVO_CLIP_MIN            (-10.0f)                                        // 舵机限幅下界
+#define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
+#define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.10f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（60×5ms=0.3s）
-#define TURN_TIMER_THRESH1        (100)                                            // 弯道第一阶段
+#define TURN_TIMER_THRESH1        (120)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
+#define DUTY_LOWPASS              (0.2f)
 
 // ==================== 主函数 ====================
 
@@ -202,7 +203,7 @@ int main(void)
         {
             menu_image_display_process();
 
-            float weight_position2 = get_weight_position(center_line);
+            float weight_position2 = get_weight_position(center_line, 1);
             float groy_z2 = get_gyro_z();
             float IMU_target2 = image_pid_set(0, IMG_W/2 - weight_position2);
             float servo_angle2 = IMU_pid_set(IMU_target2, groy_z2);
@@ -276,12 +277,14 @@ int main(void)
                                 if(binary_image[row][c] == WHITE) white_cnt++;
                             }
                         }
-                        if(white_cnt >= 4)
+                        if(white_cnt >= 3)
                         {
                             if(left_valid[row] && right_valid[row])
                             {
-                                if(left_boundary[row] >= 10 &&
-                                   right_boundary[row] <= IMG_W - 10)
+                                if(left_boundary[row] >= 5 &&
+                                   right_boundary[row] <= IMG_W - 5
+                                   && right_boundary[row] >=IMG_W/2
+                                   && left_boundary[row] <=IMG_W/2)
                                 {
                                     is_straight = 1;
                                 }
@@ -313,7 +316,7 @@ int main(void)
                     //    prev_was_straight = is_straight;
                     //}
 
-                    float weight_position = get_weight_position(center_line);
+                    float weight_position = get_weight_position(center_line, is_straight);
 
                     // 直道时中线与图像中心混合滤波，减小不必要的转向修正
                     if(is_straight)
@@ -421,14 +424,46 @@ int main(void)
                         }
                     }
 
+                    // 速度目标低通滤波，避免状态切换时瞬间跳变
+                    {
+                        #define VTARGET_LOWPASS 0.3f
+                        static float v_filt = 0.0f;
+                        static uint8 vf_init = 1;
+                        if(vf_init) { v_filt = v_target; vf_init = 0; }
+                        else { v_filt = VTARGET_LOWPASS * v_target + (1.0f - VTARGET_LOWPASS) * v_filt; }
+                        v_target = v_filt;
+                    }
+
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_gain=0.0 + 0.24 *(abs(final_servo)-3.0f);
+                    {
+                        float raw_gain = 0.0f + 0.24f * (abs(final_servo) - 3.0f);
+                        #define ACKERMANN_LOWPASS 0.3f
+                        static float filt_gain = 0.0f;
+                        static uint8 gain_init = 1;
+                        if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
+                        else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }
+                        ackermann_gain = filt_gain;
+                    }
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
                     // 左右轮独立速度闭环
                     float L_duty = speed_pid_set(0, target_L, (float)encoder_speed_1);
                     float R_duty = speed_pid_set(1, target_R, (float)encoder_speed_2);
+
+                    // 电机占空比低通滤波
+                    {
+                        static float L_filt = 0.0f, R_filt = 0.0f;
+                        static uint8 duty_init = 1;
+                        if(duty_init) { L_filt = L_duty; R_filt = R_duty; duty_init = 0; }
+                        else {
+                            L_filt = DUTY_LOWPASS * L_duty + (1.0f - DUTY_LOWPASS) * L_filt;
+                            R_filt = DUTY_LOWPASS * R_duty + (1.0f - DUTY_LOWPASS) * R_filt;
+                        }
+                        L_duty = L_filt;
+                        R_duty = R_filt;
+                    }
+
                     motor_set_duty(L_duty, R_duty);
 
                     // // 蓝牙发送

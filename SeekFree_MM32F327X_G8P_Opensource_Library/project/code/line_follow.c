@@ -42,6 +42,14 @@ static const uint8 weight[IMG_H]={   1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 ,
                         16, 15, 15, 14, 13, 13, 12, 12, 11, 11, 10, 10, 9 , 9 , 8 ,
                         8 , 7 , 7 , 6 , 6 , 5 , 5 , 4 , 4 , 3 , 3 , 2 , 2 , 1 , 1 ,
                         5 , 4 , 4 , 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 , 1 , 1 , 1 , 1 };    //加权数组 15*6
+
+static const uint8 weight2[IMG_H]={   20, 20, 20, 20, 19, 19, 19, 19, 18, 18, 18, 18, 17, 17, 17,
+                        17, 16, 16, 16, 16, 15, 15, 15, 15, 14, 14, 14, 14, 13, 13 ,
+                        13, 13, 12, 12, 12, 12, 11, 11, 11, 11, 10, 10, 10, 10, 9 ,
+                        9 , 9 , 9 , 8 , 8 , 8 , 8 , 7 , 7 , 7 , 7 , 6 , 6 , 6 , 6 ,
+                        5 , 5 , 5 , 5 , 4 , 4 , 4 , 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 ,
+                        2 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 };    //加权数组 15*6
+
 //==================================================== 巡线模块初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -303,8 +311,10 @@ int16 calc_deviation(uint8 look_ahead_rows)
     return (int16)mid_x - (int16)(IMG_W / 2);
 }
 
-float get_weight_position(uint8 *center_line)
+float get_weight_position(uint8 *center_line, uint8 is_straight)
 {
+    const uint8 *w = is_straight ? weight : weight2;
+
     float weighted_sum = 0.0f;
     float weight_total = 0.0f;
 
@@ -313,8 +323,8 @@ float get_weight_position(uint8 *center_line)
     {
         if(center_line_valid[i] == 1)
         {
-            weighted_sum += (float)center_line[i] * weight[i];
-            weight_total += weight[i];
+            weighted_sum += (float)center_line[i] * w[i];
+            weight_total += w[i];
         }
     }
 
