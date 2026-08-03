@@ -81,8 +81,8 @@
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.10f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (40)                                            // 直道恢复计时（40×5ms=0.2s）
-#define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
+#define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（60×5ms=0.3s）
+#define TURN_TIMER_THRESH1        (100)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
 
 // ==================== 主函数 ====================
@@ -169,7 +169,7 @@ int main(void)
     menu_need_refresh = 1;                                                        // 首次绘制前刷新菜单
     // ---- 第10步：所有初始化完成后，启动 PIT 周期中断（按键扫描 + 菜单处理） ----
     pit_ms_init(PIT, 5);
-    interrupt_set_priority(PIT_PRIORITY, 0);
+    interrupt_set_priority(PIT_PRIORITY, 1);                                      // 与VSYNC同级，不阻塞摄像头
 
     // ---- 第11步：启动微秒定时器（用于测量图像处理耗时） ----
     timer_init(TIM_7, TIMER_US);                                                // TIM7 配置为微秒计数器（TIM3已被编码器占用）
@@ -422,7 +422,7 @@ int main(void)
                     }
 
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
-                    ackermann_gain=0.0 + 0.24 *(abs(final_servo)-3.5f);
+                    ackermann_gain=0.0 + 0.24 *(abs(final_servo)-3.0f);
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
