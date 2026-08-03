@@ -203,7 +203,25 @@ int main(void)
         {
             menu_image_display_process();
 
-            float weight_position2 = get_weight_position(center_line, 1);
+            // 直道/弯道判别（与正常模式一致）
+            uint8 is_straight2 = 0;
+            {
+                uint8 row = STRAIGHT_DETECT_ROW;
+                uint8 white_cnt = 0;
+                int16 c;
+                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
+                    if(binary_image[row][c] == WHITE) white_cnt++;
+                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
+                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
+                    is_straight2 = 1;
+            }
+
+            float weight_position2 = get_weight_position(center_line, is_straight2);
+
+            if(is_straight2)
+                weight_position2 = STRAIGHT_BLEND * ((float)IMG_W / 2.0f)
+                                 + (1.0f - STRAIGHT_BLEND) * weight_position2;
+
             float groy_z2 = get_gyro_z();
             float IMU_target2 = image_pid_set(0, IMG_W/2 - weight_position2);
             float servo_angle2 = IMU_pid_set(IMU_target2, groy_z2);
@@ -211,8 +229,32 @@ int main(void)
             float angle_out2 = angle_pid_set(prev_yaw2, atti_yaw);
             prev_yaw2 = atti_yaw;
             float final_servo2 = servo_fusion(angle_out2, servo_angle2);
+
+            if(final_servo2 > SERVO_CLIP_MAX)  final_servo2 = 12.0f;
+            if(final_servo2 < SERVO_CLIP_MIN) final_servo2 = -12.0f;
+
+            if(!is_straight2)
+            {
+                static float servo_filt2 = 0.0f;
+                static uint8 filt_init2 = 1;
+                if(filt_init2) { servo_filt2 = final_servo2; filt_init2 = 0; }
+                else { servo_filt2 = SERVO_LOWPASS * final_servo2 + (1.0f - SERVO_LOWPASS) * servo_filt2; }
+                final_servo2 = servo_filt2;
+            }
+
+            {
+                static float prev_servo_out2 = 0.0f;
+                float delta = final_servo2 - prev_servo_out2;
+                if(delta > SERVO_RATE_LIMIT)       final_servo2 = prev_servo_out2 + SERVO_RATE_LIMIT;
+                else if(delta < -SERVO_RATE_LIMIT) final_servo2 = prev_servo_out2 - SERVO_RATE_LIMIT;
+                prev_servo_out2 = final_servo2;
+            }
+
             servo_set_angle(final_servo2);
             prev_servo_angle = final_servo2;
+
+            if(is_straight2) servo_fusion_alpha = STRAIGHT_FUSION_ALPHA;
+            else             servo_fusion_alpha = TURN_FUSION_ALPHA;
         }
         else
         {
@@ -281,14 +323,14 @@ int main(void)
                         {
                             if(left_valid[row] && right_valid[row])
                             {
-                                //if(
-                                // left_boundary[row] >= 5 &&
-                                //     right_boundary[row] <= IMG_W - 5 &&
-                                //     right_boundary[row] >=IMG_W/2
-                                //     && left_boundary[row] <=IMG_W/2)
-                                //{
+                                if(
+                                left_boundary[row] >= 5 &&
+                                    right_boundary[row] <= IMG_W - 5 &&
+                                    right_boundary[row] >=IMG_W/2
+                                    && left_boundary[row] <=IMG_W/2)
+                                {
                                     is_straight = 1;
-                                //}
+                                }
                             }
                         }
                     }
