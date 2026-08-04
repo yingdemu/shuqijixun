@@ -80,7 +80,7 @@
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
-#define TURN_FUSION_ALPHA         (0.10f)                                         // 弯道 servo_fusion_alpha
+#define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（60×5ms=0.3s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
@@ -233,13 +233,17 @@ int main(void)
             if(final_servo2 > SERVO_CLIP_MAX)  final_servo2 = 12.0f;
             if(final_servo2 < SERVO_CLIP_MIN) final_servo2 = -12.0f;
 
-            if(!is_straight2)
+            // 弯道舵机互补滤波（直→弯跳变时重置）
             {
                 static float servo_filt2 = 0.0f;
-                static uint8 filt_init2 = 1;
-                if(filt_init2) { servo_filt2 = final_servo2; filt_init2 = 0; }
-                else { servo_filt2 = SERVO_LOWPASS * final_servo2 + (1.0f - SERVO_LOWPASS) * servo_filt2; }
-                final_servo2 = servo_filt2;
+                static uint8 last_was_straight2 = 1;
+                if(!is_straight2)
+                {
+                    if(last_was_straight2) servo_filt2 = final_servo2;
+                    else servo_filt2 = SERVO_LOWPASS * final_servo2 + (1.0f - SERVO_LOWPASS) * servo_filt2;
+                    final_servo2 = servo_filt2;
+                }
+                last_was_straight2 = is_straight2;
             }
 
             {
@@ -385,13 +389,17 @@ int main(void)
                     if(final_servo < SERVO_CLIP_MIN) final_servo = -12.0f;
 
                     // 弯道时对舵机打角互补滤波，减少抖动
-                    if(!is_straight)
+                    // 直→弯跳变时重置滤波，避免前一个弯的残留污染新弯
                     {
                         static float servo_filt = 0.0f;
-                        static uint8 filt_init = 1;
-                        if(filt_init) { servo_filt = final_servo; filt_init = 0; }
-                        else { servo_filt = SERVO_LOWPASS * final_servo + (1.0f - SERVO_LOWPASS) * servo_filt; }
-                        final_servo = servo_filt;
+                        static uint8 last_was_straight = 1;
+                        if(!is_straight)
+                        {
+                            if(last_was_straight) servo_filt = final_servo;          // 刚入弯：重置
+                            else servo_filt = SERVO_LOWPASS * final_servo + (1.0f - SERVO_LOWPASS) * servo_filt;
+                            final_servo = servo_filt;
+                        }
+                        last_was_straight = is_straight;
                     }
 
                     // 舵机输出速率限制
@@ -468,8 +476,10 @@ int main(void)
                     }
 
                     // 速度目标低通滤波，避免状态切换时瞬间跳变
+                    // 弯道第一阶段（降速到speed_min）跳过滤波，实现快速降速
+                    if(!(!is_straight && turn_timer_cnt < TURN_TIMER_THRESH1))
                     {
-                        #define VTARGET_LOWPASS 0.3f
+                        #define VTARGET_LOWPASS 0.5f
                         static float v_filt = 0.0f;
                         static uint8 vf_init = 1;
                         if(vf_init) { v_filt = v_target; vf_init = 0; }
