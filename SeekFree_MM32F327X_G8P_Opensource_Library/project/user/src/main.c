@@ -75,7 +75,7 @@
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
 #define STRAIGHT_DETECT_ROW       (3)                                             // 直道检测行号
-#define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
+#define STRAIGHT_BLEND            (0.8f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
