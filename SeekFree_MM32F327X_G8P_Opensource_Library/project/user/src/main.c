@@ -304,10 +304,10 @@ int main(void)
                 // 必须在PID计算之前检查：丢线时不跑PID，避免污染D项状态
                 if(image_lost)
                 {
-                    //menu_need_refresh=1;
-                    //menu_need_clear=1;
-                    //motor_set_duty(0, 0); 
-                    //car_go_flag=0;
+                    menu_need_refresh=1;
+                    menu_need_clear=1;
+                    zebra_stop_flag =1;                                    //利用斑马线停车机制，触发出界保护的快速停车
+
 
                 }
                 else
