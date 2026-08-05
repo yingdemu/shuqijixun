@@ -92,6 +92,8 @@
 float target_L=0, target_R=0;                                                     // 阿克曼输出的左右轮目标速度（编码器单位）
 uint8 turn_timer_cnt = 0;                                                         // 弯道状态1计时：PIT累加，0=空闲
 uint8 straight_rec_cnt = 0;                                                       // 直道恢复计时：PIT递减，0=已恢复
+uint8 zebra_stop_flag = 0;                                                        // 斑马线停车标志：1=停车
+uint8 zebra_cooldown = 0;                                                         // 斑马线冷却计时：PIT递减
 
 int main(void)
 {
@@ -487,6 +489,31 @@ int main(void)
                         v_target = v_filt;
                     }
 
+                    // 斑马线检测：跳变>5 → +1 → 满2次置停车标志 → 2s冷却
+                    if(zebra_cooldown == 0)
+                    {
+                        static uint8 zebra_cnt = 0;
+                        uint8 row = RING_NEAR_ROW;
+                        uint8 trans = 0;
+                        int16 c;
+                        for(c = 3; c < IMG_W - 2; c++)
+                            if(binary_image[row][c] == BLACK && binary_image[row][c+1] == WHITE)
+                                trans++;
+                        if(trans > 5)
+                        {
+                            zebra_cnt++;
+                            if(zebra_cnt == 1)
+                            {
+                                zebra_cooldown = 400;                                  // 第一次检测：启动冷却
+                            }
+                            else if(zebra_cnt >= 2)
+                            {
+                                zebra_stop_flag = 1;                                  // 第二次检测：停车
+                                zebra_cnt = 0;
+                            }
+                        }
+                    }
+
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
                     {
                         float raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);
@@ -500,9 +527,11 @@ int main(void)
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
-                    // 左右轮独立速度闭环
-                    float L_duty = speed_pid_set(0, target_L, (float)encoder_speed_1);
-                    float R_duty = speed_pid_set(1, target_R, (float)encoder_speed_2);
+                    // 左右轮独立速度闭环（斑马线停车时目标速度为0）
+                    float spd_L = zebra_stop_flag ? 0.0f : target_L;
+                    float spd_R = zebra_stop_flag ? 0.0f : target_R;
+                    float L_duty = speed_pid_set(0, spd_L, (float)encoder_speed_1);
+                    float R_duty = speed_pid_set(1, spd_R, (float)encoder_speed_2);
 
                     // 电机占空比低通滤波
                     {
@@ -543,6 +572,7 @@ void pit_handler (void)
     atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
     if(turn_timer_cnt > 0 && turn_timer_cnt < TURN_TIMER_THRESH2) turn_timer_cnt++;  // 弯道状态1计时
     if(straight_rec_cnt > 0) straight_rec_cnt--;                                    // 直道恢复计时（5ms/次）
+    if(zebra_cooldown > 0) zebra_cooldown--;                                        // 斑马线冷却计时
 }
 
 //-------------------------------------------------------------------------------------------------------------------
