@@ -56,9 +56,9 @@ float speed_ki = 0.0196f;                                                       
 float speed_kd = 0.0386f;                                                            // 速度D
 float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
-float speed_min = 120.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_min = 140.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
-float v_max_straight = 180.0f;                                                    // 直道目标速度（编码器单位）
+float v_max_straight = 200.0f;                                                    // 直道目标速度（编码器单位）
 float v_max_straight_start = 160.0f;                                              // 直道恢复前0.2s过渡速度
 float v_max_turn_cancel = 160.0f;        //                                            // 弯道超时目标速度（编码器单位）
 float v_max_turn = 135.0f;                                                        // 弯道基础速度（编码器单位）
@@ -921,8 +921,18 @@ void menu_image_display_process(void)
             char buf[40];
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 直道/弯道判别（调用统一函数）
-            uint8 is_straight = is_straight_detect();
+            // 直道/弯道判别
+            uint8 is_straight = 0;
+            {
+                uint8 row = 3;
+                uint8 white_cnt = 0;
+                int16 c;
+                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
+                    if(binary_image[row][c] == WHITE) white_cnt++;
+                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
+                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
+                    is_straight = 1;
+            }
 
             // 行1：直道/弯道状态
             if(is_straight)
