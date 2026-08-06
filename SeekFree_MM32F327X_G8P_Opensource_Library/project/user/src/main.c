@@ -80,7 +80,7 @@
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
-#define TURN_FUSION_ALPHA         (0.1f)                                         // 弯道 servo_fusion_alpha
+#define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（60×5ms=0.3s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
@@ -93,7 +93,7 @@ float target_L=0, target_R=0;                                                   
 uint8 turn_timer_cnt = 0;                                                         // 弯道状态1计时：PIT累加，0=空闲
 uint8 straight_rec_cnt = 0;                                                       // 直道恢复计时：PIT递减，0=已恢复
 uint8 zebra_stop_flag = 0;                                                        // 斑马线停车标志：1=停车
-uint8 zebra_cooldown = 0;                                                         // 斑马线冷却计时：PIT递减
+uint16 zebra_cooldown = 0;                                                         // 斑马线冷却计时：PIT递减
 
 int main(void)
 {
@@ -298,7 +298,7 @@ int main(void)
                             total++;
                         }
                     if(black_cnt >= total * 9 / 10)
-                        image_lost = 1;
+                        zebra_stop_flag = 1;          // 全黑 → 停车
                 }
 
                 // 必须在PID计算之前检查：丢线时不跑PID，避免污染D项状态
