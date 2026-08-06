@@ -45,13 +45,15 @@ int16 right_start_row = 0, right_start_col = 0;                                 
 uint8 left_lose_rows = 0;                                                       // 左边界丢失行数
 uint8 right_lose_rows = 0;                                                      // 右边界丢失行数
 
-// ---- A/B/C/D/E/F 关键点 ----
+// ---- A/B/C/D/E/F/G/H 关键点 ----
 uint8 point_A_row = 0, point_A_col = 0;                                        // A点（左边界底部起点）
 uint8 point_B_row = 0, point_B_col = 0;                                        // B点（右边界底部起点）
 uint8 point_C_row = 0, point_C_col = 0;                                        // C点（左边界上部拐点）
 uint8 point_D_row = 0, point_D_col = 0;                                        // D点（右边界上部拐点）
 uint8 point_E_row = 0, point_E_col = 0;                                        // E点（左边界备用补线点）
 uint8 point_F_row = 0, point_F_col = 0;                                        // F点（右边界备用补线点）
+uint8 point_G_row = 0, point_G_col = 0;                                        // G点（左边界上下白点补线点）
+uint8 point_H_row = 0, point_H_col = 0;                                        // H点（右边界上下白点补线点）
 
 // ---- 赛道中线 ----
 uint8 center_line[IMG_H];                                                       // 中线数组
@@ -722,13 +724,15 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
     point_B_row = IMG_H - 3;
     point_B_col = IMG_W - 3;
 
-    // ---- 2. 初始化 C/D/E/F 点 ----
+    // ---- 2. 初始化 C/D/E/F/G/H 点 ----
     point_C_row = 0; point_C_col = 0;
     point_D_row = 0; point_D_col = 0;
     point_E_row = 0; point_E_col = 0;
     point_F_row = 0; point_F_col = 0;
+    point_G_row = 0; point_G_col = 0;
+    point_H_row = 0; point_H_col = 0;
 
-    // ---- 3. 遍历 left_edge[] 找 C 点：满足条件中最接近 IMG_H/2 的 ----
+    // ---- 3. 遍历 left_edge[] 找 G 点（优先）：(r+2,c)和(r-2,c)都是白点，最接近 IMG_H/2 ----
     {
         int16 best_dist = 32767;
         int16 best_r = 0, best_c = 0;
@@ -738,7 +742,28 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
             int16 r = left_edge[k].row;
             int16 c = left_edge[k].col;
             if(r < 4 || r > IMG_H * 3 / 4) continue;
-            if(c < 2 || c >= IMG_W / 2) continue;
+            if(c < 2 || c >= IMG_W * 3 / 5) continue;
+
+            if(image[r + 2][c] == WHITE && image[r - 2][c] == WHITE)
+            {
+                int16 dist = (r > IMG_H/2) ? (r - IMG_H/2) : (IMG_H/2 - r);
+                if(dist < best_dist) { best_dist = dist; best_r = r; best_c = c; }
+            }
+        }
+        if(best_r > 0) { point_G_row = (uint8)best_r; point_G_col = (uint8)best_c; }
+    }
+
+    // ---- 4. 遍历 left_edge[] 找 C 点：满足条件中最接近 IMG_H/2 的 ----
+    {
+        int16 best_dist = 32767;
+        int16 best_r = 0, best_c = 0;
+        for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
+        {
+            if(!left_edge[k].flag) continue;
+            int16 r = left_edge[k].row;
+            int16 c = left_edge[k].col;
+            if(r < 4 || r > IMG_H * 3 / 4) continue;
+            if(c < 2 || c >= IMG_W * 3 / 5) continue;
 
             if(image[r + 2][c - 1] == WHITE && image[r + 3][c - 2] == WHITE
                && image[r - 1][c + 2] == WHITE && image[r + 4][c - 8] == WHITE)
@@ -750,7 +775,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
         if(best_r > 0) { point_C_row = (uint8)best_r; point_C_col = (uint8)best_c; }
     }
 
-    // ---- 4. 遍历 right_edge[] 找 D 点：满足条件中最接近 IMG_H/2 的 ----
+    // ---- 5. 遍历 right_edge[] 找 H 点（优先）：(r+2,c)和(r-2,c)都是白点，最接近 IMG_H/2 ----
     {
         int16 best_dist = 32767;
         int16 best_r = 0, best_c = 0;
@@ -760,7 +785,28 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
             int16 r = right_edge[k].row;
             int16 c = right_edge[k].col;
             if(r < 4 || r > IMG_H * 3 / 4) continue;
-            if(c <= IMG_W / 2 || c > IMG_W - 3) continue;
+            if(c <= IMG_W * 2 / 5 || c > IMG_W - 3) continue;
+
+            if(image[r + 2][c] == WHITE && image[r - 2][c] == WHITE)
+            {
+                int16 dist = (r > IMG_H/2) ? (r - IMG_H/2) : (IMG_H/2 - r);
+                if(dist < best_dist) { best_dist = dist; best_r = r; best_c = c; }
+            }
+        }
+        if(best_r > 0) { point_H_row = (uint8)best_r; point_H_col = (uint8)best_c; }
+    }
+
+    // ---- 6. 遍历 right_edge[] 找 D 点：满足条件中最接近 IMG_H/2 的 ----
+    {
+        int16 best_dist = 32767;
+        int16 best_r = 0, best_c = 0;
+        for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
+        {
+            if(!right_edge[k].flag) continue;
+            int16 r = right_edge[k].row;
+            int16 c = right_edge[k].col;
+            if(r < 4 || r > IMG_H * 3 / 4) continue;
+            if(c <= IMG_W * 2 / 5 || c > IMG_W - 3) continue;
 
             if(image[r + 2][c + 1] == WHITE && image[r + 3][c + 2] == WHITE
                && image[r - 1][c - 2] == WHITE && image[r + 4][c + 8] == WHITE)
@@ -783,7 +829,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
             int16 r = left_edge[k].row;
             int16 c = left_edge[k].col;
             if(r < IMG_H - 20 || r > IMG_H - 3) continue;
-            if(c < 2 || c >= IMG_W / 2) continue;
+            if(c < 2 || c >= IMG_W * 3 / 5) continue;
 
             if(r >= 4 && c >= 4
                && image[r - 2][c - 2] == WHITE && image[r - 1][c] == WHITE)
@@ -806,7 +852,7 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
             int16 r = right_edge[k].row;
             int16 c = right_edge[k].col;
             if(r < IMG_H - 20 || r > IMG_H - 3) continue;
-            if(c <= IMG_W / 2 || c > IMG_W - 3) continue;
+            if(c <= IMG_W * 2 / 5 || c > IMG_W - 3) continue;
 
             if(r >= 4 && c < IMG_W - 4
                && image[r - 2][c + 2] == WHITE && image[r - 1][c] == WHITE)
@@ -840,77 +886,149 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
 {
     float k_left, k_right;
     int16 i;
-    uint8 use_left_row, use_left_col;
-    uint8 use_right_row, use_right_col;
+    uint8 left_high_row, left_high_col;    // 上点（G > E > C）
+    uint8 left_low_row, left_low_col;      // 下点（C 或 A）
+    uint8 right_high_row, right_high_col;  // 上点（H > F > D）
+    uint8 right_low_row, right_low_col;    // 下点（D 或 B）
 
-    // ======== 确定左侧补线点（E优先，C备用） ========
-    if(point_E_row > 0)
+    // ======== 左侧：确定上点（G > E > C）和下点 ========
+    // 上点选择（G > E > C）
+    if(point_G_row > 0)
     {
-        use_left_row = point_E_row;
-        use_left_col = point_E_col;
+        left_high_row = point_G_row;
+        left_high_col = point_G_col;
+    }
+    else if(point_E_row > 0)
+    {
+        left_high_row = point_E_row;
+        left_high_col = point_E_col;
     }
     else if(point_C_row > 0)
     {
-        use_left_row = point_C_row;
-        use_left_col = point_C_col;
+        left_high_row = point_C_row;
+        left_high_col = point_C_col;
     }
     else
     {
-        use_left_row = 0;
+        left_high_row = 0;
     }
 
-    // ======== 确定右侧补线点（F优先，D备用） ========
-    if(point_F_row > 0)
+    // 下点：若同时有 C 和 (G或E)，则下点=C，否则下点=A
+    if(point_C_row > 0 && (point_G_row > 0 || point_E_row > 0))
     {
-        use_right_row = point_F_row;
-        use_right_col = point_F_col;
+        left_low_row = point_C_row;
+        left_low_col = point_C_col;
+    }
+    else
+    {
+        left_low_row = point_A_row;
+        left_low_col = point_A_col;
+    }
+
+    // 上点太靠左 → 不补线（G点不受此限制）
+    if(left_high_row > 0 && point_G_row == 0 && left_high_col < 20)
+    {
+        left_high_row = 0;
+    }
+
+    // ======== 右侧：确定上点（H > F > D）和下点 ========
+    // 上点选择（H > F > D）
+    if(point_H_row > 0)
+    {
+        right_high_row = point_H_row;
+        right_high_col = point_H_col;
+    }
+    else if(point_F_row > 0)
+    {
+        right_high_row = point_F_row;
+        right_high_col = point_F_col;
     }
     else if(point_D_row > 0)
     {
-        use_right_row = point_D_row;
-        use_right_col = point_D_col;
+        right_high_row = point_D_row;
+        right_high_col = point_D_col;
     }
     else
     {
-        use_right_row = 0;
+        right_high_row = 0;
     }
 
-    // ======== 补左侧线（→A，从7行画到IMG_H-3） ========
-    if(use_left_row > 0 && use_left_row != point_A_row)
+    // 下点：若同时有 D 和 (H或F)，则下点=D，否则下点=B
+    if(point_D_row > 0 && (point_H_row > 0 || point_F_row > 0))
     {
-        k_left = (float)(use_left_col - point_A_col) / (float)(use_left_row - point_A_row);
-        int16 start_row = (use_left_row > 7) ? use_left_row : 7;
+        right_low_row = point_D_row;
+        right_low_col = point_D_col;
+    }
+    else
+    {
+        right_low_row = point_B_row;
+        right_low_col = point_B_col;
+    }
 
-        for(i = start_row; i <= point_A_row && i < IMG_H; i++)
+    // 上点太靠右 → 不补线（H点不受此限制）
+    if(right_high_row > 0 && point_H_row == 0 && right_high_col > IMG_W - 20)
+    {
+        right_high_row = 0;
+    }
+
+    // ======== 补左侧线（IMG_H-2 → 2，全覆盖） ========
+    if(left_high_row > 0 && left_high_row != left_low_row)
+    {
+        k_left = (float)(left_high_col - left_low_col) / (float)(left_high_row - left_low_row);
+
+        // 检查补线最顶端（行2）的列坐标：必须 < IMG_W*3/4，否则不补
         {
-            int16 offset = (int16)((i - use_left_row) * k_left);
-            int16 draw_col = use_left_col + offset;
-
-            if(draw_col > 2 && draw_col < IMG_W - 2)
+            int16 top_col = left_high_col + (int16)((2 - (int16)left_high_row) * k_left);
+            if(top_col >= IMG_W * 3 / 4)
             {
-                image[i][draw_col] = BLACK;
-                image[i][draw_col - 1] = BLACK;
-                left_boundary[i] = (uint8)draw_col;
+                left_high_row = 0;  // 取消左侧补线
+            }
+        }
+
+        if(left_high_row > 0)
+        {
+            for(i = IMG_H - 2; i >= 2; i--)
+            {
+                int16 offset = (int16)((i - left_high_row) * k_left);
+                int16 draw_col = left_high_col + offset;
+
+                if(draw_col > 2 && draw_col < IMG_W - 2)
+                {
+                    image[i][draw_col] = BLACK;
+                    image[i][draw_col - 1] = BLACK;
+                    left_boundary[i] = (uint8)draw_col;
+                }
             }
         }
     }
 
-    // ======== 补右侧线（→B，从7行画到IMG_H-3） ========
-    if(use_right_row > 0 && use_right_row != point_B_row)
+    // ======== 补右侧线（IMG_H-2 → 2，全覆盖） ========
+    if(right_high_row > 0 && right_high_row != right_low_row)
     {
-        k_right = (float)(use_right_col - point_B_col) / (float)(use_right_row - point_B_row);
-        int16 start_row = (use_right_row > 7) ? use_right_row : 7;
+        k_right = (float)(right_high_col - right_low_col) / (float)(right_high_row - right_low_row);
 
-        for(i = start_row; i <= point_B_row && i < IMG_H; i++)
+        // 检查补线最顶端（行2）的列坐标：必须 > IMG_W/4，否则不补
         {
-            int16 offset = (int16)((i - use_right_row) * k_right);
-            int16 draw_col = use_right_col + offset;
-
-            if(draw_col > 2 && draw_col < IMG_W - 2)
+            int16 top_col = right_high_col + (int16)((2 - (int16)right_high_row) * k_right);
+            if(top_col <= IMG_W / 4)
             {
-                image[i][draw_col] = BLACK;
-                image[i][draw_col - 1] = BLACK;
-                right_boundary[i] = (uint8)draw_col;
+                right_high_row = 0;  // 取消右侧补线
+            }
+        }
+
+        if(right_high_row > 0)
+        {
+            for(i = IMG_H - 2; i >= 2; i--)
+            {
+                int16 offset = (int16)((i - right_high_row) * k_right);
+                int16 draw_col = right_high_col + offset;
+
+                if(draw_col > 2 && draw_col < IMG_W - 2)
+                {
+                    image[i][draw_col] = BLACK;
+                    image[i][draw_col - 1] = BLACK;
+                    right_boundary[i] = (uint8)draw_col;
+                }
             }
         }
     }
@@ -1703,25 +1821,43 @@ void image_process_pipeline(void)
     // }
 
     // ---- 第8步：从 left_boundary[]/right_boundary[] 中找 A/B/C/D 关键点 ----
-    find_key_points(binary_image);
+    //find_key_points(binary_image);
 
     // ---- 第9步：十字路口判断与补线 ----
-    crossroad_fix(binary_image);
+    //crossroad_fix(binary_image);
 
     // ---- 第9.5步：用修正后的边界刷新受影响行的中线 ----
-    {
-        int16 _i;
-        uint8 _lr = (point_C_row > 0) ? point_C_row : point_E_row;
-        uint8 _rr = (point_D_row > 0) ? point_D_row : point_F_row;
-        if(_lr > 0)
-            for(_i = _lr; _i <= point_A_row && _i < IMG_H; _i++)
-                if(left_boundary[_i] < right_boundary[_i])
-                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-        if(_rr > 0)
-            for(_i = _rr; _i <= point_B_row && _i < IMG_H; _i++)
-                if(left_boundary[_i] < right_boundary[_i])
-                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-    }
+    // crossroad_fix 补线范围是 IMG_H-2 → 2（全覆盖），所以中线也要全范围重算
+    //{
+    //    int16 _i;
+    //    // 左侧补线点行号（G > E > C，与 crossroad_fix 保持一致）
+    //    uint8 _lr = 0;
+    //    if(point_G_row > 0)
+    //        _lr = point_G_row;
+    //    else if(point_E_row > 0)
+    //        _lr = point_E_row;
+    //    else if(point_C_row > 0)
+    //        _lr = point_C_row;
+    //
+    //    // 右侧补线点行号（H > F > D，与 crossroad_fix 保持一致）
+    //    uint8 _rr = 0;
+    //    if(point_H_row > 0)
+    //        _rr = point_H_row;
+    //    else if(point_F_row > 0)
+    //        _rr = point_F_row;
+    //    else if(point_D_row > 0)
+    //        _rr = point_D_row;
+    //
+    //    // 只要有任一侧补了线，就全范围重算中线（2 → IMG_H-2，与补线范围一致）
+    //    if(_lr > 0 || _rr > 0)
+    //    {
+    //        for(_i = 2; _i <= IMG_H - 2; _i++)
+    //        {
+    //            if(left_boundary[_i] < right_boundary[_i])
+    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+    //        }
+    //    }
+    //}
 
     // ---- 第10步：圆环检测 + 中线覆写 ----
     // 基于边沿宽度变化趋势更新圆环状态机

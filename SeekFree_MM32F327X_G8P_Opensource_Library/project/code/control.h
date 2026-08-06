@@ -84,7 +84,7 @@ void motor_set_duty(float right_duty, float left_duty);
 // 阿克曼转向几何参数（需根据实际车模测量后填写）
 #define ACKERMANN_WHEELBASE      (0.20f)                     // 轴距 L：前轮中心到后轮中心的距离（单位：m）
 #define ACKERMANN_TRACK          (0.154f)                     // 后轮轮距 W：左右后轮中心距离（单位：m）
-#define ACKERMANN_DEADZONE_DEG   (4.00f)                     // 死区（°）舵机打角小于此值不产生差速
+#define ACKERMANN_DEADZONE_DEG   (3.00f)                     // 死区（°）舵机打角小于此值不产生差速
 
 extern float ackermann_gain_big;                                    // 阿克曼差速增益（蓝牙可调，默认1.0）
 extern float ackermann_gain_small;                                    // 阿克曼差速增益（蓝牙可调，默认1.0）

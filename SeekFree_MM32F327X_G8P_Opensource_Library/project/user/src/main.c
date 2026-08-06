@@ -74,15 +74,15 @@
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
+#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (10.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-10.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
-#define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（60×5ms=0.3s）
-#define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
-#define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
+#define TURN_FUSION_ALPHA         (0.05f)                                         // 弯道 servo_fusion_alpha
+#define STRAIGHT_RECOVERY_TICKS   (70)                                            // 直道恢复计时（60×5ms=0.3s）
+#define TURN_TIMER_THRESH1        (150)                                            // 弯道第一阶段
+#define TURN_TIMER_THRESH2        (200)                                           // 弯道第二阶段
 #define DUTY_LOWPASS              (0.2f)
 
 // ==================== 主函数 ====================
@@ -274,7 +274,7 @@ int main(void)
             if(line_data_ready)
             {
                 if(car_go_flag){
-                // ---- 出界保护：底部中央10×10矩形全黑 → 速度环停车 ----
+                //---- 出界保护：底部中央10×10矩形全黑 → 速度环停车 ----
                 {
                     uint16 black_cnt = 0, total = 0;
                     uint8 r0 = IMG_H - 3 - 15;
@@ -288,7 +288,7 @@ int main(void)
                     if(black_cnt >= total * 9 / 10)
                     {
                         black_stop_flag = 1;
-                        serial_printf("OUT\r\n");
+                        //serial_printf("OUT\r\n");
                     }
                 }
 
@@ -300,12 +300,12 @@ int main(void)
 
                     // 直道↔弯道状态变化时发蓝牙通知（仅跳变时发一次）
                     {
-                        static uint8 prev_state = 0;
-                        if(!prev_state && is_straight)
-                            serial_printf("S\r\n");       // 弯道→直道
-                        else if(prev_state && !is_straight)
-                            serial_printf("C\r\n");       // 直道→弯道
-                        prev_state = is_straight;
+                        // static uint8 prev_state = 0;
+                        // if(!prev_state && is_straight)
+                        //     //serial_printf("S\r\n");       // 弯道→直道
+                        // else if(prev_state && !is_straight)
+                        //     //serial_printf("C\r\n");       // 直道→弯道
+                        // prev_state = is_straight;
                     }
 
                     float weight_position = get_weight_position(center_line, is_straight);
@@ -447,13 +447,13 @@ int main(void)
                             zebra_cnt++;
                             if(zebra_cnt == 1)
                             {
-                                serial_printf("ZEBRA1\r\n");
+                                //serial_printf("ZEBRA1\r\n");
                                 zebra_cooldown = 400;                                   // 15ms冷却
                             }
                             else if(zebra_cnt >= 2)
                             {
                                 zebra_stop_flag = 1;
-                                serial_printf("ZEBRA STOP\r\n");
+                                //serial_printf("ZEBRA STOP\r\n");
                                 zebra_cnt = 0;
                             }
                         }
@@ -462,7 +462,11 @@ int main(void)
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
                     {
                         float abs_servo = (final_servo > 0.0f) ? final_servo : -final_servo;
-                        float raw_gain = 0.2f + 0.23f * (abs_servo - 3.0f);
+                        float raw_gain1 = 0.0f + 0.23f * (abs_servo - 3.0f);
+                        float raw_gain2 = 0.3f + 0.0086f * v_target;
+
+                        float raw_gain = 0.5 * raw_gain1 + 0.5 * raw_gain2;
+
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;
