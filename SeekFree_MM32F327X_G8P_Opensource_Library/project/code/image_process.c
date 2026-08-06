@@ -728,45 +728,55 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
     point_E_row = 0; point_E_col = 0;
     point_F_row = 0; point_F_col = 0;
 
-    // ---- 3. 遍历 left_edge[] 找 C 点（IMG_H*3/4 → 4, col < IMG_W/2） ----
-    for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
+    // ---- 3. 遍历 left_edge[] 找 C 点：满足条件中最接近 IMG_H/2 的 ----
     {
-        if(!left_edge[k].flag) continue;
-        int16 r = left_edge[k].row;
-        int16 c = left_edge[k].col;
-        if(r < 4 || r > IMG_H * 3 / 4) continue;
-        if(c < 2 || c >= IMG_W / 2) continue;
-
-        if(image[r + 2][c - 1] == WHITE && image[r + 3][c - 2] == WHITE
-           && image[r - 1][c + 2] == WHITE && image[r + 4][c - 8] == WHITE)
+        int16 best_dist = 32767;
+        int16 best_r = 0, best_c = 0;
+        for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
         {
-            point_C_row = (uint8)r;
-            point_C_col = (uint8)c;
-            break;
+            if(!left_edge[k].flag) continue;
+            int16 r = left_edge[k].row;
+            int16 c = left_edge[k].col;
+            if(r < 4 || r > IMG_H * 3 / 4) continue;
+            if(c < 2 || c >= IMG_W / 2) continue;
+
+            if(image[r + 2][c - 1] == WHITE && image[r + 3][c - 2] == WHITE
+               && image[r - 1][c + 2] == WHITE && image[r + 4][c - 8] == WHITE)
+            {
+                int16 dist = (r > IMG_H/2) ? (r - IMG_H/2) : (IMG_H/2 - r);
+                if(dist < best_dist) { best_dist = dist; best_r = r; best_c = c; }
+            }
         }
+        if(best_r > 0) { point_C_row = (uint8)best_r; point_C_col = (uint8)best_c; }
     }
 
-    // ---- 4. 遍历 right_edge[] 找 D 点（IMG_H*3/4 → 4, col > IMG_W/2） ----
-    for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
+    // ---- 4. 遍历 right_edge[] 找 D 点：满足条件中最接近 IMG_H/2 的 ----
     {
-        if(!right_edge[k].flag) continue;
-        int16 r = right_edge[k].row;
-        int16 c = right_edge[k].col;
-        if(r < 4 || r > IMG_H * 3 / 4) continue;
-        if(c <= IMG_W / 2 || c > IMG_W - 3) continue;
-
-        if(image[r + 2][c + 1] == WHITE && image[r + 3][c + 2] == WHITE
-           && image[r - 1][c - 2] == WHITE && image[r + 4][c + 8] == WHITE)
+        int16 best_dist = 32767;
+        int16 best_r = 0, best_c = 0;
+        for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
         {
-            point_D_row = (uint8)r;
-            point_D_col = (uint8)c;
-            break;
+            if(!right_edge[k].flag) continue;
+            int16 r = right_edge[k].row;
+            int16 c = right_edge[k].col;
+            if(r < 4 || r > IMG_H * 3 / 4) continue;
+            if(c <= IMG_W / 2 || c > IMG_W - 3) continue;
+
+            if(image[r + 2][c + 1] == WHITE && image[r + 3][c + 2] == WHITE
+               && image[r - 1][c - 2] == WHITE && image[r + 4][c + 8] == WHITE)
+            {
+                int16 dist = (r > IMG_H/2) ? (r - IMG_H/2) : (IMG_H/2 - r);
+                if(dist < best_dist) { best_dist = dist; best_r = r; best_c = c; }
+            }
         }
+        if(best_r > 0) { point_D_row = (uint8)best_r; point_D_col = (uint8)best_c; }
     }
 
-    // ---- 5. C未找到时，遍历 left_edge[] 找 E 点（IMG_H-20 → IMG_H-3, col < IMG_W/2） ----
+    // ---- 5. C未找到时，遍历 left_edge[] 找 E 点：满足条件中最接近 IMG_H/2 的 ----
     if(point_C_row == 0)
     {
+        int16 best_dist = 32767;
+        int16 best_r = 0, best_c = 0;
         for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
         {
             if(!left_edge[k].flag) continue;
@@ -778,16 +788,18 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
             if(r >= 4 && c >= 4
                && image[r - 2][c - 2] == WHITE && image[r - 1][c] == WHITE)
             {
-                point_E_row = (uint8)r;
-                point_E_col = (uint8)c;
-                break;
+                int16 dist = (r > IMG_H/2) ? (r - IMG_H/2) : (IMG_H/2 - r);
+                if(dist < best_dist) { best_dist = dist; best_r = r; best_c = c; }
             }
         }
+        if(best_r > 0) { point_E_row = (uint8)best_r; point_E_col = (uint8)best_c; }
     }
 
-    // ---- 6. D未找到时，遍历 right_edge[] 找 F 点（IMG_H-20 → IMG_H-3, col > IMG_W/2） ----
+    // ---- 6. D未找到时，遍历 right_edge[] 找 F 点：满足条件中最接近 IMG_H/2 的 ----
     if(point_D_row == 0)
     {
+        int16 best_dist = 32767;
+        int16 best_r = 0, best_c = 0;
         for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
         {
             if(!right_edge[k].flag) continue;
@@ -799,11 +811,11 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
             if(r >= 4 && c < IMG_W - 4
                && image[r - 2][c + 2] == WHITE && image[r - 1][c] == WHITE)
             {
-                point_F_row = (uint8)r;
-                point_F_col = (uint8)c;
-                break;
+                int16 dist = (r > IMG_H/2) ? (r - IMG_H/2) : (IMG_H/2 - r);
+                if(dist < best_dist) { best_dist = dist; best_r = r; best_c = c; }
             }
         }
+        if(best_r > 0) { point_F_row = (uint8)best_r; point_F_col = (uint8)best_c; }
     }
 }
 
@@ -1691,25 +1703,25 @@ void image_process_pipeline(void)
     // }
 
     // ---- 第8步：从 left_boundary[]/right_boundary[] 中找 A/B/C/D 关键点 ----
-    //find_key_points(binary_image);
+    find_key_points(binary_image);
 
     // ---- 第9步：十字路口判断与补线 ----
-    //crossroad_fix(binary_image);
+    crossroad_fix(binary_image);
 
     // ---- 第9.5步：用修正后的边界刷新受影响行的中线 ----
-    //{
-    //    int16 _i;
-    //    uint8 _lr = (point_C_row > 0) ? point_C_row : point_E_row;
-    //    uint8 _rr = (point_D_row > 0) ? point_D_row : point_F_row;
-    //    if(_lr > 0)
-    //        for(_i = _lr; _i <= point_A_row && _i < IMG_H; _i++)
-    //            if(left_boundary[_i] < right_boundary[_i])
-    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-    //    if(_rr > 0)
-    //        for(_i = _rr; _i <= point_B_row && _i < IMG_H; _i++)
-    //            if(left_boundary[_i] < right_boundary[_i])
-    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-    //}
+    {
+        int16 _i;
+        uint8 _lr = (point_C_row > 0) ? point_C_row : point_E_row;
+        uint8 _rr = (point_D_row > 0) ? point_D_row : point_F_row;
+        if(_lr > 0)
+            for(_i = _lr; _i <= point_A_row && _i < IMG_H; _i++)
+                if(left_boundary[_i] < right_boundary[_i])
+                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+        if(_rr > 0)
+            for(_i = _rr; _i <= point_B_row && _i < IMG_H; _i++)
+                if(left_boundary[_i] < right_boundary[_i])
+                    center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+    }
 
     // ---- 第10步：圆环检测 + 中线覆写 ----
     // 基于边沿宽度变化趋势更新圆环状态机
