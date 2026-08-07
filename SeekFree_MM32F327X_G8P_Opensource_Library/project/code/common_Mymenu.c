@@ -32,7 +32,7 @@ extern uint8 fixed_threshold;
 // image_kd: 微分系数 —— 抑制振荡和超调
 float image_kp_a = 4.17f;                                                       // 图像 Kp_a（线性项/小弯）
 float image_kp_b = 0.069f;                                                      // 图像 Kp_b（三次项/大弯）
-float image_kd = 15.00f;                                                         // 图像 Kd
+float image_kd = 10.00f;                                                         // 图像 Kd
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
@@ -43,7 +43,7 @@ float motor_lowpass = 0.8f;                                                     
 //IMU PID 控制参数
 float IMU_kp_a =0.04f;
 float IMU_kp_b =0.0f;
-float IMU_kd =0.03f;
+float IMU_kd =1.06f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 
 // float speed_kp = 0.0859f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
@@ -56,13 +56,13 @@ float speed_ki = 0.0196f;                                                       
 float speed_kd = 0.0386f;                                                            // 速度D
 float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
-float speed_min = 120.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_min = 150.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
-float v_max_straight = 120.0f;                                                    // 直道目标速度（编码器单位）
-float v_max_straight_start = 120.0f;                                              // 直道恢复前0.2s过渡速度
-float v_max_turn_cancel = 120.0f;        //                                            // 弯道超时目标速度（编码器单位）
-float v_max_turn = 120.0f;                                                        // 弯道基础速度（编码器单位）
-float v_max_turn_start = 120.0f;         //                                              // 弯道开始时减速速度（编码器单位）
+float v_max_straight = 200.0f;                                                    // 直道目标速度（编码器单位）
+float v_max_straight_start = 160.0f;                                              // 直道恢复前0.2s过渡速度
+float v_max_turn_cancel = 160.0f;        //                                            // 弯道超时目标速度（编码器单位）
+float v_max_turn = 135.0f;                                                        // 弯道基础速度（编码器单位）
+float v_max_turn_start = 160.0f;         //                                              // 弯道开始时减速速度（编码器单位）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 25;                                                             //电机占空比
@@ -900,17 +900,17 @@ void menu_image_display_process(void)
                              right_boundary[r] * 240 / IMG_W,     y2, RGB565_GREEN);
         }
 
-        // ---- 叠加关键检测行横线 ----
+        // ---- 画圆环检测行标记线（白色虚线效果，4px线段+4px间隔） ----
+        // 远端检测行 = RING_FAR_ROW(30)，映射到显示坐标 y = 30*100/IMG_H
         {
-            // 黄色：直道检测行 STRAIGHT_DETECT_ROW
-            ips200_draw_line(0, STRAIGHT_DETECT_ROW * 100 / IMG_H,
-                             239, STRAIGHT_DETECT_ROW * 100 / IMG_H, RGB565_YELLOW);
-            // 青色：远端检测行 CHECK_FAR_ROW
-            ips200_draw_line(0, CHECK_FAR_ROW * 100 / IMG_H,
-                             239, CHECK_FAR_ROW * 100 / IMG_H, RGB565_CYAN);
-            // 品红：近端检测行 CHECK_NEAR_ROW
-            ips200_draw_line(0, CHECK_NEAR_ROW * 100 / IMG_H,
-                             239, CHECK_NEAR_ROW * 100 / IMG_H, RGB565_MAGENTA);
+            uint16 y_f = (uint16)RING_FAR_ROW * 100 / IMG_H;                  // 远端检测行显示Y
+            uint16 y_r = (uint16)RING_NEAR_ROW * 100 / IMG_H;                   // 近端检测行显示Y
+            // 画虚线（每8px画一段）
+            for(uint16 x = 0; x < 240; x += 12)
+            {
+                ips200_draw_line(x, y_f, (x + 4 < 240) ? x + 4 : 239, y_f, RGB565_WHITE);
+                ips200_draw_line(x, y_r, (x + 4 < 240) ? x + 4 : 239, y_r, RGB565_WHITE);
+            }
         }
 
         // ---- 分隔线 ----
@@ -921,8 +921,18 @@ void menu_image_display_process(void)
             char buf[40];
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 直道/弯道判别（统一函数）
-            uint8 is_straight = is_straight_detect();
+            // 直道/弯道判别
+            uint8 is_straight = 0;
+            {
+                uint8 row = 3;
+                uint8 white_cnt = 0;
+                int16 c;
+                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
+                    if(binary_image[row][c] == WHITE) white_cnt++;
+                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
+                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
+                    is_straight = 1;
+            }
 
             // 行1：直道/弯道状态
             if(is_straight)
@@ -938,22 +948,10 @@ void menu_image_display_process(void)
             ips200_show_string(0, 106, buf);
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 行2：中线位置（与主控制循环一致的计算方式）
+            // 行2：加权位置、阈值
             {
-                float pos;
-                if(is_straight)
-                {
-                    pos = get_lookahead_position(STRAIGHT_KAN);
-                    pos = STRAIGHT_BLEND * ((float)IMG_W / 2.0f) + (1.0f - STRAIGHT_BLEND) * pos;
-                    float err = (float)IMG_W / 2.0f - pos;
-                    if(err > -2.0f && err < 2.0f) pos = (float)IMG_W / 2.0f;
-                }
-                else
-                {
-                    pos = get_lookahead_position(TURN_KAN);
-                }
-                float err_disp = (float)IMG_W / 2.0f - pos;
-                sprintf(buf, "pos:%.1f err:%.1f OT:%3u", pos, err_disp, otsu_threshold);
+                float pos = get_weight_position(center_line, is_straight);
+                sprintf(buf, "pos:%.1f  OT:%3u", pos, otsu_threshold);
                 ips200_show_string(0, 122, buf);
             }
         }

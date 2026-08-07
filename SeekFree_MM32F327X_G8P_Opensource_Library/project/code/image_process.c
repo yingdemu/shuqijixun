@@ -45,26 +45,42 @@ int16 right_start_row = 0, right_start_col = 0;                                 
 uint8 left_lose_rows = 0;                                                       // 左边界丢失行数
 uint8 right_lose_rows = 0;                                                      // 右边界丢失行数
 
-// ---- A/B/C/D/E/F/G/H 关键点 ----
+// ---- A/B/C/D/E/F 关键点 ----
 uint8 point_A_row = 0, point_A_col = 0;                                        // A点（左边界底部起点）
 uint8 point_B_row = 0, point_B_col = 0;                                        // B点（右边界底部起点）
 uint8 point_C_row = 0, point_C_col = 0;                                        // C点（左边界上部拐点）
 uint8 point_D_row = 0, point_D_col = 0;                                        // D点（右边界上部拐点）
 uint8 point_E_row = 0, point_E_col = 0;                                        // E点（左边界备用补线点）
 uint8 point_F_row = 0, point_F_col = 0;                                        // F点（右边界备用补线点）
-uint8 point_G_row = 0, point_G_col = 0;                                        // G点（左边界上下白点补线点）
-uint8 point_H_row = 0, point_H_col = 0;                                        // H点（右边界上下白点补线点）
 
 // ---- 赛道中线 ----
 uint8 center_line[IMG_H];                                                       // 中线数组
 uint8 center_line_valid[IMG_H];                                                 // 中线有效标记（1=真实边界，0=插值）
 uint8 left_boundary[IMG_H];                                                     // 左边界数组（默认0=最左边）
-uint8 right_boundary[IMG_H];                                                    // 右边界数组（默认IMG_W-1）
+uint8 right_boundary[IMG_H];                                                    // 右边界数组（默认140=最右边）
 
 // ---- 边界有效性标记（在插值前记录，用于圆环检测） ----
 uint8 left_valid[IMG_H];                                                        // 左边界有效：1=八邻域找到该行真实左边界
 uint8 right_valid[IMG_H];                                                       // 右边界有效：1=八邻域找到该行真实右边界
 
+// ---- 圆环状态机 ----
+ring_state_enum ring_state = RING_S_NONE;                                       // 当前圆环状态（默认正常巡线）
+float ring_error_sum = 0.0f;                                                    // 圆环误差累积和（进环阶段累积，出环阶段使用）
+uint16 ring_error_count = 0;                                                    // 圆环误差累积次数
+
+// ---- 圆环检测调试变量 ----
+uint8 ring_dbg_ref_fl = 0;                                                      // 远端甲侧参考边宽
+uint8 ring_dbg_ref_fr = 0;                                                      // 远端乙侧参考边宽
+uint8 ring_dbg_ref_nl = 0;                                                      // 近端甲侧参考边宽
+uint8 ring_dbg_ref_nr = 0;                                                      // 近端乙侧参考边宽
+uint8 ring_dbg_cur_fl = 0;                                                      // 远端甲侧当前边宽
+uint8 ring_dbg_cur_fr = 0;                                                      // 远端乙侧当前边宽
+uint8 ring_dbg_cur_nl = 0;                                                      // 近端甲侧当前边宽
+uint8 ring_dbg_cur_nr = 0;                                                      // 近端乙侧当前边宽
+uint8 ring_dbg_ref_nt = 0;                                                      // 近端参考赛道宽度
+uint8 ring_dbg_cur_nt = 0;                                                      // 近端当前赛道宽度
+uint8 ring_dbg_ref_ft = 0;                                                      // 远端参考赛道宽度
+uint8 ring_dbg_cur_ft = 0;                                                      // 远端当前赛道宽度
 
 //==================================================== 快速大津法（OTSU） ====================================================
 
@@ -131,7 +147,7 @@ uint8 otsu_threshold_calc(uint8 *image)
     int32 H1 = 0;
     uint8 D1 = 0;
 
-    for(i = 0; i < 256; i++)
+    for(i = 0; i < 255; i++)
     {
         if(pixel_count[i] > H1)
         {
@@ -687,21 +703,18 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：find_key_points
-// 功能：遍历 left_boundary[] / right_boundary[] 寻找 C/D/E/F/G/H 关键点
+// 功能：遍历 left_boundary[] / right_boundary[] 寻找 C/D 关键点
 // 参数：image —— 二值化图像
 // 返回：void
 //
-// 搜索策略（按搜索方向找到第一个满足条件的点即停止）：
-//   C 点：从 IMG_H-2 往 20（向上），若 C=(R,C)，则 (R-1,C-1) 和 (R-2,C-2) 也为白
-//   D 点：从 IMG_H-2 往 20（向上），若 D=(R,C)，则 (R-1,C+1) 和 (R-2,C+2) 也为白
-//   E 点：从 2 往 IMG_H-20（向下），若 E=(R,C)，则 (R+1,C-1) 和 (R+2,C-2) 也为白
-//   F 点：从 2 往 IMG_H-20（向下），若 F=(R,C)，则 (R+1,C+1) 和 (R+2,C+2) 也为白
-//   G 点：从 20 往 IMG_H-20（向下），若 G=(R,C)，则上下各两行同列也为白
-//   H 点：从 20 往 IMG_H-20（向下），若 H=(R,C)，则上下各两行同列也为白
+// 策略：
+//   A/B 点：固定为底部边框内侧
+//   C 点：遍历 left_boundary[]（IMG_H/3 → 4行），找左下两白+右上白的断开点
+//   D 点：遍历 right_boundary[]（IMG_H/3 → 4行），找右下两白+左上白的断开点
 //-------------------------------------------------------------------------------------------------------------------
 void find_key_points(uint8 image[IMG_H][IMG_W])
 {
-    int16 r;
+    int16 k;
 
     // ---- 1. A/B点固定为图像底部边框内侧 ----
     point_A_row = IMG_H - 3;
@@ -709,101 +722,87 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
     point_B_row = IMG_H - 3;
     point_B_col = IMG_W - 3;
 
-    // ---- 2. 初始化 C/D/E/F/G/H 点 ----
+    // ---- 2. 初始化 C/D/E/F 点 ----
     point_C_row = 0; point_C_col = 0;
     point_D_row = 0; point_D_col = 0;
     point_E_row = 0; point_E_col = 0;
     point_F_row = 0; point_F_col = 0;
-    point_G_row = 0; point_G_col = 0;
-    point_H_row = 0; point_H_col = 0;
 
-    // ---- 3. 从 left_boundary[] 找 C 点（IMG_H-2 → 20，向上搜索，取第一个满足条件的） ----
-    // 条件：若 C=(R,C)，则 (R-1,C-1) 和 (R-2,C-2) 也为白（左上斜方向连续白点）
-    for(r = IMG_H - 2; r >= 20; r--)
+    // ---- 3. 遍历 left_edge[] 找 C 点（IMG_H*3/4 → 4, col < IMG_W/2） ----
+    for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
     {
-        if(!left_valid[r]) continue;
-        uint8 c = left_boundary[r];
-        if(c < 2) continue;
-        if(image[r - 1][c - 1] == WHITE && image[r - 2][c - 2] == WHITE)
+        if(!left_edge[k].flag) continue;
+        int16 r = left_edge[k].row;
+        int16 c = left_edge[k].col;
+        if(r < 4 || r > IMG_H * 3 / 4) continue;
+        if(c < 2 || c >= IMG_W / 2) continue;
+
+        if(image[r + 2][c - 1] == WHITE && image[r + 3][c - 2] == WHITE
+           && image[r - 1][c + 2] == WHITE && image[r + 4][c - 8] == WHITE)
         {
             point_C_row = (uint8)r;
-            point_C_col = c;
+            point_C_col = (uint8)c;
             break;
         }
     }
 
-    // ---- 4. 从 right_boundary[] 找 D 点（IMG_H-2 → 20，向上搜索，取第一个满足条件的） ----
-    // 条件：若 D=(R,C)，则 (R-1,C+1) 和 (R-2,C+2) 也为白（右上斜方向连续白点）
-    for(r = IMG_H - 2; r >= 20; r--)
+    // ---- 4. 遍历 right_edge[] 找 D 点（IMG_H*3/4 → 4, col > IMG_W/2） ----
+    for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
     {
-        if(!right_valid[r]) continue;
-        uint8 c = right_boundary[r];
-        if(c > IMG_W - 3) continue;
-        if(image[r - 1][c + 1] == WHITE && image[r - 2][c + 2] == WHITE)
+        if(!right_edge[k].flag) continue;
+        int16 r = right_edge[k].row;
+        int16 c = right_edge[k].col;
+        if(r < 4 || r > IMG_H * 3 / 4) continue;
+        if(c <= IMG_W / 2 || c > IMG_W - 3) continue;
+
+        if(image[r + 2][c + 1] == WHITE && image[r + 3][c + 2] == WHITE
+           && image[r - 1][c - 2] == WHITE && image[r + 4][c + 8] == WHITE)
         {
             point_D_row = (uint8)r;
-            point_D_col = c;
+            point_D_col = (uint8)c;
             break;
         }
     }
 
-    // ---- 5. 从 left_boundary[] 找 E 点（2 → IMG_H-20，向下搜索，取第一个满足条件的） ----
-    // 条件：若 E=(R,C)，则 (R+1,C-1) 和 (R+2,C-2) 也为白（左下斜方向连续白点）
-    for(r = 2; r <= IMG_H - 20; r++)
+    // ---- 5. C未找到时，遍历 left_edge[] 找 E 点（IMG_H-20 → IMG_H-3, col < IMG_W/2） ----
+    if(point_C_row == 0)
     {
-        if(!left_valid[r]) continue;
-        uint8 c = left_boundary[r];
-        if(c < 2) continue;
-        if(image[r + 1][c - 1] == WHITE && image[r + 2][c - 2] == WHITE)
+        for(k = 0; k < left_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
         {
-            point_E_row = (uint8)r;
-            point_E_col = c;
-            break;
+            if(!left_edge[k].flag) continue;
+            int16 r = left_edge[k].row;
+            int16 c = left_edge[k].col;
+            if(r < IMG_H - 20 || r > IMG_H - 3) continue;
+            if(c < 2 || c >= IMG_W / 2) continue;
+
+            if(r >= 4 && c >= 4
+               && image[r - 2][c - 2] == WHITE && image[r - 1][c] == WHITE)
+            {
+                point_E_row = (uint8)r;
+                point_E_col = (uint8)c;
+                break;
+            }
         }
     }
 
-    // ---- 6. 从 right_boundary[] 找 F 点（2 → IMG_H-20，向下搜索，取第一个满足条件的） ----
-    // 条件：若 F=(R,C)，则 (R+1,C+1) 和 (R+2,C+2) 也为白（右下斜方向连续白点）
-    for(r = 2; r <= IMG_H - 20; r++)
+    // ---- 6. D未找到时，遍历 right_edge[] 找 F 点（IMG_H-20 → IMG_H-3, col > IMG_W/2） ----
+    if(point_D_row == 0)
     {
-        if(!right_valid[r]) continue;
-        uint8 c = right_boundary[r];
-        if(c > IMG_W - 3) continue;
-        if(image[r + 1][c + 1] == WHITE && image[r + 2][c + 2] == WHITE)
+        for(k = 0; k < right_edge_count && k < BOUNDARY_SEARCH_MAX; k++)
         {
-            point_F_row = (uint8)r;
-            point_F_col = c;
-            break;
-        }
-    }
+            if(!right_edge[k].flag) continue;
+            int16 r = right_edge[k].row;
+            int16 c = right_edge[k].col;
+            if(r < IMG_H - 20 || r > IMG_H - 3) continue;
+            if(c <= IMG_W / 2 || c > IMG_W - 3) continue;
 
-    // ---- 7. 从 left_boundary[] 找 G 点（20 → IMG_H-20，向下搜索，取第一个满足条件的） ----
-    // 条件：若 G=(R,C)，则上下各两行同列也为白（上下连续白点）
-    for(r = 20; r <= IMG_H - 20; r++)
-    {
-        if(!left_valid[r]) continue;
-        uint8 c = left_boundary[r];
-        if(image[r + 1][c] == WHITE && image[r + 2][c] == WHITE &&
-           image[r - 1][c] == WHITE && image[r - 2][c] == WHITE)
-        {
-            point_G_row = (uint8)r;
-            point_G_col = c;
-            break;
-        }
-    }
-
-    // ---- 8. 从 right_boundary[] 找 H 点（20 → IMG_H-20，向下搜索，取第一个满足条件的） ----
-    // 条件：若 H=(R,C)，则上下各两行同列也为白（上下连续白点）
-    for(r = 20; r <= IMG_H - 20; r++)
-    {
-        if(!right_valid[r]) continue;
-        uint8 c = right_boundary[r];
-        if(image[r + 1][c] == WHITE && image[r + 2][c] == WHITE &&
-           image[r - 1][c] == WHITE && image[r - 2][c] == WHITE)
-        {
-            point_H_row = (uint8)r;
-            point_H_col = c;
-            break;
+            if(r >= 4 && c < IMG_W - 4
+               && image[r - 2][c + 2] == WHITE && image[r - 1][c] == WHITE)
+            {
+                point_F_row = (uint8)r;
+                point_F_col = (uint8)c;
+                break;
+            }
         }
     }
 }
@@ -829,147 +828,77 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
 {
     float k_left, k_right;
     int16 i;
-    uint8 left_high_row = 0, left_high_col = 0;    // 上点（G > E > C）
-    uint8 left_low_row = 0, left_low_col = 0;      // 下点（C 或 A）
-    uint8 right_high_row = 0, right_high_col = 0;  // 上点（H > F > D）
-    uint8 right_low_row = 0, right_low_col = 0;    // 下点（D 或 B）
+    uint8 use_left_row, use_left_col;
+    uint8 use_right_row, use_right_col;
 
-    // ======== 左侧：确定上点（G > E > C）和下点 ========
-    if(point_G_row > 0)
+    // ======== 确定左侧补线点（E优先，C备用） ========
+    if(point_E_row > 0)
     {
-        left_high_row = point_G_row;
-        left_high_col = point_G_col;
-    }
-    else if(point_E_row > 0)
-    {
-        left_high_row = point_E_row;
-        left_high_col = point_E_col;
+        use_left_row = point_E_row;
+        use_left_col = point_E_col;
     }
     else if(point_C_row > 0)
     {
-        left_high_row = point_C_row;
-        left_high_col = point_C_col;
+        use_left_row = point_C_row;
+        use_left_col = point_C_col;
     }
     else
     {
-        left_high_row = 0;
+        use_left_row = 0;
     }
 
-    // 下点：若同时有 C 和 (G或E)，则下点=C（C与G/E连线），否则下点=A
-    if(point_C_row > 0 && (point_G_row > 0 || point_E_row > 0))
+    // ======== 确定右侧补线点（F优先，D备用） ========
+    if(point_F_row > 0)
     {
-        left_low_row = point_C_row;
-        left_low_col = point_C_col;
-    }
-    else
-    {
-        left_low_row = point_A_row;
-        left_low_col = point_A_col;
-    }
-
-    // 上点太靠左 → 不补线（G点不受此限制）
-    if(left_high_row > 0 && point_G_row == 0 && left_high_col < 20)
-    {
-        left_high_row = 0;
-    }
-
-    // ======== 右侧：确定上点（H > F > D）和下点 ========
-    if(point_H_row > 0)
-    {
-        right_high_row = point_H_row;
-        right_high_col = point_H_col;
-    }
-    else if(point_F_row > 0)
-    {
-        right_high_row = point_F_row;
-        right_high_col = point_F_col;
+        use_right_row = point_F_row;
+        use_right_col = point_F_col;
     }
     else if(point_D_row > 0)
     {
-        right_high_row = point_D_row;
-        right_high_col = point_D_col;
+        use_right_row = point_D_row;
+        use_right_col = point_D_col;
     }
     else
     {
-        right_high_row = 0;
+        use_right_row = 0;
     }
 
-    // 下点：若同时有 D 和 (H或F)，则下点=D（D与H/F连线），否则下点=B
-    if(point_D_row > 0 && (point_H_row > 0 || point_F_row > 0))
+    // ======== 补左侧线（→A，从7行画到IMG_H-3） ========
+    if(use_left_row > 0 && use_left_row != point_A_row)
     {
-        right_low_row = point_D_row;
-        right_low_col = point_D_col;
-    }
-    else
-    {
-        right_low_row = point_B_row;
-        right_low_col = point_B_col;
-    }
+        k_left = (float)(use_left_col - point_A_col) / (float)(use_left_row - point_A_row);
+        int16 start_row = (use_left_row > 7) ? use_left_row : 7;
 
-    // 上点太靠右 → 不补线（H点不受此限制）
-    if(right_high_row > 0 && point_H_row == 0 && right_high_col > IMG_W - 20)
-    {
-        right_high_row = 0;
-    }
-
-    // ======== 补左侧线（IMG_H-2 → 2，全覆盖） ========
-    if(left_high_row > 0 && left_high_row != left_low_row)
-    {
-        k_left = (float)(left_high_col - left_low_col) / (float)(left_high_row - left_low_row);
-
-        // 检查补线最顶端（行2）的列坐标：必须 < IMG_W*3/4，否则不补
+        for(i = start_row; i <= point_A_row && i < IMG_H; i++)
         {
-            int16 top_col = left_high_col + (int16)((2 - (int16)left_high_row) * k_left);
-            if(top_col >= IMG_W * 3 / 4)
-            {
-                left_high_row = 0;
-            }
-        }
+            int16 offset = (int16)((i - use_left_row) * k_left);
+            int16 draw_col = use_left_col + offset;
 
-        if(left_high_row > 0)
-        {
-            for(i = IMG_H - 2; i >= 2; i--)
+            if(draw_col > 2 && draw_col < IMG_W - 2)
             {
-                int16 offset = (int16)((i - left_high_row) * k_left);
-                int16 draw_col = left_high_col + offset;
-
-                if(draw_col > 2 && draw_col < IMG_W - 2)
-                {
-                    image[i][draw_col] = BLACK;
-                    image[i][draw_col - 1] = BLACK;
-                    left_boundary[i] = (uint8)draw_col;
-                }
+                image[i][draw_col] = BLACK;
+                image[i][draw_col - 1] = BLACK;
+                left_boundary[i] = (uint8)draw_col;
             }
         }
     }
 
-    // ======== 补右侧线（IMG_H-2 → 2，全覆盖） ========
-    if(right_high_row > 0 && right_high_row != right_low_row)
+    // ======== 补右侧线（→B，从7行画到IMG_H-3） ========
+    if(use_right_row > 0 && use_right_row != point_B_row)
     {
-        k_right = (float)(right_high_col - right_low_col) / (float)(right_high_row - right_low_row);
+        k_right = (float)(use_right_col - point_B_col) / (float)(use_right_row - point_B_row);
+        int16 start_row = (use_right_row > 7) ? use_right_row : 7;
 
-        // 检查补线最顶端（行2）的列坐标：必须 > IMG_W/4，否则不补
+        for(i = start_row; i <= point_B_row && i < IMG_H; i++)
         {
-            int16 top_col = right_high_col + (int16)((2 - (int16)right_high_row) * k_right);
-            if(top_col <= IMG_W / 4)
-            {
-                right_high_row = 0;
-            }
-        }
+            int16 offset = (int16)((i - use_right_row) * k_right);
+            int16 draw_col = use_right_col + offset;
 
-        if(right_high_row > 0)
-        {
-            for(i = IMG_H - 2; i >= 2; i--)
+            if(draw_col > 2 && draw_col < IMG_W - 2)
             {
-                int16 offset = (int16)((i - right_high_row) * k_right);
-                int16 draw_col = right_high_col + offset;
-
-                if(draw_col > 2 && draw_col < IMG_W - 2)
-                {
-                    image[i][draw_col] = BLACK;
-                    image[i][draw_col - 1] = BLACK;
-                    right_boundary[i] = (uint8)draw_col;
-                }
+                image[i][draw_col] = BLACK;
+                image[i][draw_col - 1] = BLACK;
+                right_boundary[i] = (uint8)draw_col;
             }
         }
     }
@@ -1215,6 +1144,411 @@ void clear_edge_data(void)
     right_lose_rows = 0;
 }
 
+//==================================================== 圆环巡线（v2：边沿宽度趋势 + 累积误差） ====================================================
+
+// 甲侧 = 左（左圆环），乙侧 = 右
+// 边沿宽度：左边界列坐标（距左边距离），右边界 = IMG_W-1-列坐标（距右边距离）
+// 赛道宽度 = 右边界 - 左边界
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：ring_detect
+// 功能：基于远近端边沿宽度变化趋势判断并更新圆环状态
+// 参数：void
+// 返回：void
+//
+// 检测原理：
+//   前端 = 行 0 ~ RING_FRONT_BOUNDARY-1（图像上部，远处）
+//   后端 = 行 RING_REAR_START ~ IMG_H-1（图像下部，近车身）
+//   丢线 = left_valid/right_valid == 0（八邻域未找到该行真实边界点）
+//
+//   丢线编码（4位）：
+//     bit0=后端左丢  bit1=后端右丢  bit2=前端左丢  bit3=前端右丢
+//
+//   状态机（仅处理左圆环）：
+//     NONE/DONE:     近LR✓ + 远L✗R✓ → 累积3帧 → APPROACH
+//     APPROACH:      近L✗R✓ + 远LR✓ → 累积2帧 → ENTER
+//     ENTER:         近L在R丢 + 远L✗R✗ → 累积2帧 → EXIT_TURN
+//     EXIT_TURN:     近L✗R✓ + 远LR✓ → 累积2帧 → EXIT_STRAIGHT
+//     EXIT_STRAIGHT: 近LR✓ + 远LR✓ → 累积3帧 → DONE
+//     DONE:          保持30帧后自动回到NONE
+//   各状态有超时保护（RING_TIMEOUT帧），超时回NONE
+//-------------------------------------------------------------------------------------------------------------------
+void ring_detect(void)
+{
+    static uint8 confirm_count = 0;
+    static uint8 state_duration = 0;
+
+    // ---- 各行独立的正常参考值（近大远小，透视效应，必须分开维护） ----
+    static uint8 ref_far_left  = 0;                                             // 远端正常甲侧边宽（左边界列坐标）
+    static uint8 ref_far_right = 0;                                             // 远端正常乙侧边宽（IMG_W-1-右边界）
+    static uint8 ref_far_track = 0;                                             // 远端正常赛道宽度
+    static uint8 ref_near_left  = 0;                                            // 近端正常甲侧边宽
+    static uint8 ref_near_right = 0;                                            // 近端正常乙侧边宽
+    static uint8 ref_near_track = 0;                                            // 近端正常赛道宽度
+    static uint8 side_a_came_back = 0;                                          // 甲侧小→大中的"小"阶段标志
+
+    // ---- 甲侧=左（左圆环），乙侧=右 ----
+    // 边沿宽度：甲侧=左边界列坐标，乙侧=IMG_W-1-右边界列坐标
+    // 赛道宽度=右边界-左边界
+
+    uint8 far_left  = left_boundary[RING_FAR_ROW];                              // 远端甲侧边宽
+    uint8 far_right = IMG_W - 1 - right_boundary[RING_FAR_ROW];                // 远端乙侧边宽
+    uint8 far_track = right_boundary[RING_FAR_ROW] - left_boundary[RING_FAR_ROW]; // 远端赛道宽度
+
+    uint8 near_left  = left_boundary[RING_NEAR_ROW];                            // 近端甲侧边宽
+    uint8 near_right = IMG_W - 1 - right_boundary[RING_NEAR_ROW];              // 近端乙侧边宽
+    uint8 near_track = right_boundary[RING_NEAR_ROW] - left_boundary[RING_NEAR_ROW]; // 近端赛道宽度
+
+    // 写入调试变量（供IPS200显示）
+    ring_dbg_cur_fl = far_left;
+    ring_dbg_cur_fr = far_right;
+    ring_dbg_cur_nl = near_left;
+    ring_dbg_cur_nr = near_right;
+    ring_dbg_ref_fl = ref_far_left;
+    ring_dbg_ref_fr = ref_far_right;
+    ring_dbg_ref_nl = ref_near_left;
+    ring_dbg_ref_nr = ref_near_right;
+    ring_dbg_ref_nt = ref_near_track;
+    ring_dbg_cur_nt = near_track;
+    ring_dbg_ref_ft = ref_far_track;
+    ring_dbg_cur_ft = far_track;
+
+    // 边宽增加判定倍数（相对于各行自己的参考值）
+    #define RING_W_INC  1.5f
+
+    state_duration++;
+
+    switch(ring_state)
+    {
+        // ==================== 状态0：正常 → 更新参考 + 预判 ====================
+        case RING_S_NONE:
+        {
+            // 更新各行独立参考值（仅在赛宽正常时更新，慢速平滑）
+            if(near_track >= RING_NORMAL_WIDTH_MIN && near_track <= RING_NORMAL_WIDTH_MAX
+               && far_track >= RING_NORMAL_WIDTH_MIN / 2)                        // 远端正常小很多
+            {
+                #define REF_ALPHA 4                                              // 平滑系数：new = (old*4 + cur)/5
+                if(ref_near_track == 0) ref_near_track = near_track;
+                else ref_near_track = (ref_near_track * REF_ALPHA + near_track) / (REF_ALPHA + 1);
+                if(ref_far_track == 0) ref_far_track = far_track;
+                else ref_far_track = (ref_far_track * REF_ALPHA + far_track) / (REF_ALPHA + 1);
+                if(ref_far_left == 0) ref_far_left = far_left;
+                else ref_far_left = (ref_far_left * REF_ALPHA + far_left) / (REF_ALPHA + 1);
+                if(ref_far_right == 0) ref_far_right = far_right;
+                else ref_far_right = (ref_far_right * REF_ALPHA + far_right) / (REF_ALPHA + 1);
+                if(ref_near_left == 0) ref_near_left = near_left;
+                else ref_near_left = (ref_near_left * REF_ALPHA + near_left) / (REF_ALPHA + 1);
+                if(ref_near_right == 0) ref_near_right = near_right;
+                else ref_near_right = (ref_near_right * REF_ALPHA + near_right) / (REF_ALPHA + 1);
+            }
+
+            // 预判：远端甲侧边宽增加（和自己正常值比）+ 乙侧不变 + 近端赛宽正常
+            if(ref_far_left > 0
+               && far_left > (uint8)(ref_far_left +3)                  // 甲侧边宽 > 自己正常1.5倍
+               && far_right <= (uint8)(ref_far_right +3)               // 乙侧没有大幅增加
+               && left_boundary[RING_FAR_ROW] < 20
+               && near_track >= RING_NORMAL_WIDTH_MIN
+               && near_track <= RING_NORMAL_WIDTH_MAX
+               && right_boundary[RING_FAR_ROW] <= (IMG_W-4)
+               && right_boundary[4] <= (IMG_W-4)
+               && right_boundary[IMG_H-5] >= (IMG_W*5/6)
+               && right_boundary[RING_FAR_ROW] >= (IMG_W/2)
+            )
+            {
+                confirm_count++;
+                if(confirm_count >= RING_FRAME_CONFIRM)
+                {
+                    ring_state = RING_S_PREDICT;
+                    confirm_count = 0;
+                    state_duration = 0;
+                    side_a_came_back = 0;
+                }
+            }
+            else
+            {
+                confirm_count = 0;
+            }
+            break;
+        }
+
+        // ==================== 状态1：预判 → 确认 ====================
+        case RING_S_PREDICT:
+        {
+            // 跟踪：甲侧边宽变"小"（边界回来了）——相对于自己的正常值
+            if(far_left <= (uint8)(ref_far_left * 1.2f))                         // 回到正常1.2倍以内
+            {
+                side_a_came_back = 1;
+            }
+
+            // 确认：甲侧小→再变大 + 乙侧不变 + 近端甲侧也增 + 近端乙侧不变
+            if(ref_near_left > 0
+               //&& side_a_came_back
+               && left_boundary[4] > 20                  // 远远端又大了
+               //&& far_right <= (uint8)(ref_far_right * RING_W_INC)               // 乙侧不变
+               //&& near_track < (uint8)(ref_near_track)                // 近端甲侧也增
+               //&& near_right <= (uint8)(ref_near_right * RING_W_INC))            // 近端乙侧不变
+               && left_boundary[RING_FAR_ROW] ==1
+               && left_boundary[RING_NEAR_ROW] >=4
+               && right_boundary[RING_NEAR_ROW] <= (IMG_W-2)
+               && right_boundary[RING_FAR_ROW] <= (IMG_W-2)
+            )
+            {
+                confirm_count++;
+                if(confirm_count >= RING_FRAME_CONFIRM)
+                {
+                    ring_state = RING_S_CONFIRM;
+                    confirm_count = 0;
+                    state_duration = 0;
+                    ring_error_sum = 0.0f;
+                    ring_error_count = 0;
+                }
+            }
+            else if(state_duration > RING_TIMEOUT)
+            {
+                ring_state = RING_S_NONE;
+                confirm_count = 0;
+                state_duration = 0;
+                side_a_came_back = 0;
+            }
+            else
+            {
+                confirm_count = 0;
+            }
+            break;
+        }
+
+        // ==================== 状态2：确认 → 立即进环 ====================
+        case RING_S_CONFIRM:
+        {
+            ring_state = RING_S_IN_RING;
+            state_duration = 0;
+            break;
+        }
+
+        // ==================== 状态3：进环中 → 累积误差 + 检测出口 ====================
+        case RING_S_IN_RING:
+        {
+            // 累积中线误差(相对于图像中心)
+            {
+                float err = (float)center_line[42] - (float)(IMG_W / 2);
+                ring_error_sum += err;
+                ring_error_count++;
+            }
+
+            // 检测出口：远端赛宽很大（相对自己正常值翻倍）+ 甲侧边界远
+            if(ref_far_track > 0
+               && far_track > (uint8)(60)                         // 赛宽 > 正常2倍
+               //&& far_left < (uint8)( IMG_W / 5))                                           // 甲侧边界过了1/5宽度
+
+               //&& left_boundary[RING_FAR_ROW] >=20
+               && left_boundary[RING_NEAR_ROW] ==1
+               //&& right_boundary[RING_NEAR_ROW] == (IMG_W-2)
+               && right_boundary[RING_FAR_ROW] == (IMG_W-2)
+               && left_boundary[IMG_H-3] ==1
+               &&right_boundary[IMG_H-3] > (IMG_W/2)
+               && binary_image[RING_NEAR_ROW][IMG_W/2] == WHITE
+               && binary_image[50][IMG_W/2] == WHITE
+            )
+            {
+                confirm_count++;
+                if(confirm_count >= 0)
+                {
+                    ring_state = RING_S_EXIT;
+                    confirm_count = 0;
+                    state_duration = 0;
+                }
+            }
+            else if(state_duration > (RING_TIMEOUT*3))
+            {
+                ring_state = RING_S_NONE;
+                confirm_count = 0;
+                state_duration = 0;
+                ring_error_sum = 0.0f;
+                ring_error_count = 0;
+            }
+            else
+            {
+                confirm_count = 0;
+            }
+            break;
+        }
+
+        // ==================== 状态4：出口 → 用累积误差，检测过环心 ====================
+        case RING_S_EXIT:
+        {
+            if(ref_far_track > 0
+               && far_track <= (uint8)(ref_far_track * 2)                      // 赛宽降到2倍以下
+               && left_boundary[10] <=(IMG_W/2)
+               && right_boundary[10] >= (IMG_W/2)
+               && left_boundary[10] >=1
+               && right_boundary[10] <= (IMG_W-2)
+            )
+            {
+                confirm_count++;
+                if(confirm_count >= 2)
+                {
+                    ring_state = RING_S_OUT;
+                    confirm_count = 0;
+                    state_duration = 0;
+                }
+            }
+            else if(state_duration > RING_TIMEOUT)
+            {
+                ring_state = RING_S_NONE;
+                confirm_count = 0;
+                state_duration = 0;
+                ring_error_sum = 0.0f;
+                ring_error_count = 0;
+            }
+            else
+            {
+                confirm_count = 0;
+            }
+            break;
+        }
+
+        // ==================== 状态5：出环中 → 等赛道宽度恢复 ====================
+        case RING_S_OUT:
+        {
+            if(ref_near_track > 0
+               && far_track >= (uint8)(ref_far_track * 3 / 4)                    // 远端恢复到75%以上
+               && left_boundary[RING_FAR_ROW] >=20
+               && right_boundary[RING_FAR_ROW] <= (IMG_W-1-20)
+               && near_track >= RING_NORMAL_WIDTH_MIN
+               && near_track <= RING_NORMAL_WIDTH_MAX)
+            {
+                confirm_count++;
+                if(confirm_count >= RING_FRAME_CONFIRM)
+                {
+                    ring_state = RING_S_END;
+                    confirm_count = 0;
+                    state_duration = 0;
+                }
+            }
+            else if(state_duration > RING_TIMEOUT)
+            {
+                ring_state = RING_S_NONE;
+                confirm_count = 0;
+                state_duration = 0;
+                ring_error_sum = 0.0f;
+                ring_error_count = 0;
+            }
+            else
+            {
+                confirm_count = 0;
+            }
+            break;
+        }
+
+        // ==================== 状态6：结束 → 清标志 ====================
+        case RING_S_END:
+        {
+            ring_state = RING_S_NONE;
+            confirm_count = 0;
+            state_duration = 0;
+            // 参考值不清零，保留给下次用
+            side_a_came_back = 0;
+            ring_error_sum = 0.0f;
+            ring_error_count = 0;
+            break;
+        }
+
+        default:
+            ring_state = RING_S_NONE;
+            break;
+    }
+
+    // ---- 状态变化时通过蓝牙发送 ----
+    {
+        static ring_state_enum prev_state = RING_S_NONE;
+        if(ring_state != prev_state)
+        {
+            const char *names[] = {"N","P","C","I","E","O","D"};
+            serial_printf("RING:%s fL:%u>%u fR:%u>%u nL:%u>%u nR:%u>%u fT:%u>%u nT:%u>%u\r\n",
+                names[ring_state],
+                ring_dbg_ref_fl, ring_dbg_cur_fl,
+                ring_dbg_ref_fr, ring_dbg_cur_fr,
+                ring_dbg_ref_nl, ring_dbg_cur_nl,
+                ring_dbg_ref_nr, ring_dbg_cur_nr,
+                ring_dbg_ref_ft, ring_dbg_cur_ft,
+                ring_dbg_ref_nt, ring_dbg_cur_nt);
+            prev_state = ring_state;
+        }
+    }
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：ring_centerline_extract
+// 功能：圆环模式下重算中线
+// 参数：void
+// 返回：void
+//
+// 策略：
+//   状态2(CONFIRM)/3(IN_RING)：每行跟甲边界 center_line = 甲边界 + 半宽
+//   状态4(EXIT)/5(OUT)：使用累积平均误差（不依赖边界）
+//-------------------------------------------------------------------------------------------------------------------
+void ring_centerline_extract(void)
+{
+    int16 i;
+
+    if(ring_state == RING_S_EXIT || ring_state == RING_S_OUT)
+    {
+        // ---- 出环阶段：用累积平均误差 ----
+        float avg_error = 0.0f;
+        if(ring_error_count > 0)
+            avg_error = ring_error_sum / (float)ring_error_count;
+
+        int16 target = (int16)(IMG_W / 2) + (int16)avg_error;
+        if(target < 0) target = 0;
+        if(target >= IMG_W) target = IMG_W - 1;
+
+        for(i = 0; i < IMG_H; i++)
+        {
+            center_line[i] = (uint8)target;
+        }
+    }
+    else
+    {
+        // ---- 进环/环内阶段：根据左/右边界状态决定跟随策略 ----
+        // 统计底部2/3区域
+        uint16 left_at_border = 0;                                              // 左边界=1的行数
+        uint16 right_at_border = 0;                                             // 右边界=IMG_W-2的行数
+        uint16 checked = 0;
+        for(i = IMG_H - 1; i >= IMG_H / 3; i--)
+        {
+            if(left_boundary[i] <= 1) left_at_border++;
+            if(right_boundary[i] >= IMG_W - 2) right_at_border++;
+            checked++;
+        }
+        uint8 left_all_lost  = (left_at_border  > checked *3/ 4);                // 过半行左=1
+        uint8 right_all_lost = (right_at_border > checked *3/ 4);                // 过半行右=IMG_W-2
+
+        if(left_all_lost && !right_all_lost)
+        {
+            // 左全丢、右有值 → 中线 = (左+右)/2（右边界可靠，正常计算）
+            for(i = 0; i < IMG_H; i++)
+            {
+                center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
+            }
+        }
+        else
+        {
+            // 左没全丢 或 左右都丢了 → 跟左边界
+            //   左没全丢：左边界可见，跟左边界
+            //   左右都丢：环太大什么都看不到，贴左边走
+            for(i = 0; i < IMG_H; i++)
+            {
+                uint8 mid = left_boundary[i] + RING_HALF_WIDTH;
+                if(mid >= IMG_W) mid = IMG_W - 1;
+                center_line[i] = mid;
+                right_boundary[i] = (left_boundary[i] + 2 * RING_HALF_WIDTH < IMG_W)
+                                    ? (left_boundary[i] + 2 * RING_HALF_WIDTH)
+                                    : (IMG_W - 1);
+            }
+        }
+    }
+}
+
 //==================================================== 完整图像处理管线 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -1357,42 +1691,32 @@ void image_process_pipeline(void)
     // }
 
     // ---- 第8步：从 left_boundary[]/right_boundary[] 中找 A/B/C/D 关键点 ----
-    find_key_points(binary_image);
+    //find_key_points(binary_image);
 
     // ---- 第9步：十字路口判断与补线 ----
-    // crossroad_fix(binary_image);
+    //crossroad_fix(binary_image);
 
-    // // ---- 第9.5步：用修正后的边界刷新受影响行的中线 ----
-    // // crossroad_fix 补线范围是 IMG_H-2 → 2（全覆盖），所以中线也要全范围重算
-    // {
-    //     int16 _i;
-    //     // 左侧补线点行号（G > E > C，与 crossroad_fix 保持一致）
-    //     uint8 _lr = 0;
-    //     if(point_G_row > 0)
-    //         _lr = point_G_row;
-    //     else if(point_E_row > 0)
-    //         _lr = point_E_row;
-    //     else if(point_C_row > 0)
-    //         _lr = point_C_row;
-    //
-    //     // 右侧补线点行号（H > F > D，与 crossroad_fix 保持一致）
-    //     uint8 _rr = 0;
-    //     if(point_H_row > 0)
-    //         _rr = point_H_row;
-    //     else if(point_F_row > 0)
-    //         _rr = point_F_row;
-    //     else if(point_D_row > 0)
-    //         _rr = point_D_row;
-    //
-    //     // 只要有任一侧补了线，就全范围重算中线（2 → IMG_H-2，与补线范围一致）
-    //     if(_lr > 0 || _rr > 0)
-    //     {
-    //         for(_i = 2; _i <= IMG_H - 2; _i++)
-    //         {
-    //             if(left_boundary[_i] < right_boundary[_i])
-    //                 center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-    //         }
-    //     }
-    // }
+    // ---- 第9.5步：用修正后的边界刷新受影响行的中线 ----
+    //{
+    //    int16 _i;
+    //    uint8 _lr = (point_C_row > 0) ? point_C_row : point_E_row;
+    //    uint8 _rr = (point_D_row > 0) ? point_D_row : point_F_row;
+    //    if(_lr > 0)
+    //        for(_i = _lr; _i <= point_A_row && _i < IMG_H; _i++)
+    //            if(left_boundary[_i] < right_boundary[_i])
+    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+    //    if(_rr > 0)
+    //        for(_i = _rr; _i <= point_B_row && _i < IMG_H; _i++)
+    //            if(left_boundary[_i] < right_boundary[_i])
+    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
+    //}
 
+    // ---- 第10步：圆环检测 + 中线覆写 ----
+    // 基于边沿宽度变化趋势更新圆环状态机
+    //ring_detect();
+    // 在圆环状态≥CONFIRM时，覆写中线
+    if(ring_state >= RING_S_CONFIRM && ring_state <= RING_S_OUT)
+    {
+        ring_centerline_extract();
+    }
 }

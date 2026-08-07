@@ -50,8 +50,6 @@ static const uint8 weight2[IMG_H]={   20, 20, 20, 20, 19, 19, 19, 19, 18, 18, 18
                         5 , 5 , 5 , 5 , 4 , 4 , 4 , 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 ,
                         2 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 };    // 15*6=90
 
-static uint8 atti_first = 1;                                                       // 姿态解算加速度低通滤波首次初始化标志
-
 //==================================================== 巡线模块初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -85,6 +83,8 @@ void line_follow_init(void)
     otsu_threshold = 180;                                                       // 初始阈值180（中等灰度值）
     last_threshold = 180;
 
+    // ---- 重置圆环状态（确保每次发车从正常模式开始） ----
+    ring_state = RING_S_NONE;
 }
 
 //==================================================== 巡线主处理函数 ====================================================
@@ -311,39 +311,6 @@ int16 calc_deviation(uint8 look_ahead_rows)
     return (int16)mid_x - (int16)(IMG_W / 2);
 }
 
-//-------------------------------------------------------------------------------------------------------------------
-// 函数名称：is_straight_detect
-// 功能：直道/弯道统一判别（所有调用点共用此函数，方便一处修改）
-// 返回：uint8 —— 1=直道, 0=弯道
-// 说明：在 STRAIGHT_DETECT_ROW 行，统计中心区域白点数，≥阈值即判为直道
-//-------------------------------------------------------------------------------------------------------------------
-uint8 is_straight_detect(void)
-{
-    uint8 row = STRAIGHT_DETECT_ROW;
-    int16 c;
-
-    // 统计中心区域白点数
-    uint8 white_cnt = 0;
-    for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
-    {
-        if(binary_image[row][c] == WHITE) white_cnt++;
-    }
-
-    // 条件1：中心区域白点数达标
-    if(white_cnt < STRAIGHT_WHITE_THRESH)
-        return 0;
-
-    // 条件2：检测行两侧边界都必须有效（弯道中一侧边界常提前丢失）
-    if(!left_valid[row] || !right_valid[row])
-        return 0;
-
-    // 条件3：两侧边界必须跨越图像中心（弯道中边界会偏移到中心同侧）
-    if(left_boundary[row] > IMG_W / 2 || right_boundary[row] < IMG_W / 2)
-        return 0;
-
-    return 1;
-}
-
 float get_weight_position(uint8 *center_line, uint8 is_straight)
 {
     const uint8 *w = is_straight ? weight : weight2;
@@ -384,38 +351,12 @@ float get_weight_position(uint8 *center_line, uint8 is_straight)
 }
 
 //-------------------------------------------------------------------------------------------------------------------
-// 函数名称：get_lookahead_position
-// 功能：前瞻行附近加权中线位置（替代旧的加权数组/多点均值）
-// 参数：kan —— 前瞻行号（直道 STRAIGHT_KAN=30，弯道 TURN_KAN=50）
-// 返回：float —— 加权中线位置（0~IMG_W-1）
-// 说明：取 kan-10 到 kan+10 共21行，行号越小权重越大（远处赛道更受关注）
-//-------------------------------------------------------------------------------------------------------------------
-float get_lookahead_position(uint8 kan)
-{
-    int16 start = (int16)kan - 10;
-    int16 end   = (int16)kan + 10;
-    if(start < 0)       start = 0;
-    if(end >= IMG_H)    end = IMG_H - 1;
-
-    float sum = 0.0f, wsum = 0.0f;
-    int16 r;
-    for(r = start; r <= end; r++)
-    {
-        if(!center_line_valid[r]) continue;    // 仅使用真实边界计算的中线
-        float w = (float)(end - r + 1);        // 行号越小(end-r越大)→权重越大
-        sum  += w * (float)center_line[r];
-        wsum += w;
-    }
-    return (wsum > 0.0f) ? (sum / wsum) : (float)(IMG_W / 2);
-}
-
-//-------------------------------------------------------------------------------------------------------------------
 // 函数名称：boundary_lost_compensate
-// 功能：丢线边界补偿（单侧丢线>9/10时，对侧边界向内偏移10px）
+// 功能：丢线边界补偿（单侧丢线>9/10时，对侧边界向内偏移30px）
 // 说明：
 //   统计行10~IMG_H-1
 //   左边界=1→丢线，右边界=IMG_W-2→丢线
-//   左丢→右边界左移10px，右丢→左边界右移10px，双侧都丢→不偏移
+//   左丢→右边界左移30px，右丢→左边界右移30px，双侧都丢→不偏移
 //-------------------------------------------------------------------------------------------------------------------
 void boundary_lost_compensate(void)
 {
@@ -439,7 +380,7 @@ void boundary_lost_compensate(void)
         uint8 center_right_count = 0;
         for(k = 2; k < IMG_H/2; k++)
         {
-            if(center_line[k] > IMG_W / 2) center_right_count++;
+            if(center_line[k] < IMG_W / 2) center_right_count++;
         }
         if(center_right_count >= 5)
         {
@@ -450,7 +391,6 @@ void boundary_lost_compensate(void)
                 else
                     right_boundary[k] = 0;
                 center_line[k] = (left_boundary[k] + right_boundary[k]) / 2;
-                center_line_valid[k] = 0;  // 补偿合成的中线，标记为非真实边界
             }
         }
     }
@@ -460,7 +400,7 @@ void boundary_lost_compensate(void)
         uint8 center_right_count = 0;
         for(k = 2; k < IMG_H/2; k++)
         {
-            if(center_line[k] < IMG_W / 2) center_right_count++;
+            if(center_line[k] > IMG_W / 2) center_right_count++;
         }
         if(center_right_count >= 5)
         {
@@ -471,7 +411,6 @@ void boundary_lost_compensate(void)
                 else
                     left_boundary[k] = IMG_W - 1;
                 center_line[k] = (left_boundary[k] + right_boundary[k]) / 2;
-                center_line_valid[k] = 0;  // 补偿合成的中线，标记为非真实边界
             }
         }
     }
@@ -512,8 +451,8 @@ float IMU_pid_set(float target,float actual)
     IMU_pid_outp = IMU_pid_error;
     IMU_kp=IMU_kp_a + (IMU_pid_error*IMU_pid_error)*IMU_kp_b;
     {
-        float abs_imu_err = (IMU_pid_error > 0.0f) ? IMU_pid_error : -IMU_pid_error;
-        if(abs_imu_err < 12.0f) IMU_kp = IMU_kp_a;
+        float abs_img_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+        if(abs_img_err < 12.0f) IMU_kp = IMU_kp_a;
     }
     finall_out= -(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd );
     if(finall_out >12){
@@ -582,7 +521,6 @@ void atti_init(void)
     atti_I_ex = 0.0f; atti_I_ey = 0.0f; atti_I_ez = 0.0f;
     atti_yaw = 0.0f;
     prev_angle_yaw = 0.0f;
-    atti_first = 1;  // 重置加速度低通滤波首次标志
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -593,6 +531,7 @@ static float fast_inv_sqrt(float x)
 {
     float halfx = 0.5f * x;
     float y = x;
+    int32 i;
     // memcpy not used due to microlib, use union instead
     union { float f; int32 i; } u;
     u.f = y;
@@ -618,13 +557,14 @@ void atti_update(void)
     float ex, ey, ez;
     float q0, q1, q2, q3;
     static float acc_fx = 0.0f, acc_fy = 0.0f, acc_fz = 0.0f;
+    static uint8 first = 1;
 
     // ---- 1. 读取加速度计（低通滤波） ----
     imu963ra_get_acc();
     ax = imu963ra_acc_transition((float)imu963ra_acc_x);
     ay = imu963ra_acc_transition((float)imu963ra_acc_y);
     az = imu963ra_acc_transition((float)imu963ra_acc_z);
-    if(atti_first) { acc_fx = ax; acc_fy = ay; acc_fz = az; atti_first = 0; }
+    if(first) { acc_fx = ax; acc_fy = ay; acc_fz = az; first = 0; }
     else
     {
         acc_fx = ATTI_ACC_ALPHA * ax + (1.0f - ATTI_ACC_ALPHA) * acc_fx;
@@ -708,8 +648,8 @@ float angle_pid_set(float target, float actual)
     angle_pid_outp = angle_pid_error;
     angle_kp = angle_kp_a + (angle_pid_error * angle_pid_error) * angle_kp_b;
     {
-        float abs_angle_err = (angle_pid_error > 0.0f) ? angle_pid_error : -angle_pid_error;
-        if(abs_angle_err < 5.0f) angle_kp = angle_kp_a;
+        float abs_img_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+        if(abs_img_err < 12.0f) angle_kp = angle_kp_a;
     }
     float out = -(angle_kp * angle_pid_outp + angle_kd * angle_pid_outd);
     if(out > 12.0f)  out = 12.0f;
