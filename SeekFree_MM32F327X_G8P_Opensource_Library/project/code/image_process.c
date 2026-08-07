@@ -433,8 +433,7 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
                || curr_col < 1 || curr_col >= IMG_W * 4 / 5)
                 break;
 
-            // ======== 按优先级依次检查7个邻域方向 ========
-            // 注意：正下方(方向1)不检查，因为爬线方向总体上是从下往上
+            // ======== 按优先级依次检查8个邻域方向 ========
 
             // --- 方向7：左上 ---
             // 条件：不是从上一步的"右下(2)"来的（避免回头）
@@ -518,6 +517,22 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
                 left_edge[i].flag = 1;
             }
 
+            // --- 方向1：正下 ---
+            // 条件：不是从"正上(0)"来的
+            //       image[curr_row+1][curr_col]==BLACK     → 正下方是黑色
+            //       image[curr_row+1][curr_col+1]==WHITE   → 右下方是白色
+            else if(dire_left != 0
+                    && image[curr_row + 1][curr_col] == BLACK
+                    && image[curr_row + 1][curr_col + 1] == WHITE)
+            {
+                curr_row = curr_row + 1;                                        // 向下移动一行
+                left_edge_count++;
+                dire_left = 1;
+                left_edge[i].row = curr_row;
+                left_edge[i].col = curr_col;
+                left_edge[i].flag = 1;
+            }
+
             // --- 方向3：左下 ---
             // 条件：不是从"右上(6)"来的
             //       image[curr_row+1][curr_col-1]==BLACK   → 左下方是黑色
@@ -552,7 +567,7 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
                 left_edge[i].flag = 1;
             }
 
-            // --- 以上7个方向都不满足 → 没有下一个边界点了，停止爬线 ---
+            // --- 以上8个方向都不满足 → 没有下一个边界点了，停止爬线 ---
             else
                 break;
         }
@@ -654,6 +669,21 @@ void boundary_trace(uint8 image[IMG_H][IMG_W])
                 curr_col = curr_col - 1;
                 right_edge_count++;
                 dire_right = 4;
+                right_edge[i].row = curr_row;
+                right_edge[i].col = curr_col;
+                right_edge[i].flag = 1;
+            }
+
+            // --- 方向1：正下 ---
+            // image[curr_row+1][curr_col]==BLACK     → 正下黑
+            // image[curr_row+1][curr_col-1]==WHITE   → 左下白
+            else if(dire_right != 0
+                    && image[curr_row + 1][curr_col] == BLACK
+                    && image[curr_row + 1][curr_col - 1] == WHITE)
+            {
+                curr_row = curr_row + 1;
+                right_edge_count++;
+                dire_right = 1;
                 right_edge[i].row = curr_row;
                 right_edge[i].col = curr_col;
                 right_edge[i].flag = 1;
