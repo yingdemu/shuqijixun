@@ -84,13 +84,15 @@
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（60×5ms=0.3s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
-#define DUTY_LOWPASS              (0.2f)
+#define DUTY_LOWPASS              (0.5f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
 
 // ==================== 主函数 ====================
 
 
 float target_L=0, target_R=0;                                                     // 阿克曼输出的左右轮目标速度（编码器单位）
-uint16 turn_timer_cnt = 0;                                                         // 弯道状态1计时：PIT累加，0=空闲
+float g_target_L = 0, g_target_R = 0;                                             // PIT 电机 PID 目标速度（主循环写入，PIT读取）
+uint8  g_motor_run = 0;                                                           // PIT 电机 PID 使能标志（1=运行）
+uint8 turn_timer_cnt = 0;                                                         // 弯道状态1计时：PIT累加，0=空闲
 uint8 straight_rec_cnt = 0;                                                       // 直道恢复计时：PIT递减，0=已恢复
 uint8 zebra_stop_flag = 0;                                                        // 斑马线停车标志：1=停车
 uint16 zebra_cooldown = 0;                                                         // 斑马线冷却计时：PIT递减
@@ -290,9 +292,9 @@ int main(void)
                 {
                     uint16 black_cnt = 0, total = 0;
                     uint8 r0 = IMG_H - 3 - 5;
-                    uint8 c0 = IMG_W / 2 - 20;
+                    uint8 c0 = IMG_W / 2 - 15;
                     for(uint8 r = r0; r <= IMG_H - 3; r++)
-                        for(uint8 c = c0; c < c0 + 40; c++)
+                        for(uint8 c = c0; c < c0 + 30; c++)
                         {
                             if(binary_image[r][c] == BLACK) black_cnt++;
                             total++;
@@ -304,14 +306,15 @@ int main(void)
                 // 必须在PID计算之前检查：丢线时不跑PID，避免污染D项状态
                 if(image_lost)
                 {
-                    //menu_need_refresh = 1;
-                    //menu_need_clear   = 1;
-                    zebra_stop_flag   = 1;                                          // 利用斑马线停车机制，触发出界保护快速停车
-                    motor_set_duty(0, 0);                                           // 立即刹车！否则电机保持上一帧占空比继续冲
-
+                    // menu_need_refresh = 1;
+                    // menu_need_clear   = 1;
+                    zebra_stop_flag   = 1;
+                    g_motor_run = 0;
+                    motor_set_duty(0, 0);                                          // 出界立即刹车
                 }
                 else
                 {
+                    g_motor_run = 0;                                                // 默认关电机，控制路径会重新置1
                     // ---- 直道/弯道判别（在使用中线前检测） ----
                     uint8 is_straight = 0;
                     {
@@ -367,22 +370,6 @@ int main(void)
 
                     float weight_position = get_weight_position(center_line, is_straight);
 
-                    // // 远端检测区域（RING_FAR_ROW ~ RING_NEAR_ROW）边界丢失补偿
-                    // {
-                    //     uint8 left_lost = 1, right_lost = 1;
-                    //     int16 _r;
-                    //     for(_r = RING_FAR_ROW; _r <= RING_NEAR_ROW; _r++)
-                    //     {
-                    //         if(left_boundary[_r] >= 4)   left_lost = 0;
-                    //         if(right_boundary[_r] <= IMG_W - 5) right_lost = 0;
-                    //     }
-                    //     if(left_lost && !right_lost)
-                    //         weight_position -= 10.0f;
-                    //     else if(right_lost && !left_lost)
-                    //         weight_position += 10.0f;
-                    //     // 左右都丢 → 不变
-                    // }
-
                     // 直道时中线与图像中心混合滤波，减小不必要的转向修正
                     if(is_straight)
                     {
@@ -432,50 +419,6 @@ int main(void)
                     servo_set_angle(final_servo);
                     prev_servo_angle = final_servo;
 
-                    // RING_FAR_ROW 中心黑，且左右均有黑→白跳变 → 斑马线/障碍，打满舵避让
-                    {
-                        uint8 row = RING_FAR_ROW;
-                        if(binary_image[row][70] == BLACK)
-                        {
-                            uint8 found_left = 0, found_right = 0;
-                            int16 c;
-                            // 向左扫描：70→2，找黑→白跳变
-                            for(c = 70; c >= 3; c--)
-                            {
-                                if(binary_image[row][c] == BLACK && binary_image[row][c - 1] == WHITE)
-                                { found_left = 1; break; }
-                            }
-                            // 向右扫描：70→IMG_W-3，找黑→白跳变
-                            for(c = 70; c <= IMG_W - 4; c++)
-                            {
-                                if(binary_image[row][c] == BLACK && binary_image[row][c + 1] == WHITE)
-                                { found_right = 1; break; }
-                            }
-                            if(found_left && found_right)
-                            {
-                                uint16 left_lost = 0, right_lost = 0;
-                                int r;
-                                for(r = IMG_H / 2; r <= IMG_H - 2; r++)
-                                {
-                                    if(left_boundary[r] < 4)  left_lost++;
-                                    if(right_boundary[r] > IMG_W - 5) right_lost++;
-                                }
-                                if(left_lost > right_lost)
-                                {
-                                    final_servo = -12.0f;
-                                    servo_set_angle(final_servo);
-                                    prev_servo_angle = final_servo;
-                                }
-                                else if(right_lost > left_lost)
-                                {
-                                    final_servo = 12.0f;
-                                    servo_set_angle(final_servo);
-                                    prev_servo_angle = final_servo;
-                                }
-                            }
-                        }
-                    }
-
                     // ---- 速度决策：直道全速，弯道降速 ----
                     float v_target;
 
@@ -521,29 +464,25 @@ int main(void)
                             if(lost_side != 0) prev_lost_side = lost_side;
                         }
 
-                        // 弯道速度决策：第一阶段用实际速度判断是否减速到位
+                        if(turn_timer_cnt < TURN_TIMER_THRESH1){
+                            if(turn_timer_cnt == 0) turn_timer_cnt = 1;
+                            v_target = speed_min;
+                        }
+                        else if(turn_timer_cnt < TURN_TIMER_THRESH2)
                         {
-                            float cur_speed = ((float)encoder_speed_1 + (float)encoder_speed_2) / 2.0f;
-                            if(cur_speed > speed_min + 10.0f)
-                            {
-                                // 实际速度没降到位 → 保持第一阶段，不依赖固定计时器
-                                if(turn_timer_cnt == 0) turn_timer_cnt = 1;
-                                v_target = speed_min;
-                            }
-                            else if(turn_timer_cnt < TURN_TIMER_THRESH2)
-                            {
-                                v_target = v_max_turn_start;
-                            }
-                            else
-                            {
-                                v_target = v_max_turn_cancel;
-                            }
+                            v_target = v_max_turn_start;
+
+                        }
+                        else
+                        {
+                            v_target = v_max_turn_cancel;
+
                         }
                     }
 
                     // 速度目标低通滤波，避免状态切换时瞬间跳变
-                    // 弯道减速阶段（目标为speed_min）跳过滤波，实现快速降速
-                    if(!(!is_straight && v_target <= speed_min + 10.0f))
+                    // 弯道第一阶段（降速到speed_min）跳过滤波，实现快速降速
+                    if(!(!is_straight && turn_timer_cnt < TURN_TIMER_THRESH1))
                     {
                         #define VTARGET_LOWPASS 0.5f
                         static float v_filt = 0.0f;
@@ -553,23 +492,7 @@ int main(void)
                         v_target = v_filt;
                     }
 
-                    //RING_FAR_ROW 全黑检测：远处全黑 → 强制降速到120
-                    {
-                        uint8 all_black = 1;
-                        int16 c;
-                        for(c = 0; c < IMG_W; c++)
-                        {
-                            if(binary_image[RING_FAR_ROW][c] == WHITE)
-                            {
-                                all_black = 0;
-                                break;
-                            }
-                        }
-                        if(all_black)
-                            v_target = 100.0f;
-                    }
-
-                    // 斑马线检测：CHECK_NEAR_ROW 行 BW 跳变计数，两阶段确认后停车
+                    // 斑马线检测：RING_NEAR_ROW 行 BW 跳变计数，两阶段确认后停车
                     if(zebra_cooldown == 0)
                     {
                         static uint8 zebra_cnt = 0;
@@ -597,52 +520,20 @@ int main(void)
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
                     {
                         float raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);
-//                        float raw_gain = 1.6f;
-                        // float raw_gain1 = 0.0f + 0.30f * (abs(final_servo) - 3.0f);
-                        // float raw_gain2 = 0.0f + 0.0088f * (v_target);
-                        // float raw_gain = 1.0f * (raw_gain1 ) + 0.0f * (raw_gain2);
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;
                         if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
                         else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }
-
-                        // 弯道第二阶段起：阿克曼增益 ×1.2，增强差速转向
-                        if(!is_straight && turn_timer_cnt >= TURN_TIMER_THRESH2)
-                            filt_gain *= 1.1f;
-
                         ackermann_gain = filt_gain;
                     }
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
 
-                    // 左右轮独立速度闭环（斑马线/出界保护停车时目标速度为0）
-                    float spd_L = zebra_stop_flag ? 0.0f : target_L;
-                    float spd_R = zebra_stop_flag ? 0.0f : target_R;
-                    float L_duty = speed_pid_set(0, spd_L, (float)encoder_speed_1);
-                    float R_duty = speed_pid_set(1, spd_R, (float)encoder_speed_2);
-
-                    // 电机占空比低通滤波（弯道跳过，避免直→弯降速延迟）
-                    {
-                        static float L_filt = 0.0f, R_filt = 0.0f;
-                        static uint8 duty_init = 1;
-                        if(duty_init) { L_filt = L_duty; R_filt = R_duty; duty_init = 0; }
-                        else if(is_straight)
-                        {
-                            L_filt = DUTY_LOWPASS * L_duty + (1.0f - DUTY_LOWPASS) * L_filt;
-                            R_filt = DUTY_LOWPASS * R_duty + (1.0f - DUTY_LOWPASS) * R_filt;
-                        }
-                        else
-                        {
-                            // 弯道：直接跟随，不滤波，确保降速及时
-                            L_filt = L_duty;
-                            R_filt = R_duty;
-                        }
-                        L_duty = L_filt;
-                        R_duty = R_filt;
-                    }
-
-                    motor_set_duty(L_duty, R_duty);
+                    // 左右轮目标速度传入全局变量（PID + 占空比输出由 PIT 5ms 中断执行）
+                    g_target_L = zebra_stop_flag ? 0.0f : target_L;
+                    g_target_R = zebra_stop_flag ? 0.0f : target_R;
+                    g_motor_run = 1;
 
                     // // 蓝牙发送
                     //serial_printf("%.3f,%.3f\r\n",L_duty, R_duty);
@@ -669,6 +560,32 @@ void pit_handler (void)
     if(turn_timer_cnt > 0 && turn_timer_cnt < TURN_TIMER_THRESH2) turn_timer_cnt++;  // 弯道状态1计时
     if(straight_rec_cnt > 0) straight_rec_cnt--;                                    // 直道恢复计时（5ms/次）
     if(zebra_cooldown > 0) zebra_cooldown--;                                        // 斑马线冷却计时（5ms/次）
+
+    // ---- 电机速度 PID（固定5ms周期，不受摄像头帧率影响） ----
+    if(g_motor_run)
+    {
+        float L_duty = speed_pid_set(0, g_target_L, (float)encoder_speed_1);
+        float R_duty = speed_pid_set(1, g_target_R, (float)encoder_speed_2);
+
+        // 占空比低通滤波
+        {
+            static float L_filt = 0.0f, R_filt = 0.0f;
+            static uint8 duty_init = 1;
+            if(duty_init) { L_filt = L_duty; R_filt = R_duty; duty_init = 0; }
+            else {
+                L_filt = DUTY_LOWPASS * L_duty + (1.0f - DUTY_LOWPASS) * L_filt;
+                R_filt = DUTY_LOWPASS * R_duty + (1.0f - DUTY_LOWPASS) * R_filt;
+            }
+            L_duty = L_filt;
+            R_duty = R_filt;
+        }
+
+        motor_set_duty(L_duty, R_duty);
+    }
+    else
+    {
+        motor_set_duty(0, 0);
+    }
 }
 
 //-------------------------------------------------------------------------------------------------------------------

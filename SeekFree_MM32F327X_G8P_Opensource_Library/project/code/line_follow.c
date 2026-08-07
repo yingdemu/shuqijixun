@@ -313,48 +313,26 @@ int16 calc_deviation(uint8 look_ahead_rows)
 
 float get_weight_position(uint8 *center_line, uint8 is_straight)
 {
-    float raw_pos;
+    const uint8 *w = is_straight ? weight : weight2;
 
-    if(is_straight)
+    float weighted_sum = 0.0f;
+    float weight_total = 0.0f;
+
+    int16 i;
+    for(i = 0; i < IMG_H; i++)
     {
-        // 直道：使用 weight[] 加权数组（逻辑不变）
-        const uint8 *w = weight;
-        float weighted_sum = 0.0f;
-        float weight_total = 0.0f;
-        int16 i;
-        for(i = 0; i < IMG_H; i++)
+        if(center_line_valid[i] == 1)
         {
-            if(center_line_valid[i] == 1)
-            {
-                weighted_sum += (float)center_line[i] * w[i];
-                weight_total += w[i];
-            }
+            weighted_sum += (float)center_line[i] * w[i];
+            weight_total += w[i];
         }
-        if(weight_total > 0.0f)
-            raw_pos = weighted_sum / weight_total;
-        else
-            raw_pos = (float)(IMG_W / 2);
     }
+
+    float raw_pos;
+    if(weight_total > 0.0f)
+        raw_pos = weighted_sum / weight_total;
     else
-    {
-        // 弯道：使用 weight2[] 加权数组
-        const uint8 *w = weight2;
-        float weighted_sum = 0.0f;
-        float weight_total = 0.0f;
-        int16 i;
-        for(i = 0; i < IMG_H; i++)
-        {
-            if(center_line_valid[i] == 1)
-            {
-                weighted_sum += (float)center_line[i] * w[i];
-                weight_total += w[i];
-            }
-        }
-        if(weight_total > 0.0f)
-            raw_pos = weighted_sum / weight_total;
-        else
-            raw_pos = (float)(IMG_W / 2);
-    }
+        raw_pos = 0.0f;
 
     // 一阶低通滤波：滤除中线位置的帧间抖动
     #define POS_LOWPASS 0.3f
