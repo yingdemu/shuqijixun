@@ -311,6 +311,24 @@ int16 calc_deviation(uint8 look_ahead_rows)
     return (int16)mid_x - (int16)(IMG_W / 2);
 }
 
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：is_straight_detect
+// 功能：直道/弯道统一判别（所有调用点共用此函数，方便一处修改）
+// 返回：uint8 —— 1=直道, 0=弯道
+// 说明：在 STRAIGHT_DETECT_ROW 行，统计中心区域白点数，≥阈值即判为直道
+//-------------------------------------------------------------------------------------------------------------------
+uint8 is_straight_detect(void)
+{
+    uint8 row = STRAIGHT_DETECT_ROW;
+    uint8 white_cnt = 0;
+    int16 c;
+    for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
+    {
+        if(binary_image[row][c] == WHITE) white_cnt++;
+    }
+    return (white_cnt >= STRAIGHT_WHITE_THRESH) ? 1 : 0;
+}
+
 float get_weight_position(uint8 *center_line, uint8 is_straight)
 {
     const uint8 *w = is_straight ? weight : weight2;

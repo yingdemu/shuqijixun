@@ -908,18 +908,8 @@ void menu_image_display_process(void)
             char buf[40];
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 直道/弯道判别
-            uint8 is_straight = 0;
-            {
-                uint8 row = 3;
-                uint8 white_cnt = 0;
-                int16 c;
-                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
-                    if(binary_image[row][c] == WHITE) white_cnt++;
-                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
-                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
-                    is_straight = 1;
-            }
+            // 直道/弯道判别（统一函数）
+            uint8 is_straight = is_straight_detect();
 
             // 行1：直道/弯道状态
             if(is_straight)
@@ -935,10 +925,35 @@ void menu_image_display_process(void)
             ips200_show_string(0, 106, buf);
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 行2：加权位置、阈值
+            // 行2：中线位置（与主控制循环一致的计算方式）
             {
-                float pos = get_weight_position(center_line, is_straight);
-                sprintf(buf, "pos:%.1f  OT:%3u", pos, otsu_threshold);
+                float pos;
+                if(is_straight)
+                {
+                    float step = (float)(CHECK_NEAR_ROW - CHECK_FAR_ROW) / 10.0f;
+                    float sum = 0.0f;
+                    uint8 j;
+                    for(j = 0; j <= 10; j++)
+                    {
+                        uint8 row = CHECK_FAR_ROW + (uint8)(j * step + 0.5f);
+                        sum += (float)center_line[row];
+                    }
+                    pos = sum / 11.0f;
+                    pos = STRAIGHT_BLEND * ((float)IMG_W / 2.0f) + (1.0f - STRAIGHT_BLEND) * pos;
+                    float err = (float)IMG_W / 2.0f - pos;
+                    if(err > -2.0f && err < 2.0f) pos = (float)IMG_W / 2.0f;
+                }
+                else
+                {
+                    uint8 rf = CHECK_FAR_ROW, rn = CHECK_NEAR_ROW;
+                    uint8 rm = (CHECK_FAR_ROW + CHECK_NEAR_ROW) / 2;
+                    uint8 rq1 = (CHECK_FAR_ROW + rm) / 2, rq3 = (rm + CHECK_NEAR_ROW) / 2;
+                    pos = ((float)center_line[rf] + (float)center_line[rq1]
+                         + (float)center_line[rm] + (float)center_line[rq3]
+                         + (float)center_line[rn]) / 5.0f;
+                }
+                float err_disp = (float)IMG_W / 2.0f - pos;
+                sprintf(buf, "pos:%.1f err:%.1f OT:%3u", pos, err_disp, otsu_threshold);
                 ips200_show_string(0, 122, buf);
             }
         }

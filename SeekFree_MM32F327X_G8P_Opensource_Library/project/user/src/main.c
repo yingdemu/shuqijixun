@@ -73,9 +73,7 @@
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
-#define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_DETECT_ROW       (3)                                             // 直道检测行号
-#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
+#define SERVO_LOWPASS            (0.0f)                                          // 弯道舵机互补滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
@@ -205,25 +203,43 @@ int main(void)
         {
             menu_image_display_process();
 
-            // 直道/弯道判别（与正常模式一致）
-            uint8 is_straight2 = 0;
-            {
-                uint8 row = STRAIGHT_DETECT_ROW;
-                uint8 white_cnt = 0;
-                int16 c;
-                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
-                    if(binary_image[row][c] == WHITE) white_cnt++;
-                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
-                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
-                    is_straight2 = 1;
-            }
+            // 直道/弯道判别（与正常模式使用同一函数）
+            uint8 is_straight2 = is_straight_detect();
 
-            float weight_position2 = get_weight_position(center_line, is_straight2);
-
+            // ---- 中线位置计算（与正常模式一致） ----
+            float weight_position2;
             if(is_straight2)
+            {
+                float step = (float)(CHECK_NEAR_ROW - CHECK_FAR_ROW) / 10.0f;
+                float sum = 0.0f;
+                uint8 j;
+                for(j = 0; j <= 10; j++)
+                {
+                    uint8 row = CHECK_FAR_ROW + (uint8)(j * step + 0.5f);
+                    sum += (float)center_line[row];
+                }
+                weight_position2 = sum / 11.0f;
                 weight_position2 = STRAIGHT_BLEND * ((float)IMG_W / 2.0f)
                                  + (1.0f - STRAIGHT_BLEND) * weight_position2;
+                float err2 = (float)IMG_W / 2.0f - weight_position2;
+                if(err2 > -2.0f && err2 < 2.0f) weight_position2 = (float)IMG_W / 2.0f;
+            }
+            else
+            {
+                uint8 rf = CHECK_FAR_ROW, rn = CHECK_NEAR_ROW;
+                uint8 rm = (CHECK_FAR_ROW + CHECK_NEAR_ROW) / 2;
+                uint8 rq1 = (CHECK_FAR_ROW + rm) / 2, rq3 = (rm + CHECK_NEAR_ROW) / 2;
+                weight_position2 = ((float)center_line[rf] + (float)center_line[rq1]
+                                  + (float)center_line[rm] + (float)center_line[rq3]
+                                  + (float)center_line[rn]) / 5.0f;
+                {
+                    static float curve_filt2 = (float)IMG_W / 2.0f;
+                    curve_filt2 = 0.5f * weight_position2 + 0.5f * curve_filt2;
+                    weight_position2 = curve_filt2;
+                }
+            }
 
+            // ---- PID + 舵机控制 ----
             float groy_z2 = get_gyro_z();
             float IMU_target2 = image_pid_set(0, IMG_W/2 - weight_position2);
             float servo_angle2 = IMU_pid_set(IMU_target2, groy_z2);
@@ -232,28 +248,36 @@ int main(void)
             prev_yaw2 = atti_yaw;
             float final_servo2 = servo_fusion(angle_out2, servo_angle2);
 
-            if(final_servo2 > SERVO_CLIP_MAX)  final_servo2 = 12.0f;
-            if(final_servo2 < SERVO_CLIP_MIN) final_servo2 = -12.0f;
+            if(final_servo2 > SERVO_CLIP_MAX)  final_servo2 = SERVO_CLIP_MAX;
+            if(final_servo2 < SERVO_CLIP_MIN) final_servo2 = SERVO_CLIP_MIN;
 
             // 弯道舵机互补滤波（直→弯跳变时重置）
             {
                 static float servo_filt2 = 0.0f;
-                static uint8 last_was_straight2 = 1;
+                static uint8 last_st2 = 1;
                 if(!is_straight2)
                 {
-                    if(last_was_straight2) servo_filt2 = final_servo2;
+                    if(last_st2) servo_filt2 = final_servo2;
                     else servo_filt2 = SERVO_LOWPASS * final_servo2 + (1.0f - SERVO_LOWPASS) * servo_filt2;
                     final_servo2 = servo_filt2;
                 }
-                last_was_straight2 = is_straight2;
+                last_st2 = is_straight2;
             }
 
+            // 舵机速率限制（弯→直跳变时重置）
             {
-                static float prev_servo_out2 = 0.0f;
-                float delta = final_servo2 - prev_servo_out2;
-                if(delta > SERVO_RATE_LIMIT)       final_servo2 = prev_servo_out2 + SERVO_RATE_LIMIT;
-                else if(delta < -SERVO_RATE_LIMIT) final_servo2 = prev_servo_out2 - SERVO_RATE_LIMIT;
-                prev_servo_out2 = final_servo2;
+                static float prev_srv2 = 0.0f;
+                static uint8 prev_st2 = 1;
+                if(is_straight2 && !prev_st2)
+                    prev_srv2 = final_servo2;
+                else
+                {
+                    float delta = final_servo2 - prev_srv2;
+                    if(delta > SERVO_RATE_LIMIT)       final_servo2 = prev_srv2 + SERVO_RATE_LIMIT;
+                    else if(delta < -SERVO_RATE_LIMIT) final_servo2 = prev_srv2 - SERVO_RATE_LIMIT;
+                }
+                prev_srv2 = final_servo2;
+                prev_st2 = is_straight2;
             }
 
             servo_set_angle(final_servo2);
@@ -312,34 +336,8 @@ int main(void)
                 }
                 else
                 {
-                    // ---- 直道/弯道判别（在使用中线前检测） ----
-                    uint8 is_straight = 0;
-                    {
-                        uint8 row = STRAIGHT_DETECT_ROW;
-                        // 统计 IMG_W/3 ~ IMG_W*2/3 范围内的白点数量
-                        uint8 white_cnt = 0;
-                        {
-                            int16 c;
-                            for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
-                            {
-                                if(binary_image[row][c] == WHITE) white_cnt++;
-                            }
-                        }
-                        if(white_cnt >= 3)
-                        {
-                            if(left_valid[row] && right_valid[row])
-                            {
-                                if(
-                                left_boundary[row] >= 5 &&
-                                    right_boundary[row] <= IMG_W - 5 &&
-                                    right_boundary[row] >=IMG_W/2
-                                    && left_boundary[row] <=IMG_W/2)
-                                {
-                                    is_straight = 1;
-                                }
-                            }
-                        }
-                    }
+                    // ---- 直道/弯道判别（统一函数，在 line_follow.c 中修改） ----
+                    uint8 is_straight = is_straight_detect();
 
                     // 直→弯转换校验：上一帧直道但本帧非直道时，需确认边界确实偏移
                     //{
@@ -368,18 +366,39 @@ int main(void)
                     float weight_position;
                     if(is_straight)
                     {
-                        // 直道：使用加权数组
-                        weight_position = get_weight_position(center_line, 1);
+                        // 直道：CHECK_FAR_ROW→CHECK_NEAR_ROW 均分10段，11点取均值
+                        {
+                            float step = (float)(CHECK_NEAR_ROW - CHECK_FAR_ROW) / 10.0f;
+                            float sum = 0.0f;
+                            uint8 j;
+                            for(j = 0; j <= 10; j++)
+                            {
+                                uint8 row = CHECK_FAR_ROW + (uint8)(j * step + 0.5f);
+                                sum += (float)center_line[row];
+                            }
+                            weight_position = sum / 11.0f;
+                        }
                     }
                     else
                     {
-                        // 弯道：取远、中、近三行中线均值
-                        uint8 row_far  = CHECK_FAR_ROW;
-                        uint8 row_near = CHECK_NEAR_ROW;
-                        uint8 row_mid  = (CHECK_FAR_ROW + CHECK_NEAR_ROW) / 2;
+                        // 弯道：取5行中线均值（远→近均匀采样）
+                        uint8 row_far  = CHECK_FAR_ROW;                            // 15
+                        uint8 row_near = CHECK_NEAR_ROW;                           // 60
+                        uint8 row_mid  = (CHECK_FAR_ROW + CHECK_NEAR_ROW) / 2;    // 37
+                        uint8 row_q1   = (CHECK_FAR_ROW + row_mid) / 2;           // 26
+                        uint8 row_q3   = (row_mid + CHECK_NEAR_ROW) / 2;          // 48
                         weight_position = ((float)center_line[row_far]
-                                         + (float)center_line[row_near]
-                                         + (float)center_line[row_mid]) / 3.0f;
+                                         + (float)center_line[row_q1]
+                                         + (float)center_line[row_mid]
+                                         + (float)center_line[row_q3]
+                                         + (float)center_line[row_near]) / 5.0f;
+
+                        // 弯道位置低通滤波，抑制单帧跳变
+                        {
+                            static float curve_pos_filt = (float)IMG_W / 2.0f;
+                            curve_pos_filt = 0.5f * weight_position + 0.5f * curve_pos_filt;
+                            weight_position = curve_pos_filt;
+                        }
                     }
 
                     // 远端检测区域（CHECK_FAR_ROW ~ CHECK_NEAR_ROW）边界丢失补偿
@@ -403,6 +422,11 @@ int main(void)
                     {
                         weight_position = STRAIGHT_BLEND * ((float)IMG_W / 2.0f)
                                         + (1.0f - STRAIGHT_BLEND) * weight_position;
+
+                        // 直道小偏差死区：偏差 < 2 时不修正，避免来回抖动
+                        float straight_err = (float)IMG_W / 2.0f - weight_position;
+                        if(straight_err > -4.0f && straight_err < 4.0f)
+                            weight_position = (float)IMG_W / 2.0f;
                     }
 
                     float groy_z = get_gyro_z();
@@ -538,7 +562,7 @@ int main(void)
                         for(c = 3; c < IMG_W - 2; c++)
                             if(binary_image[row][c] == BLACK && binary_image[row][c+1] == WHITE)
                                 trans++;
-                        if(trans > 5)
+                        if(trans > 3)
                         {
                             zebra_cnt++;
                             if(zebra_cnt == 1)
@@ -556,6 +580,11 @@ int main(void)
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
                     {
                         float raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);
+
+                        // float raw_gain1 = 0.0f + 0.22f * (abs(final_servo) - 3.0f);
+                        // float raw_gain2 = 0.0f + 0.0088f * (abs(v_target) );
+                        // float raw_gain = 0.5*raw_gain1 + 0.5*raw_gain2;
+                        
                         float filt_gain = raw_gain;
                         // #define ACKERMANN_LOWPASS 0.3f
                         // static float filt_gain = 0.0f;
