@@ -124,7 +124,7 @@ int16 calc_deviation(uint8 look_ahead_rows);
 // 参数说明     center_line —— 中线数组指针（长度为 IMG_H）
 // 返回参数     float —— 加权位置（0~IMG_W-1）
 // 使用示例     float weight_pos = get_weight_position(center_line, is_straight);
-// 备注信息     直道用weight[]（中间权重大），弯道用weight2[]（近端权重大）
+// 备注信息     直道用weight[]（中间权重大），弯道用weight2[]（远端权重大）
 //-------------------------------------------------------------------------------------------------------------------
 float get_weight_position(uint8 *center_line, uint8 is_straight);
 

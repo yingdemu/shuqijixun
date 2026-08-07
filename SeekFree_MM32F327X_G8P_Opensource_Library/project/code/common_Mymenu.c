@@ -900,19 +900,6 @@ void menu_image_display_process(void)
                              right_boundary[r] * 240 / IMG_W,     y2, RGB565_GREEN);
         }
 
-        // ---- 画圆环检测行标记线（白色虚线效果，4px线段+4px间隔） ----
-        // 远端检测行 = RING_FAR_ROW(30)，映射到显示坐标 y = 30*100/IMG_H
-        {
-            uint16 y_f = (uint16)RING_FAR_ROW * 100 / IMG_H;                  // 远端检测行显示Y
-            uint16 y_r = (uint16)RING_NEAR_ROW * 100 / IMG_H;                   // 近端检测行显示Y
-            // 画虚线（每8px画一段）
-            for(uint16 x = 0; x < 240; x += 12)
-            {
-                ips200_draw_line(x, y_f, (x + 4 < 240) ? x + 4 : 239, y_f, RGB565_WHITE);
-                ips200_draw_line(x, y_r, (x + 4 < 240) ? x + 4 : 239, y_r, RGB565_WHITE);
-            }
-        }
-
         // ---- 分隔线 ----
         ips200_draw_line(0, 102, 239, 102, RGB565_RED);
 

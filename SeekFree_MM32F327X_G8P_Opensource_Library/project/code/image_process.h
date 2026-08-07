@@ -23,7 +23,7 @@
 
 // 图像尺寸与 MT9V03X 摄像头配置一致
 // 注意：这些值必须与 zf_device_mt9v03x.h 中的 MT9V03X_W 和 MT9V03X_H 保持一致
-#define IMG_W                   MT9V03X_W                                       // 图像宽度 = 188 列
+#define IMG_W                   MT9V03X_W                                       // 图像宽度 = 141 列
 #define IMG_H                   MT9V03X_H                                       // 图像高度 = 90 行
 #define IMG_SIZE                (IMG_W * IMG_H)                                 // 图像总像素数 = 4800
 
@@ -34,22 +34,14 @@
 
 //==================================================== 八邻域搜索常量 ====================================================
 
-//==================================================== 八邻域搜索常量 ====================================================
-
 #define BOUNDARY_SEARCH_MAX     210                                             // 八邻域爬线最多搜索的点数（随分辨率调整）
 #define BOUNDARY_SEARCH_END     (1)                                     // 八邻域搜索截止行号（只搜图像底部3/4）
                                                                                 // 低于此行号认为已经超出搜索范围，停止爬线
 
-//==================================================== 圆环巡线常量 ====================================================
+//==================================================== 边界检测区域常量 ====================================================
 
-#define RING_FAR_ROW            15                                              // 远端检测行号
-#define RING_NEAR_ROW           (IMG_H - 30)                                    // 近端检测行号
-#define RING_HALF_WIDTH         30                                              // 赛道半宽（圆环跟随模式用）
-#define RING_NORMAL_WIDTH_MIN   20                                              // 正常赛道宽度下限
-#define RING_NORMAL_WIDTH_MAX   142                                              // 正常赛道宽度上限
-#define RING_WIDE_THRESHOLD     55                                              // "赛宽很大"阈值
-#define RING_FRAME_CONFIRM      0                                               // 状态转换连续确认帧数
-#define RING_TIMEOUT            120                                              // 单状态最大持续帧数
+#define CHECK_FAR_ROW           15                                              // 远端检测行号
+#define CHECK_NEAR_ROW          (IMG_H - 30)                                    // 近端检测行号
 
 //==================================================== 边界点数据结构 ====================================================
 
@@ -61,21 +53,6 @@ typedef struct
     int16 col;                                                                  // 列坐标（X轴，图像从左到右 0 ~ IMG_W-1）
     uint8 flag;                                                                 // 存在标志（1=该点是有效的边界点，0=无效/未使用）
 }edge_point;
-
-//==================================================== 圆环状态枚举 ====================================================
-
-// 圆环巡线状态机（基于边沿宽度变化趋势，仅处理左圆环/甲侧=左）
-// 流转：NONE→PREDICT→CONFIRM→IN_RING→EXIT→OUT→END→NONE
-typedef enum
-{
-    RING_S_NONE = 0,                                                            // 0=正常巡线
-    RING_S_PREDICT = 1,                                                         // 1=预判圆环（远端甲侧边宽增加）
-    RING_S_CONFIRM = 2,                                                         // 2=确认环岛（甲侧宽小→大），开始进环
-    RING_S_IN_RING = 3,                                                         // 3=进圆环，跟甲边界，累积误差
-    RING_S_EXIT = 4,                                                            // 4=检测出口，用累积误差走
-    RING_S_OUT = 5,                                                             // 5=出圆环中
-    RING_S_END = 6,                                                             // 6=圆环结束，清标志
-} ring_state_enum;
 
 //==================================================== 全局变量声明 ====================================================
 
@@ -108,6 +85,10 @@ extern uint8 point_A_row, point_A_col;                                          
 extern uint8 point_B_row, point_B_col;                                          // B点 —— 右边界底部起点（靠近车身）
 extern uint8 point_C_row, point_C_col;                                          // C点 —— 左边界上部拐点（向上追踪的转折点）
 extern uint8 point_D_row, point_D_col;                                          // D点 —— 右边界上部拐点（向上追踪的转折点）
+extern uint8 point_E_row, point_E_col;                                          // E点 —— 左边界备用补线点
+extern uint8 point_F_row, point_F_col;                                          // F点 —— 右边界备用补线点
+extern uint8 point_G_row, point_G_col;                                          // G点 —— 左边界上下白点补线点
+extern uint8 point_H_row, point_H_col;                                          // H点 —— 右边界上下白点补线点
 
 // ---- 赛道中线 ----
 extern uint8 center_line[IMG_H];                                                // 中线数组，center_line[i] 表示第 i 行的中线X坐标
@@ -118,23 +99,6 @@ extern uint8 right_boundary[IMG_H];                                             
 // ---- 边界有效性标记（八邻域是否找到该行边界点，在插值填充之前记录） ----
 extern uint8 left_valid[IMG_H];                                                 // 左边界有效标记：1=八邻域找到了该行的真实左边界点
 extern uint8 right_valid[IMG_H];                                                // 右边界有效标记：1=八邻域找到了该行的真实右边界点
-
-// ---- 圆环状态 ----
-extern ring_state_enum ring_state;                                              // 圆环当前状态
-
-// ---- 圆环检测调试变量（供显示用） ----
-extern uint8 ring_dbg_ref_fl;                                                   // 远端甲侧参考边宽
-extern uint8 ring_dbg_ref_fr;                                                   // 远端乙侧参考边宽
-extern uint8 ring_dbg_ref_nl;                                                   // 近端甲侧参考边宽
-extern uint8 ring_dbg_ref_nr;                                                   // 近端乙侧参考边宽
-extern uint8 ring_dbg_cur_fl;                                                   // 远端甲侧当前边宽
-extern uint8 ring_dbg_cur_fr;                                                   // 远端乙侧当前边宽
-extern uint8 ring_dbg_cur_nl;                                                   // 近端甲侧当前边宽
-extern uint8 ring_dbg_cur_nr;                                                   // 近端乙侧当前边宽
-extern uint8 ring_dbg_ref_nt;                                                   // 近端参考赛道宽度
-extern uint8 ring_dbg_cur_nt;                                                   // 近端当前赛道宽度
-extern uint8 ring_dbg_ref_ft;                                                   // 远端参考赛道宽度
-extern uint8 ring_dbg_cur_ft;                                                   // 远端当前赛道宽度
 
 //==================================================== 函数声明 ====================================================
 
@@ -278,28 +242,5 @@ void image_process_pipeline(void);
 //              重置 left_edge_count、right_edge_count 等计数器
 //-------------------------------------------------------------------------------------------------------------------
 void clear_edge_data(void);
-
-//==================================================== 圆环处理函数声明 ====================================================
-
-//-------------------------------------------------------------------------------------------------------------------
-// 函数简介     圆环检测：基于远近端边沿宽度变化趋势判断圆环状态
-// 参数说明     void
-// 返回参数     void
-// 使用示例     ring_detect();  // 在 image_process_pipeline 末尾调用
-// 备注信息     每帧读取 left_boundary/right_boundary 在远近端检测行的值
-//              计算边沿宽度和赛道宽度，通过宽度变化趋势驱动6状态状态机
-//-------------------------------------------------------------------------------------------------------------------
-void ring_detect(void);
-
-//-------------------------------------------------------------------------------------------------------------------
-// 函数简介     圆环模式下重算中线（跟甲边界+半宽）
-// 参数说明     void
-// 返回参数     void
-// 使用示例     ring_centerline_extract();  // 在圆环状态≥CONFIRM时调用
-// 备注信息     状态2/3：逐行 center_line = 甲边界 + RING_HALF_WIDTH
-//              状态4/5：使用累积平均误差（不依赖边界）
-//              结果直接覆写 center_line[] 数组
-//-------------------------------------------------------------------------------------------------------------------
-void ring_centerline_extract(void);
 
 #endif

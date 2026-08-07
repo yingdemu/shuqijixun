@@ -75,7 +75,7 @@
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
 #define STRAIGHT_DETECT_ROW       (3)                                             // 直道检测行号
-#define STRAIGHT_BLEND            (0.8f)                                          // 直道中线50%滤波系数
+#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
@@ -289,15 +289,15 @@ int main(void)
                 uint8 image_lost = 0;
                 {
                     uint16 black_cnt = 0, total = 0;
-                    uint8 r0 = IMG_H - 3 - 9;
-                    uint8 c0 = IMG_W / 2 - 5;
+                    uint8 r0 = IMG_H - 3 - 10;
+                    uint8 c0 = IMG_W / 2 - 15;
                     for(uint8 r = r0; r <= IMG_H - 3; r++)
-                        for(uint8 c = c0; c < c0 + 10; c++)
+                        for(uint8 c = c0; c < c0 + 30; c++)
                         {
                             if(binary_image[r][c] == BLACK) black_cnt++;
                             total++;
                         }
-                    if(black_cnt >= total * 9 / 10)
+                    if(black_cnt >= total )
                         zebra_stop_flag = 1;          // 全黑 → 停车
                 }
 
@@ -365,7 +365,38 @@ int main(void)
                     //    prev_was_straight = is_straight;
                     //}
 
-                    float weight_position = get_weight_position(center_line, is_straight);
+                    float weight_position;
+                    if(is_straight)
+                    {
+                        // 直道：使用加权数组
+                        weight_position = get_weight_position(center_line, 1);
+                    }
+                    else
+                    {
+                        // 弯道：取远、中、近三行中线均值
+                        uint8 row_far  = CHECK_FAR_ROW;
+                        uint8 row_near = CHECK_NEAR_ROW;
+                        uint8 row_mid  = (CHECK_FAR_ROW + CHECK_NEAR_ROW) / 2;
+                        weight_position = ((float)center_line[row_far]
+                                         + (float)center_line[row_near]
+                                         + (float)center_line[row_mid]) / 3.0f;
+                    }
+
+                    // 远端检测区域（CHECK_FAR_ROW ~ CHECK_NEAR_ROW）边界丢失补偿
+                    {
+                        uint8 left_lost = 1, right_lost = 1;
+                        int16 _r;
+                        for(_r = CHECK_FAR_ROW; _r <= CHECK_NEAR_ROW; _r++)
+                        {
+                            if(left_boundary[_r] >= 4)   left_lost = 0;
+                            if(right_boundary[_r] <= IMG_W - 5) right_lost = 0;
+                        }
+                        if(left_lost && !right_lost)
+                            weight_position -= 10.0f;
+                        else if(right_lost && !left_lost)
+                            weight_position += 10.0f;
+                        // 左右都丢 → 不变
+                    }
 
                     // 直道时中线与图像中心混合滤波，减小不必要的转向修正
                     if(is_straight)
@@ -407,10 +438,18 @@ int main(void)
                     // 舵机输出速率限制
                     {
                         static float prev_servo_out = 0.0f;
-                        float delta = final_servo - prev_servo_out;
-                        if(delta > SERVO_RATE_LIMIT)       final_servo = prev_servo_out + SERVO_RATE_LIMIT;
-                        else if(delta < -SERVO_RATE_LIMIT) final_servo = prev_servo_out - SERVO_RATE_LIMIT;
+                        static uint8 prev_straight_srv = 1;                         // 上一帧是否直道（用于舵机滤波重置检测）
+                        // 弯→直切换时重置速率限制历史值，允许舵机快速回正
+                        if(is_straight && !prev_straight_srv)
+                            prev_servo_out = final_servo;
+                        else
+                        {
+                            float delta = final_servo - prev_servo_out;
+                            if(delta > SERVO_RATE_LIMIT)       final_servo = prev_servo_out + SERVO_RATE_LIMIT;
+                            else if(delta < -SERVO_RATE_LIMIT) final_servo = prev_servo_out - SERVO_RATE_LIMIT;
+                        }
                         prev_servo_out = final_servo;
+                        prev_straight_srv = is_straight;
                     }
 
                     servo_set_angle(final_servo);
@@ -447,7 +486,7 @@ int main(void)
 
                         // 弯道中丢线侧翻转 → 重置转弯计时
                         {
-                            uint8 row = RING_NEAR_ROW;
+                            uint8 row = CHECK_NEAR_ROW;
                             uint8 left_lost  = (left_boundary[row] <= 2);
                             uint8 right_lost = (right_boundary[row] >= IMG_W - 3);
                             // 0=都没丢, 1=丢左边, 2=丢右边
@@ -493,7 +532,7 @@ int main(void)
                     if(zebra_cooldown == 0)
                     {
                         static uint8 zebra_cnt = 0;
-                        uint8 row = RING_NEAR_ROW;
+                        uint8 row = CHECK_NEAR_ROW;
                         uint8 trans = 0;
                         int16 c;
                         for(c = 3; c < IMG_W - 2; c++)
@@ -517,11 +556,20 @@ int main(void)
                     // 阿克曼：根据舵角分配左右轮目标（编码器单位）
                     {
                         float raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);
-                        #define ACKERMANN_LOWPASS 0.3f
-                        static float filt_gain = 0.0f;
-                        static uint8 gain_init = 1;
-                        if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
-                        else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }
+                        float filt_gain = raw_gain;
+                        // #define ACKERMANN_LOWPASS 0.3f
+                        // static float filt_gain = 0.0f;
+                        // static uint8 gain_init = 1;
+                        // if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
+                        // else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }
+
+                        // 弯道第三阶段（v_max_turn_cancel）：差速增益 ×1.2
+                        if(!is_straight
+                           && turn_timer_cnt >= TURN_TIMER_THRESH2)
+                        {
+                            filt_gain *= 1.2f;
+                        }
+
                         ackermann_gain = filt_gain;
                     }
 

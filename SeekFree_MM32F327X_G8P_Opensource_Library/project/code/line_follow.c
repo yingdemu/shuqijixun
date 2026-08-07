@@ -50,6 +50,8 @@ static const uint8 weight2[IMG_H]={   20, 20, 20, 20, 19, 19, 19, 19, 18, 18, 18
                         5 , 5 , 5 , 5 , 4 , 4 , 4 , 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 ,
                         2 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 };    // 15*6=90
 
+static uint8 atti_first = 1;                                                       // 姿态解算加速度低通滤波首次初始化标志
+
 //==================================================== 巡线模块初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -83,8 +85,6 @@ void line_follow_init(void)
     otsu_threshold = 180;                                                       // 初始阈值180（中等灰度值）
     last_threshold = 180;
 
-    // ---- 重置圆环状态（确保每次发车从正常模式开始） ----
-    ring_state = RING_S_NONE;
 }
 
 //==================================================== 巡线主处理函数 ====================================================
@@ -352,11 +352,11 @@ float get_weight_position(uint8 *center_line, uint8 is_straight)
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：boundary_lost_compensate
-// 功能：丢线边界补偿（单侧丢线>9/10时，对侧边界向内偏移30px）
+// 功能：丢线边界补偿（单侧丢线>9/10时，对侧边界向内偏移10px）
 // 说明：
 //   统计行10~IMG_H-1
 //   左边界=1→丢线，右边界=IMG_W-2→丢线
-//   左丢→右边界左移30px，右丢→左边界右移30px，双侧都丢→不偏移
+//   左丢→右边界左移10px，右丢→左边界右移10px，双侧都丢→不偏移
 //-------------------------------------------------------------------------------------------------------------------
 void boundary_lost_compensate(void)
 {
@@ -380,7 +380,7 @@ void boundary_lost_compensate(void)
         uint8 center_right_count = 0;
         for(k = 2; k < IMG_H/2; k++)
         {
-            if(center_line[k] < IMG_W / 2) center_right_count++;
+            if(center_line[k] > IMG_W / 2) center_right_count++;
         }
         if(center_right_count >= 5)
         {
@@ -391,6 +391,7 @@ void boundary_lost_compensate(void)
                 else
                     right_boundary[k] = 0;
                 center_line[k] = (left_boundary[k] + right_boundary[k]) / 2;
+                center_line_valid[k] = 0;  // 补偿合成的中线，标记为非真实边界
             }
         }
     }
@@ -400,7 +401,7 @@ void boundary_lost_compensate(void)
         uint8 center_right_count = 0;
         for(k = 2; k < IMG_H/2; k++)
         {
-            if(center_line[k] > IMG_W / 2) center_right_count++;
+            if(center_line[k] < IMG_W / 2) center_right_count++;
         }
         if(center_right_count >= 5)
         {
@@ -411,6 +412,7 @@ void boundary_lost_compensate(void)
                 else
                     left_boundary[k] = IMG_W - 1;
                 center_line[k] = (left_boundary[k] + right_boundary[k]) / 2;
+                center_line_valid[k] = 0;  // 补偿合成的中线，标记为非真实边界
             }
         }
     }
@@ -451,8 +453,8 @@ float IMU_pid_set(float target,float actual)
     IMU_pid_outp = IMU_pid_error;
     IMU_kp=IMU_kp_a + (IMU_pid_error*IMU_pid_error)*IMU_kp_b;
     {
-        float abs_img_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-        if(abs_img_err < 12.0f) IMU_kp = IMU_kp_a;
+        float abs_imu_err = (IMU_pid_error > 0.0f) ? IMU_pid_error : -IMU_pid_error;
+        if(abs_imu_err < 12.0f) IMU_kp = IMU_kp_a;
     }
     finall_out= -(IMU_kp*IMU_pid_outp + IMU_kd*IMU_pid_outd );
     if(finall_out >12){
@@ -521,6 +523,7 @@ void atti_init(void)
     atti_I_ex = 0.0f; atti_I_ey = 0.0f; atti_I_ez = 0.0f;
     atti_yaw = 0.0f;
     prev_angle_yaw = 0.0f;
+    atti_first = 1;  // 重置加速度低通滤波首次标志
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -531,7 +534,6 @@ static float fast_inv_sqrt(float x)
 {
     float halfx = 0.5f * x;
     float y = x;
-    int32 i;
     // memcpy not used due to microlib, use union instead
     union { float f; int32 i; } u;
     u.f = y;
@@ -557,14 +559,13 @@ void atti_update(void)
     float ex, ey, ez;
     float q0, q1, q2, q3;
     static float acc_fx = 0.0f, acc_fy = 0.0f, acc_fz = 0.0f;
-    static uint8 first = 1;
 
     // ---- 1. 读取加速度计（低通滤波） ----
     imu963ra_get_acc();
     ax = imu963ra_acc_transition((float)imu963ra_acc_x);
     ay = imu963ra_acc_transition((float)imu963ra_acc_y);
     az = imu963ra_acc_transition((float)imu963ra_acc_z);
-    if(first) { acc_fx = ax; acc_fy = ay; acc_fz = az; first = 0; }
+    if(atti_first) { acc_fx = ax; acc_fy = ay; acc_fz = az; atti_first = 0; }
     else
     {
         acc_fx = ATTI_ACC_ALPHA * ax + (1.0f - ATTI_ACC_ALPHA) * acc_fx;
@@ -648,8 +649,8 @@ float angle_pid_set(float target, float actual)
     angle_pid_outp = angle_pid_error;
     angle_kp = angle_kp_a + (angle_pid_error * angle_pid_error) * angle_kp_b;
     {
-        float abs_img_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-        if(abs_img_err < 12.0f) angle_kp = angle_kp_a;
+        float abs_angle_err = (angle_pid_error > 0.0f) ? angle_pid_error : -angle_pid_error;
+        if(abs_angle_err < 5.0f) angle_kp = angle_kp_a;
     }
     float out = -(angle_kp * angle_pid_outp + angle_kd * angle_pid_outd);
     if(out > 12.0f)  out = 12.0f;
