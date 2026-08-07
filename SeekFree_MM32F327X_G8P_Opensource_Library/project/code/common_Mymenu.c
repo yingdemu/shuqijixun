@@ -32,7 +32,7 @@ extern uint8 fixed_threshold;
 // image_kd: 微分系数 —— 抑制振荡和超调
 float image_kp_a = 4.17f;                                                       // 图像 Kp_a（线性项/小弯）
 float image_kp_b = 0.069f;                                                      // 图像 Kp_b（三次项/大弯）
-float image_kd = 10.00f;                                                         // 图像 Kd
+float image_kd = 15.00f;                                                         // 图像 Kd
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
@@ -43,7 +43,7 @@ float motor_lowpass = 0.8f;                                                     
 //IMU PID 控制参数
 float IMU_kp_a =0.04f;
 float IMU_kp_b =0.0f;
-float IMU_kd =1.06f;
+float IMU_kd =0.03f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 
 // float speed_kp = 0.0859f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
@@ -56,13 +56,13 @@ float speed_ki = 0.0196f;                                                       
 float speed_kd = 0.0386f;                                                            // 速度D
 float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
-float speed_min = 140.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_min = 120.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
-float v_max_straight = 200.0f;                                                    // 直道目标速度（编码器单位）
-float v_max_straight_start = 160.0f;                                              // 直道恢复前0.2s过渡速度
-float v_max_turn_cancel = 160.0f;        //                                            // 弯道超时目标速度（编码器单位）
-float v_max_turn = 135.0f;                                                        // 弯道基础速度（编码器单位）
-float v_max_turn_start = 160.0f;         //                                              // 弯道开始时减速速度（编码器单位）
+float v_max_straight = 120.0f;                                                    // 直道目标速度（编码器单位）
+float v_max_straight_start = 120.0f;                                              // 直道恢复前0.2s过渡速度
+float v_max_turn_cancel = 120.0f;        //                                            // 弯道超时目标速度（编码器单位）
+float v_max_turn = 120.0f;                                                        // 弯道基础速度（编码器单位）
+float v_max_turn_start = 120.0f;         //                                              // 弯道开始时减速速度（编码器单位）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 25;                                                             //电机占空比
@@ -900,6 +900,19 @@ void menu_image_display_process(void)
                              right_boundary[r] * 240 / IMG_W,     y2, RGB565_GREEN);
         }
 
+        // ---- 叠加关键检测行横线 ----
+        {
+            // 黄色：直道检测行 STRAIGHT_DETECT_ROW
+            ips200_draw_line(0, STRAIGHT_DETECT_ROW * 100 / IMG_H,
+                             239, STRAIGHT_DETECT_ROW * 100 / IMG_H, RGB565_YELLOW);
+            // 青色：远端检测行 CHECK_FAR_ROW
+            ips200_draw_line(0, CHECK_FAR_ROW * 100 / IMG_H,
+                             239, CHECK_FAR_ROW * 100 / IMG_H, RGB565_CYAN);
+            // 品红：近端检测行 CHECK_NEAR_ROW
+            ips200_draw_line(0, CHECK_NEAR_ROW * 100 / IMG_H,
+                             239, CHECK_NEAR_ROW * 100 / IMG_H, RGB565_MAGENTA);
+        }
+
         // ---- 分隔线 ----
         ips200_draw_line(0, 102, 239, 102, RGB565_RED);
 
@@ -930,27 +943,14 @@ void menu_image_display_process(void)
                 float pos;
                 if(is_straight)
                 {
-                    float step = (float)(CHECK_NEAR_ROW - CHECK_FAR_ROW) / 10.0f;
-                    float sum = 0.0f;
-                    uint8 j;
-                    for(j = 0; j <= 10; j++)
-                    {
-                        uint8 row = CHECK_FAR_ROW + (uint8)(j * step + 0.5f);
-                        sum += (float)center_line[row];
-                    }
-                    pos = sum / 11.0f;
+                    pos = get_lookahead_position(STRAIGHT_KAN);
                     pos = STRAIGHT_BLEND * ((float)IMG_W / 2.0f) + (1.0f - STRAIGHT_BLEND) * pos;
                     float err = (float)IMG_W / 2.0f - pos;
                     if(err > -2.0f && err < 2.0f) pos = (float)IMG_W / 2.0f;
                 }
                 else
                 {
-                    uint8 rf = CHECK_FAR_ROW, rn = CHECK_NEAR_ROW;
-                    uint8 rm = (CHECK_FAR_ROW + CHECK_NEAR_ROW) / 2;
-                    uint8 rq1 = (CHECK_FAR_ROW + rm) / 2, rq3 = (rm + CHECK_NEAR_ROW) / 2;
-                    pos = ((float)center_line[rf] + (float)center_line[rq1]
-                         + (float)center_line[rm] + (float)center_line[rq3]
-                         + (float)center_line[rn]) / 5.0f;
+                    pos = get_lookahead_position(TURN_KAN);
                 }
                 float err_disp = (float)IMG_W / 2.0f - pos;
                 sprintf(buf, "pos:%.1f err:%.1f OT:%3u", pos, err_disp, otsu_threshold);

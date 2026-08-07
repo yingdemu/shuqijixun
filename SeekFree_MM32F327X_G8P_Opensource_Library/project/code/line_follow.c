@@ -320,13 +320,28 @@ int16 calc_deviation(uint8 look_ahead_rows)
 uint8 is_straight_detect(void)
 {
     uint8 row = STRAIGHT_DETECT_ROW;
-    uint8 white_cnt = 0;
     int16 c;
+
+    // 统计中心区域白点数
+    uint8 white_cnt = 0;
     for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
     {
         if(binary_image[row][c] == WHITE) white_cnt++;
     }
-    return (white_cnt >= STRAIGHT_WHITE_THRESH) ? 1 : 0;
+
+    // 条件1：中心区域白点数达标
+    if(white_cnt < STRAIGHT_WHITE_THRESH)
+        return 0;
+
+    // 条件2：检测行两侧边界都必须有效（弯道中一侧边界常提前丢失）
+    if(!left_valid[row] || !right_valid[row])
+        return 0;
+
+    // 条件3：两侧边界必须跨越图像中心（弯道中边界会偏移到中心同侧）
+    if(left_boundary[row] > IMG_W / 2 || right_boundary[row] < IMG_W / 2)
+        return 0;
+
+    return 1;
 }
 
 float get_weight_position(uint8 *center_line, uint8 is_straight)
@@ -366,6 +381,32 @@ float get_weight_position(uint8 *center_line, uint8 is_straight)
         filtered_pos = POS_LOWPASS * raw_pos + (1.0f - POS_LOWPASS) * filtered_pos;
     }
     return filtered_pos;
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：get_lookahead_position
+// 功能：前瞻行附近加权中线位置（替代旧的加权数组/多点均值）
+// 参数：kan —— 前瞻行号（直道 STRAIGHT_KAN=30，弯道 TURN_KAN=50）
+// 返回：float —— 加权中线位置（0~IMG_W-1）
+// 说明：取 kan-10 到 kan+10 共21行，行号越小权重越大（远处赛道更受关注）
+//-------------------------------------------------------------------------------------------------------------------
+float get_lookahead_position(uint8 kan)
+{
+    int16 start = (int16)kan - 10;
+    int16 end   = (int16)kan + 10;
+    if(start < 0)       start = 0;
+    if(end >= IMG_H)    end = IMG_H - 1;
+
+    float sum = 0.0f, wsum = 0.0f;
+    int16 r;
+    for(r = start; r <= end; r++)
+    {
+        if(!center_line_valid[r]) continue;    // 仅使用真实边界计算的中线
+        float w = (float)(end - r + 1);        // 行号越小(end-r越大)→权重越大
+        sum  += w * (float)center_line[r];
+        wsum += w;
+    }
+    return (wsum > 0.0f) ? (sum / wsum) : (float)(IMG_W / 2);
 }
 
 //-------------------------------------------------------------------------------------------------------------------
