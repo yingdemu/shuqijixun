@@ -207,17 +207,31 @@ int main(void)
         {
             menu_image_display_process();
 
-            // 直道/弯道判别（与正常模式一致）
+            // 直道/弯道判别（与正常巡线模式完全一致）
             uint8 is_straight2 = 0;
             {
                 uint8 row = STRAIGHT_DETECT_ROW;
                 uint8 white_cnt = 0;
-                int16 c;
-                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
-                    if(binary_image[row][c] == WHITE) white_cnt++;
-                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
-                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
-                    is_straight2 = 1;
+                {
+                    int16 c;
+                    for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
+                    {
+                        if(binary_image[row][c] == WHITE) white_cnt++;
+                    }
+                }
+                if(white_cnt >= 3)
+                {
+                    if(left_valid[row] && right_valid[row])
+                    {
+                        if(left_boundary[row] >= 5
+                           && right_boundary[row] <= IMG_W - 5
+                           && right_boundary[row] >= IMG_W / 2
+                           && left_boundary[row] <= IMG_W / 2)
+                        {
+                            is_straight2 = 1;
+                        }
+                    }
+                }
             }
 
             float weight_position2 = get_weight_position(center_line, is_straight2);
