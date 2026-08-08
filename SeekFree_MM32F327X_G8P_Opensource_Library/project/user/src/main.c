@@ -73,15 +73,15 @@
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
-#define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
-#define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
-#define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
+#define SERVO_LOWPASS            (0.7f)                                          // 弯道舵机互补滤波系数
+#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
+#define SERVO_CLIP_MAX            (10.0f)                                         // 舵机限幅上界
+#define SERVO_CLIP_MIN            (-10.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (120)                                            // 直道恢复计时（120×5ms=0.6s）
-#define TURN_TIMER_THRESH1        (120)                                            // 弯道第一阶段
+#define STRAIGHT_RECOVERY_TICKS   (80)                                            // 直道恢复计时（80×5ms=0.4s）
+#define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (200)                                           // 弯道第二阶段
 #define DUTY_LOWPASS              (0.5f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
 
@@ -515,16 +515,34 @@ int main(void)
                         }
                     }
 
-                    // 阿克曼：根据舵角分配左右轮目标（编码器单位）
+                    // 阿克曼差速系数：直道/弯道分开计算
                     {
-                        // float raw_gain = 0.0f + 0.25f * (abs(final_servo) - 3.0f);
-                        float raw_gain1 = 0.0f + 0.03f * (abs(final_servo) - 3.0f) * (abs(final_servo) - 3.0f);
-                        float raw_gain2 = 0.0f + 0.01f * (v_target);
-                        float raw_gain = 0.3 * raw_gain1 + 0.7 * raw_gain2;
+                        float raw_gain;
+                        float abs_angle = (final_servo > 0.0f) ? final_servo : -final_servo;
 
-                        #define ACKERMANN_LOWPASS 1.0f
+                        if(is_straight)
+                        {
+                            // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
+                            float gain_angle = 0.0f + 0.01f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
+                            float gain_speed = 0.0f + 0.007f * v_target;
+                            raw_gain = 0.3f * gain_angle + 0.7f * gain_speed;
+                        }
+                        else
+                        {
+                            // ---- 弯道：大差速，以舵角为主，增强过弯能力 ----
+                            float gain_angle = 0.0f + 0.013f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
+                            float gain_speed = 0.0f + 0.03f * v_target;
+                            raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
+                        }
+
+                        #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;
+                        static uint8 prev_is_straight_gain = 1;
+                        // 直↔弯切换时重置滤波
+                        if(prev_is_straight_gain != is_straight) gain_init = 1;
+                        prev_is_straight_gain = is_straight;
+
                         if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
                         else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }
                         ackermann_gain = filt_gain;
