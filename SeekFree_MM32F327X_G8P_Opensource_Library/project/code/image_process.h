@@ -42,7 +42,7 @@
 
 //==================================================== 圆环巡线常量 ====================================================
 
-#define RING_FAR_ROW            15                                              // 远端检测行号
+#define RING_FAR_ROW            5                                              // 远端检测行号
 #define RING_NEAR_ROW           (IMG_H - 30)                                    // 近端检测行号
 #define RING_HALF_WIDTH         30                                              // 赛道半宽（圆环跟随模式用）
 #define RING_NORMAL_WIDTH_MIN   20                                              // 正常赛道宽度下限

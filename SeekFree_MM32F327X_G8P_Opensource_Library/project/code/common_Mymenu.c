@@ -59,10 +59,10 @@ float speed_lowpass = 0.8f;                                                     
 // float speed_ki = 0.0400f;                                                           // 速度I（稳态误差消除）
 // float speed_kd = 0.0500f;                                                            // 速度D
 
-float speed_min = 150.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_min = 120.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
 float v_max_straight = 200.0f;                                                    // 直道目标速度（编码器单位）
-float v_max_straight_start = 160.0f;                                              // 直道恢复前0.2s过渡速度
+float v_max_straight_start = 140.0f;                                              // 直道恢复前0.2s过渡速度
 float v_max_turn_cancel = 160.0f;        //                                            // 弯道超时目标速度（编码器单位）
 float v_max_turn = 135.0f;                                                        // 弯道基础速度（编码器单位）
 float v_max_turn_start = 160.0f;         //                                              // 弯道开始时减速速度（编码器单位）
@@ -924,17 +924,19 @@ void menu_image_display_process(void)
             char buf[40];
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 直道/弯道判别
-            uint8 is_straight = 0;
+            // 直道/弯道判别：检查第 IMG_W/2 列从底部(IMG_H-3)到远端(RING_FAR_ROW)是否全白
+            uint8 is_straight = 1;
             {
-                uint8 row = 3;
-                uint8 white_cnt = 0;
-                int16 c;
-                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
-                    if(binary_image[row][c] == WHITE) white_cnt++;
-                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
-                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
-                    is_straight = 1;
+                uint8 col = IMG_W / 2;
+                uint8 r;
+                for(r = RING_FAR_ROW; r <= IMG_H - 3; r++)
+                {
+                    if(binary_image[r][col] == BLACK)
+                    {
+                        is_straight = 0;
+                        break;
+                    }
+                }
             }
 
             // 行1：直道/弯道状态
