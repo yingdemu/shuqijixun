@@ -94,6 +94,7 @@ void servo_set_angle(float angle)
 //   motor_set_duty(80, 20);   → 左轮快右轮慢，向右转弯
 //   motor_set_duty(20, 80);   → 左轮慢右轮快，向左转弯
 //   motor_set_duty(0, 0);     → 停止
+//注意：此函数第一个参数虽然叫right_duty，但实际上是左电机占空比，第二个参数是右电机占空比
 //-------------------------------------------------------------------------------------------------------------------
 void motor_set_duty(float right_duty, float left_duty)
 {

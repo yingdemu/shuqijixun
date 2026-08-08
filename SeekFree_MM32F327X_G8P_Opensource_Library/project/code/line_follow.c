@@ -662,12 +662,15 @@ float angle_pid_set(float target, float actual)
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：speed_pid_set
-// 功能：速度闭环 PID（增量式，带输出饱和抗积分饱和），左右轮独立状态
+// 功能：速度闭环 PID（增量式，D项低通滤波 + 零速死区 + 静摩擦补偿），左右轮独立状态
 // 参数：channel —— 0=左轮, 1=右轮
 // 参数：target  —— 目标速度（脉冲/5ms）
-// 参数：actual  —— 实际速度（脉冲/5ms）
+// 参数：actual  —— 实际速度（脉冲/5ms，已通过编码器低通滤波）
 // 返回：float —— 电机占空比（-100~100）
 //-------------------------------------------------------------------------------------------------------------------
+
+#define SPEED_DEADBAND          (2.0f)                                              // 零速死区阈值（脉冲/5ms），目标和实际都小于此值时输出0
+#define STICTION_THRESHOLD      (3.0f)                                              // 静摩擦补偿阈值（%占空比），输出绝对值小于此值且误差很小时归零
 
 float speed_pid_set(uint8 channel, float target, float actual)
 {
@@ -675,39 +678,67 @@ float speed_pid_set(uint8 channel, float target, float actual)
     static float speed_pid_out[2] = {0.0f, 0.0f};
     static float error_prev[2]  = {0.0f, 0.0f};
     static float error_prev2[2] = {0.0f, 0.0f};
+    static float deriv_filt[2]  = {0.0f, 0.0f};                                     // D 项低通滤波状态（左右轮独立）
+
+    // ---- 零速死区：目标和实际都接近零时，直接输出0并重置状态 ----
+    float abs_tgt = (target > 0.0f) ? target : -target;
+    float abs_act = (actual > 0.0f) ? actual : -actual;
+    if(abs_tgt < SPEED_DEADBAND && abs_act < SPEED_DEADBAND)
+    {
+        speed_pid_out[channel] = 0.0f;
+        error_prev[channel]    = 0.0f;
+        error_prev2[channel]   = 0.0f;
+        deriv_filt[channel]    = 0.0f;
+        first[channel] = 0;
+        return 0.0f;
+    }
 
     float err = target - actual;
 
     if(first[channel])
     {
-        speed_pid_out[channel] = (float)motor_duty;
-        error_prev[channel]  = err;
-        error_prev2[channel] = err;
+        // 初始输出：目标为零时从0开始，避免从 motor_duty 一路降下来造成过冲
+        speed_pid_out[channel] = (abs_tgt < SPEED_DEADBAND) ? 0.0f : (float)motor_duty;
+        error_prev[channel]    = err;
+        error_prev2[channel]   = err;
+        deriv_filt[channel]    = 0.0f;
         first[channel] = 0;
         return speed_pid_out[channel];
     }
 
-    float err_p = error_prev[channel];
+    float err_p  = error_prev[channel];
     float err_pp = error_prev2[channel];
 
-    // 增量式 PID：Δu = Kp*(e0-e1) + Ki*e0 + Kd*(e0-2*e1+e2)
+    // D 项低通滤波（与 image_pid / IMU_pid / angle_pid 一致，滤除编码器量化噪声）
+    // raw_deriv = e0 - 2*e1 + e2（误差的二阶差分）
+    float raw_deriv = err - 2.0f * err_p + err_pp;
+    deriv_filt[channel] = speed_lowpass * raw_deriv + (1.0f - speed_lowpass) * deriv_filt[channel];
+
+    // 增量式 PID：Δu = Kp*(e0-e1) + Ki*e0 + Kd*filtered_deriv
     float increment = speed_kp * (err - err_p)
                     + speed_ki * err
-                    + speed_kd * (err - 2.0f * err_p + err_pp);
+                    + speed_kd * deriv_filt[channel];
 
-    // 增量限幅：encoder≈duty×10，±8匹配正常duty范围0~20
+    // 增量限幅
     float inc_max = 8.0f;
     if(increment > inc_max)  increment = inc_max;
     if(increment < -inc_max) increment = -inc_max;
 
     speed_pid_out[channel] += increment;
 
-    // 输出饱和 + 抗积分饱和（条件积分法）
-    // 只有输出已饱和且增量同向时才钳位，堵转时允许输出继续上升
+    // 输出饱和
     if(speed_pid_out[channel] > (float)MOTOR_DUTY_MAX)
         speed_pid_out[channel] = (float)MOTOR_DUTY_MAX;
     else if(speed_pid_out[channel] < (float)MOTOR_DUTY_MIN)
         speed_pid_out[channel] = (float)MOTOR_DUTY_MIN;
+
+    // ---- 静摩擦补偿：输出很小且误差也小时归零，避免无效微振耗电 ----
+    float abs_out = (speed_pid_out[channel] > 0.0f) ? speed_pid_out[channel] : -speed_pid_out[channel];
+    float abs_err = (err > 0.0f) ? err : -err;
+    if(abs_out < STICTION_THRESHOLD && abs_err < SPEED_DEADBAND * 3.0f)
+    {
+        speed_pid_out[channel] = 0.0f;
+    }
 
     // 更新历史误差
     error_prev2[channel] = err_p;

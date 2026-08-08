@@ -46,15 +46,18 @@ float IMU_kp_b =0.0f;
 float IMU_kd =1.06f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 
-// float speed_kp = 0.0859f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
-// float speed_ki = 0.1814f;                                                           // 速度I（稳态误差消除）
-// float speed_kd = 0.1618f;                                                            // 速度D
-// float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
-
-float speed_kp = 0.1885f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
-float speed_ki = 0.0196f;                                                           // 速度I（稳态误差消除）
-float speed_kd = 0.0386f;                                                            // 速度D
+float speed_kp = 0.7f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+float speed_ki = 0.15f;                                                           // 速度I（稳态误差消除）
+float speed_kd = 0.10f;                                                            // 速度D
 float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
+
+// float speed_kp = 0.1885f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+// float speed_ki = 0.0196f;                                                           // 速度I（稳态误差消除）
+// float speed_kd = 0.0386f;                                                            // 速度D
+// float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
+// float speed_kp = 0.1400f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+// float speed_ki = 0.0400f;                                                           // 速度I（稳态误差消除）
+// float speed_kd = 0.0500f;                                                            // 速度D
 
 float speed_min = 150.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）

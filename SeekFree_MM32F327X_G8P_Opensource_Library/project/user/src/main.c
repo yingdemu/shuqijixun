@@ -328,7 +328,8 @@ int main(void)
                 }
                 else
                 {
-                    g_motor_run = 0;                                                // 默认关电机，控制路径会重新置1
+                    // 不提前清零 g_motor_run，避免 PIT 中断在图像处理期间误关电机
+                    // g_motor_run 只在上方 image_lost 或下方正常路径中被设置
                     // ---- 直道/弯道判别（在使用中线前检测） ----
                     uint8 is_straight = 0;
                     {
@@ -553,6 +554,12 @@ int main(void)
                     //serial_printf("%.3f,%.3f\r\n",L_duty, R_duty);
                 }
                 }
+                else
+                {
+                    // car_go_flag == 0：用户手动停车，立即关电机
+                    g_motor_run = 0;
+                    motor_set_duty(0, 0);
+                }
             }
 
 
@@ -576,10 +583,11 @@ void pit_handler (void)
     if(zebra_cooldown > 0) zebra_cooldown--;                                        // 斑马线冷却计时（5ms/次）
 
     // ---- 电机速度 PID（固定5ms周期，不受摄像头帧率影响） ----
+    // 使用编码器低通滤波值 encoder_speed_filt_1/2 替代原始脉冲数，减少量化噪声
     if(g_motor_run)
     {
-        float L_duty = speed_pid_set(0, g_target_L, (float)encoder_speed_1);
-        float R_duty = speed_pid_set(1, g_target_R, (float)encoder_speed_2);
+        float L_duty = speed_pid_set(0, 0, encoder_speed_filt_1);
+        float R_duty = speed_pid_set(1, 0, encoder_speed_filt_2);
 
         // 占空比低通滤波
         {
