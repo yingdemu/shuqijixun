@@ -18,7 +18,7 @@ int32 encoder_total_2 = 0;                                                      
 float encoder_speed_filt_1 = 0.0f;                                                   // 左轮速度低通滤波值（供 PID 使用）
 float encoder_speed_filt_2 = 0.0f;                                                   // 右轮速度低通滤波值
 
-#define ENCODER_LOWPASS         (0.4f)                                              // 编码器低通滤波系数（已弃用，保留定义）
+#define ENCODER_LOWPASS         (0.4f)                                              // 编码器低通滤波系数（0~1，越小滤波越重）
 
 //==================================================== 编码器初始化 ====================================================
 
@@ -42,9 +42,12 @@ void encoder_update(void)
     encoder_speed_2 = -encoder_get_count(ENCODER_2);
     encoder_clear_count(ENCODER_2);
 
-    // 直接传递原始脉冲值（滤波已移除），转为 float 供 PID 使用
-    encoder_speed_filt_1 = (float)encoder_speed_1;
-    encoder_speed_filt_2 = (float)encoder_speed_2;
+    // 一阶低通滤波：滤除编码器量化噪声（±1脉冲抖动）
+    // 滤波系数 ENCODER_LOWPASS=0.4 → 时间常数约 2~3 个 PIT 周期（10~15ms）
+    encoder_speed_filt_1 = ENCODER_LOWPASS * (float)encoder_speed_1
+                         + (1.0f - ENCODER_LOWPASS) * encoder_speed_filt_1;
+    encoder_speed_filt_2 = ENCODER_LOWPASS * (float)encoder_speed_2
+                         + (1.0f - ENCODER_LOWPASS) * encoder_speed_filt_2;
 
     encoder_total_1 += encoder_speed_1;
     encoder_total_2 += encoder_speed_2;

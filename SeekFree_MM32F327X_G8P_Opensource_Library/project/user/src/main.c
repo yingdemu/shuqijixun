@@ -80,11 +80,10 @@
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (40)                                            // 直道恢复计时（80×5ms=0.4s）
-#define TURN_TIMER_THRESH1        (40)                                            // 弯道第一阶段
-#define TURN_TIMER_THRESH2        (185)                                           // 弯道第二阶段
-#define DUTY_LOWPASS              (1.0f)                                          // 电机占空比低通（1.0=无滤波）
-#define CURVE_LOCK_TICKS          (100)                                           // 弯道锁定计时（100×5ms=0.5s），0.5s内不能变直道
+#define STRAIGHT_RECOVERY_TICKS   (80)                                            // 直道恢复计时（80×5ms=0.4s）
+#define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
+#define TURN_TIMER_THRESH2        (180)                                           // 弯道第二阶段
+#define DUTY_LOWPASS              (0.5f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
 
 // ==================== 主函数 ====================
 
@@ -220,18 +219,12 @@ int main(void)
                         break;
                     }
                 }
-                // 图像环误差过大（大弯姿态）→ 强制判为弯道
-                if(is_straight2)
-                {
-                    float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-                    if(abs_err > 20.0f) is_straight2 = 0;
-                }
-
-                // 弯道锁定：入弯后0.5s内禁止切回直道
-                if(is_straight2 && turn_timer_cnt > 0 && turn_timer_cnt < CURVE_LOCK_TICKS)
-                {
-                    is_straight2 = 0;
-                }
+                // // 图像环误差过大（大弯姿态）→ 强制判为弯道
+                // if(is_straight2)
+                // {
+                //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+                //     if(abs_err > 20.0f) is_straight2 = 0;
+                // }
             }
 
             float weight_position2 = get_weight_position(center_line, is_straight2);
@@ -343,18 +336,12 @@ int main(void)
                                 break;
                             }
                         }
-                        // 图像环误差过大（大弯姿态）→ 强制判为弯道
-                        if(is_straight)
-                        {
-                            float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-                            if(abs_err > 20.0f) is_straight = 0;
-                        }
-
-                        // 弯道锁定：入弯后0.5s内禁止切回直道，防止直道/弯道快速来回切换
-                        if(is_straight && turn_timer_cnt > 0 && turn_timer_cnt < CURVE_LOCK_TICKS)
-                        {
-                            is_straight = 0;
-                        }
+                        // // 图像环误差过大（大弯姿态）→ 强制判为弯道
+                        // if(is_straight)
+                        // {
+                        //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+                        //     if(abs_err > 20.0f) is_straight = 0;
+                        // }
                     }
 
                     // 直→弯转换校验：上一帧直道但本帧非直道时，需确认边界确实偏移
@@ -508,12 +495,6 @@ int main(void)
                         }
                     }
 
-                    // 中端警告：如果中心列在中端行处为黑，说明即将出界，强制降速
-                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
-                    {
-                        if(v_target > v_warning) v_target = v_warning;
-                    }
-
                     // 速度目标低通滤波：只在直道稳定时和弯道后期启用
                     // 直→弯跳变时强制重置滤波，确保降速无滞后
                     // 弯道第一阶段（降速到speed_min）跳过滤波，实现快速降速
@@ -561,44 +542,33 @@ int main(void)
                         }
                     }
 
-                    // 阿克曼差速系数：直道 / 弯道第一阶段 / 弯道后期 三档独立
+                    // 阿克曼差速系数：直道/弯道分开计算
                     {
                         float raw_gain;
                         float abs_angle = (final_servo > 0.0f) ? final_servo : -final_servo;
 
-                        // 增益状态编码：0=直道, 1=弯道第一阶段, 2=弯道后期
-                        uint8 gain_state = is_straight ? 0
-                                         : (turn_timer_cnt < TURN_TIMER_THRESH1 ? 1 : 2);
-
-                        if(gain_state == 0)
+                        if(is_straight)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
                             float gain_angle = 0.0f + 0.01f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
                             float gain_speed = 0.0f + 0.007f * v_target;
-                            raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
+                            raw_gain = 0.3f * gain_angle + 0.7f * gain_speed;
                         }
-                        else if(gain_state == 1)
+                        else
                         {
-                            // ---- 弯道第一阶段：最大差速，以舵角为主，快速入弯 ----
+                            // ---- 弯道：大差速，以舵角为主，增强过弯能力 ----
                             float gain_angle = 0.0f + 0.013f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
                             float gain_speed = 0.5f + 0.03f * v_target;
                             raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
-                        }
-                        else // gain_state == 2
-                        {
-                            // ---- 弯道后期：适度差速，平衡过弯与速度 ----
-                            float gain_angle = 0.0f + 0.010f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
-                            float gain_speed = 0.3f + 0.025f * v_target;
-                            raw_gain = 0.5f * gain_angle + 0.5f * gain_speed;
                         }
 
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;
-                        static uint8 prev_gain_state = 0;
-                        // 增益状态切换时重置滤波
-                        if(prev_gain_state != gain_state) gain_init = 1;
-                        prev_gain_state = gain_state;
+                        static uint8 prev_is_straight_gain = 1;
+                        // 直↔弯切换时重置滤波
+                        if(prev_is_straight_gain != is_straight) gain_init = 1;
+                        prev_is_straight_gain = is_straight;
 
                         if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
                         else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }
@@ -645,22 +615,11 @@ void pit_handler (void)
     if(zebra_cooldown > 0) zebra_cooldown--;                                        // 斑马线冷却计时（5ms/次）
 
     // ---- 电机速度 PID（固定5ms周期，不受摄像头帧率影响） ----
+    // 使用编码器低通滤波值 encoder_speed_filt_1/2 替代原始脉冲数，减少量化噪声
     if(g_motor_run)
     {
         float L_duty = speed_pid_set(0, g_target_L, encoder_speed_filt_1);
         float R_duty = speed_pid_set(1, g_target_R, encoder_speed_filt_2);
-
-        // ---- PID 调试串口输出（每2次PID打印一次，100Hz） ----
-//        {
-//            static uint16 dbg_cnt = 0;
-//            if(dbg_cnt % 2 == 0)
-//            {
-//                printf("%d,%.1f,%.1f,%.1f,%.1f\r\n",
-//                              dbg_cnt, encoder_speed_filt_1, L_duty,
-//                              encoder_speed_filt_2, R_duty);
-//            }
-//            dbg_cnt++;
-//        }
 
         // 占空比低通滤波
         {
