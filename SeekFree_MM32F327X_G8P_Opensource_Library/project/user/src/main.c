@@ -267,6 +267,12 @@ int main(void)
                 prev_servo_out2 = final_servo2;
             }
 
+            // 位置-舵角方向一致性约束：中线偏右禁止左转，偏左禁止右转
+            if(weight_position2 > IMG_W / 2 && final_servo2 < -2.0f)
+                final_servo2 = -2.0f;
+            else if(weight_position2 < IMG_W / 2 && final_servo2 > 2.0f)
+                final_servo2 = 2.0f;
+
             servo_set_angle(final_servo2);
             prev_servo_angle = final_servo2;
 
@@ -418,20 +424,11 @@ int main(void)
                         prev_servo_out = final_servo;
                     }
 
-                    // // 弯道边界保护：一侧边界全程可见时禁止同侧转向，防止撞路肩
-                    // if(!is_straight)
-                    // {
-                    //     uint8 all_right_valid = 1;
-                    //     uint8 all_left_valid  = 1;
-                    //     uint8 r;
-                    //     for(r = RING_NEAR_ROW; r <= IMG_H - 3; r++)
-                    //     {
-                    //         if(right_boundary[r] >= IMG_W - 3) all_right_valid = 0;
-                    //         if(left_boundary[r]  <= 2)         all_left_valid  = 0;
-                    //     }
-                    //     if(all_right_valid && final_servo > 0.0f)  final_servo = 0.0f;  // 右边全可见→禁止右转
-                    //     if(all_left_valid  && final_servo < 0.0f)  final_servo = 0.0f;  // 左边全可见→禁止左转
-                    // }
+                    // 位置-舵角方向一致性约束：中线偏右禁止左转，偏左禁止右转
+                    if(weight_position > IMG_W / 2 && final_servo < -2.0f)
+                        final_servo = -2.0f;
+                    else if(weight_position < IMG_W / 2 && final_servo > 2.0f)
+                        final_servo = 2.0f;
 
                     servo_set_angle(final_servo);
                     prev_servo_angle = final_servo;
@@ -580,6 +577,10 @@ int main(void)
                             float gain_speed = 0.5f + 0.03f * v_target;
                             raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
                         }
+
+                        // 中端警告时增大差速，增强修正能力防止出界
+                        if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
+                            raw_gain *= 1.3f;
 
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;

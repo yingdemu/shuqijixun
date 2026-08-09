@@ -948,12 +948,12 @@ void menu_image_display_process(void)
                         break;
                     }
                 }
-                // 图像环误差过大（大弯姿态）→ 强制判为弯道
-                if(is_straight)
-                {
-                    float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-                    if(abs_err > 20.0f) is_straight = 0;
-                }
+                // // 图像环误差过大（大弯姿态）→ 强制判为弯道
+                // if(is_straight)
+                // {
+                //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+                //     if(abs_err > 20.0f) is_straight = 0;
+                // }
             }
 
             // 行1：直道/弯道状态
