@@ -58,14 +58,14 @@ float speed_lowpass = 0.8f;                                                     
 // float speed_kp = 0.1400f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
 // float speed_ki = 0.0400f;                                                           // 速度I（稳态误差消除）
 // float speed_kd = 0.0500f;                                                            // 速度D
-
-float speed_min = 80.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+//或者减1加2？
+float speed_min = 100.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
 float v_max_straight = 180.0f;                                                    // 直道目标速度（编码器单位）
 float v_max_straight_start = 160.0f;                                              // 直道恢复前0.2s过渡速度
 float v_max_turn_cancel = 160.0f;        //                                            // 弯道超时目标速度（编码器单位）
 float v_max_turn = 135.0f;                                                        // 弯道基础速度（编码器单位）
-float v_max_turn_start = 100.0f;         //                                              // 弯道开始时减速速度（编码器单位）
+float v_max_turn_start = 125.0f;         //                                              // 弯道开始时减速速度（编码器单位）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 25;                                                             //电机占空比
@@ -924,7 +924,7 @@ void menu_image_display_process(void)
             char buf[40];
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 直道/弯道判别：检查第 IMG_W/2 列从底部(IMG_H-3)到远端(RING_FAR_ROW)是否全白
+            // 直道/弯道判别：列扫描 + 图像环误差约束
             uint8 is_straight = 1;
             {
                 uint8 col = IMG_W / 2;
@@ -936,6 +936,12 @@ void menu_image_display_process(void)
                         is_straight = 0;
                         break;
                     }
+                }
+                // 图像环误差过大（大弯姿态）→ 强制判为弯道
+                if(is_straight)
+                {
+                    float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+                    if(abs_err > 20.0f) is_straight = 0;
                 }
             }
 

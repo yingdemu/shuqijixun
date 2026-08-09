@@ -82,7 +82,7 @@
 #define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (80)                                            // 直道恢复计时（80×5ms=0.4s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
-#define TURN_TIMER_THRESH2        (200)                                           // 弯道第二阶段
+#define TURN_TIMER_THRESH2        (180)                                           // 弯道第二阶段
 #define DUTY_LOWPASS              (0.5f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
 
 // ==================== 主函数 ====================
@@ -206,7 +206,7 @@ int main(void)
         {
             menu_image_display_process();
 
-            // 直道/弯道判别：检查第 IMG_W/2 列从底部(IMG_H-3)到远端(RING_FAR_ROW)是否全白
+            // 直道/弯道判别：列扫描 + 图像环误差约束
             uint8 is_straight2 = 1;
             {
                 uint8 col = IMG_W / 2;
@@ -219,6 +219,12 @@ int main(void)
                         break;
                     }
                 }
+                // // 图像环误差过大（大弯姿态）→ 强制判为弯道
+                // if(is_straight2)
+                // {
+                //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+                //     if(abs_err > 20.0f) is_straight2 = 0;
+                // }
             }
 
             float weight_position2 = get_weight_position(center_line, is_straight2);
@@ -317,7 +323,7 @@ int main(void)
                 {
                     // 不提前清零 g_motor_run，避免 PIT 中断在图像处理期间误关电机
                     // g_motor_run 只在上方 image_lost 或下方正常路径中被设置
-                    // ---- 直道/弯道判别：检查第 IMG_W/2 列从底部(IMG_H-3)到远端(RING_FAR_ROW)是否全白 ----
+                    // ---- 直道/弯道判别：列扫描 + 图像环误差约束 ----
                     uint8 is_straight = 1;
                     {
                         uint8 col = IMG_W / 2;
@@ -330,6 +336,12 @@ int main(void)
                                 break;
                             }
                         }
+                        // // 图像环误差过大（大弯姿态）→ 强制判为弯道
+                        // if(is_straight)
+                        // {
+                        //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+                        //     if(abs_err > 20.0f) is_straight = 0;
+                        // }
                     }
 
                     // 直→弯转换校验：上一帧直道但本帧非直道时，需确认边界确实偏移
@@ -403,6 +415,21 @@ int main(void)
                         else if(delta < -SERVO_RATE_LIMIT) final_servo = prev_servo_out - SERVO_RATE_LIMIT;
                         prev_servo_out = final_servo;
                     }
+
+                    // // 弯道边界保护：一侧边界全程可见时禁止同侧转向，防止撞路肩
+                    // if(!is_straight)
+                    // {
+                    //     uint8 all_right_valid = 1;
+                    //     uint8 all_left_valid  = 1;
+                    //     uint8 r;
+                    //     for(r = RING_NEAR_ROW; r <= IMG_H - 3; r++)
+                    //     {
+                    //         if(right_boundary[r] >= IMG_W - 3) all_right_valid = 0;
+                    //         if(left_boundary[r]  <= 2)         all_left_valid  = 0;
+                    //     }
+                    //     if(all_right_valid && final_servo > 0.0f)  final_servo = 0.0f;  // 右边全可见→禁止右转
+                    //     if(all_left_valid  && final_servo < 0.0f)  final_servo = 0.0f;  // 左边全可见→禁止左转
+                    // }
 
                     servo_set_angle(final_servo);
                     prev_servo_angle = final_servo;
@@ -531,7 +558,7 @@ int main(void)
                         {
                             // ---- 弯道：大差速，以舵角为主，增强过弯能力 ----
                             float gain_angle = 0.0f + 0.013f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
-                            float gain_speed = 0.0f + 0.03f * v_target;
+                            float gain_speed = 0.5f + 0.03f * v_target;
                             raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
                         }
 
