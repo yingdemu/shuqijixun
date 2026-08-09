@@ -97,6 +97,8 @@ uint8 turn_timer_cnt = 0;                                                       
 uint8 straight_rec_cnt = 0;                                                       // 直道恢复计时：PIT递减，0=已恢复
 uint8 zebra_stop_flag = 0;                                                        // 斑马线停车标志：1=停车
 uint16 zebra_cooldown = 0;                                                         // 斑马线冷却计时：PIT递减
+static uint8 g_main_need_reset = 0;                                                 // 主循环状态重置标志（0→1发车时置1，帧末清零）
+static uint8 g_prev_car_go = 0;                                                     // 上一帧 car_go_flag 状态（用于检测0→1跳变）
 
 int main(void)
 {
@@ -301,6 +303,10 @@ int main(void)
             if(line_data_ready)
             {
                 if(car_go_flag){
+                // ---- 发车 0→1 跳变：重置所有 PID 和滤波器状态 ----
+                if(!g_prev_car_go) { g_main_need_reset = 1; control_state_reset(); }
+                g_prev_car_go = 1;
+
                 // ---- 保护：底部中央10×10矩形全白或全黑 → 停车 ----
                 // 矩形：左下角(IMG_H-3, IMG_W/2-5)，往上10行往右10列
                 uint8 image_lost = 0;
@@ -391,6 +397,7 @@ int main(void)
 
                     // 角度 PID：检测偏航角突变，提供稳定补偿
                     static float prev_yaw = 0.0f;
+                    if(g_main_need_reset) prev_yaw = 0.0f;
                     float angle_out = angle_pid_set(prev_yaw, atti_yaw);
                     prev_yaw = atti_yaw;
 
@@ -406,6 +413,7 @@ int main(void)
                     {
                         static float servo_filt = 0.0f;
                         static uint8 last_was_straight = 1;
+                        if(g_main_need_reset) { servo_filt = 0.0f; last_was_straight = 1; }
                         if(!is_straight)
                         {
                             if(last_was_straight) servo_filt = final_servo;          // 刚入弯：重置
@@ -418,6 +426,7 @@ int main(void)
                     // 舵机输出速率限制
                     {
                         static float prev_servo_out = 0.0f;
+                        if(g_main_need_reset) prev_servo_out = 0.0f;
                         float delta = final_servo - prev_servo_out;
                         if(delta > SERVO_RATE_LIMIT)       final_servo = prev_servo_out + SERVO_RATE_LIMIT;
                         else if(delta < -SERVO_RATE_LIMIT) final_servo = prev_servo_out - SERVO_RATE_LIMIT;
@@ -438,6 +447,7 @@ int main(void)
 
                     // 0→1跳变检测
                     static uint8 prev_straight = 0;
+                    if(g_main_need_reset) prev_straight = 0;
 
                     if(is_straight)
                     {
@@ -470,6 +480,7 @@ int main(void)
                             // 0=都没丢, 1=丢左边, 2=丢右边
                             uint8 lost_side = left_lost ? 1 : (right_lost ? 2 : 0);
                             static uint8 prev_lost_side = 0;
+                            if(g_main_need_reset) prev_lost_side = 0;
                             if(prev_lost_side != 0 && lost_side != 0
                                && lost_side != prev_lost_side)
                             {
@@ -508,6 +519,7 @@ int main(void)
                         static float v_filt = 0.0f;
                         static uint8 vf_init = 1;
                         static uint8 prev_was_straight = 1;
+                        if(g_main_need_reset) { v_filt = 0.0f; vf_init = 1; prev_was_straight = 1; }
 
                         // 直→弯跳变：重置滤波状态，避免高速残留
                         if(prev_was_straight && !is_straight)
@@ -526,6 +538,7 @@ int main(void)
                     if(zebra_cooldown == 0)
                     {
                         static uint8 zebra_cnt = 0;
+                        if(g_main_need_reset) zebra_cnt = 0;
                         uint8 row = RING_NEAR_ROW;
                         uint8 trans = 0;
                         int16 c;
@@ -586,6 +599,7 @@ int main(void)
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;
                         static uint8 prev_gain_state = 0;
+                        if(g_main_need_reset) { filt_gain = 0.0f; gain_init = 1; prev_gain_state = 0; }
                         // 增益状态切换时重置滤波
                         if(prev_gain_state != gain_state) gain_init = 1;
                         prev_gain_state = gain_state;
@@ -601,6 +615,7 @@ int main(void)
                     g_target_L = zebra_stop_flag ? 0.0f : target_L;
                     g_target_R = zebra_stop_flag ? 0.0f : target_R;
                     g_motor_run = 1;
+                    g_main_need_reset = 0;                                              // 首帧结束，清除重置标志
 
                     // // 蓝牙发送
                     //serial_printf("%.3f,%.3f\r\n",L_duty, R_duty);
@@ -609,6 +624,7 @@ int main(void)
                 else
                 {
                     // car_go_flag == 0：用户手动停车，立即关电机
+                    g_prev_car_go = 0;
                     g_motor_run = 0;
                     motor_set_duty(0, 0);
                 }
@@ -635,29 +651,35 @@ void pit_handler (void)
     if(zebra_cooldown > 0) zebra_cooldown--;                                        // 斑马线冷却计时（5ms/次）
 
     // ---- 电机速度 PID（固定5ms周期，不受摄像头帧率影响） ----
-    if(g_motor_run)
     {
-        float L_duty = speed_pid_set(0, g_target_L, encoder_speed_filt_1);
-        float R_duty = speed_pid_set(1, g_target_R, encoder_speed_filt_2);
+        static uint8 prev_motor_run = 0;                                                // 用于检测电机0→1启动
 
-        // 占空比低通滤波
+        if(g_motor_run)
         {
-            static float L_filt = 0.0f, R_filt = 0.0f;
-            static uint8 duty_init = 1;
-            if(duty_init) { L_filt = L_duty; R_filt = R_duty; duty_init = 0; }
-            else {
-                L_filt = DUTY_LOWPASS * L_duty + (1.0f - DUTY_LOWPASS) * L_filt;
-                R_filt = DUTY_LOWPASS * R_duty + (1.0f - DUTY_LOWPASS) * R_filt;
-            }
-            L_duty = L_filt;
-            R_duty = R_filt;
-        }
+            float L_duty = speed_pid_set(0, g_target_L, encoder_speed_filt_1);
+            float R_duty = speed_pid_set(1, g_target_R, encoder_speed_filt_2);
 
-        motor_set_duty(L_duty, R_duty);
-    }
-    else
-    {
-        motor_set_duty(0, 0);
+            // 占空比低通滤波
+            {
+                static float L_filt = 0.0f, R_filt = 0.0f;
+                static uint8 duty_init = 1;
+                if(!prev_motor_run) duty_init = 1;                                      // 电机刚启动，重置滤波
+                if(duty_init) { L_filt = L_duty; R_filt = R_duty; duty_init = 0; }
+                else {
+                    L_filt = DUTY_LOWPASS * L_duty + (1.0f - DUTY_LOWPASS) * L_filt;
+                    R_filt = DUTY_LOWPASS * R_duty + (1.0f - DUTY_LOWPASS) * R_filt;
+                }
+                L_duty = L_filt;
+                R_duty = R_filt;
+            }
+
+            motor_set_duty(L_duty, R_duty);
+        }
+        else
+        {
+            motor_set_duty(0, 0);
+        }
+        prev_motor_run = g_motor_run;
     }
 }
 
