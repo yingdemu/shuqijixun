@@ -66,6 +66,7 @@ float v_max_straight_start = 160.0f;                                            
 float v_max_turn_cancel = 160.0f;        //                                            // 弯道超时目标速度（编码器单位）
 float v_max_turn = 135.0f;                                                        // 弯道基础速度（编码器单位）
 float v_max_turn_start = 125.0f;         //                                              // 弯道开始时减速速度（编码器单位）
+float v_warning = 20.0f;                                                              // 中端黑点警告速度（快出界时降到此速度）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 25;                                                             //电机占空比
@@ -884,34 +885,44 @@ void menu_image_display_process(void)
                                1);                         // 二值化阈值=1
 
         // ---- 在二值化图像上叠加赛道中线 + 左右边界 ----
-        // 坐标从图像坐标系(141×90)映射到显示坐标系(240×100)
+        // 坐标从图像坐标系(IMG_W×IMG_H)映射到显示坐标系(240×100)
+        // 边界保护：防止异常值导致缩放后坐标越界触发 ips200 断言
         for(int16 r = 1; r < IMG_H; r++)
         {
             uint16 y1 = (r - 1) * 100 / IMG_H;
             uint16 y2 = r * 100 / IMG_H;
 
+            // clamp 到 IMG_W-1 防止缩放越界
+            uint16 cl_prev = (center_line[r - 1] >= IMG_W) ? (IMG_W - 1) : center_line[r - 1];
+            uint16 cl_curr = (center_line[r]     >= IMG_W) ? (IMG_W - 1) : center_line[r];
+            uint16 lb_prev = (left_boundary[r - 1] >= IMG_W) ? (IMG_W - 1) : left_boundary[r - 1];
+            uint16 lb_curr = (left_boundary[r]     >= IMG_W) ? (IMG_W - 1) : left_boundary[r];
+            uint16 rb_prev = (right_boundary[r - 1] >= IMG_W) ? (IMG_W - 1) : right_boundary[r - 1];
+            uint16 rb_curr = (right_boundary[r]     >= IMG_W) ? (IMG_W - 1) : right_boundary[r];
+
             // 中线（红色）
-            ips200_draw_line(center_line[r - 1] * 240 / IMG_W, y1,
-                             center_line[r] * 240 / IMG_W,     y2, RGB565_RED);
+            ips200_draw_line(cl_prev * 240 / IMG_W, y1,
+                             cl_curr * 240 / IMG_W, y2, RGB565_RED);
 
             // 左边界（蓝色）
-            ips200_draw_line(left_boundary[r - 1] * 240 / IMG_W, y1,
-                             left_boundary[r] * 240 / IMG_W,     y2, RGB565_BLUE);
+            ips200_draw_line(lb_prev * 240 / IMG_W, y1,
+                             lb_curr * 240 / IMG_W, y2, RGB565_BLUE);
 
             // 右边界（绿色）
-            ips200_draw_line(right_boundary[r - 1] * 240 / IMG_W, y1,
-                             right_boundary[r] * 240 / IMG_W,     y2, RGB565_GREEN);
+            ips200_draw_line(rb_prev * 240 / IMG_W, y1,
+                             rb_curr * 240 / IMG_W, y2, RGB565_GREEN);
         }
 
-        // ---- 画圆环检测行标记线（白色虚线效果，4px线段+4px间隔） ----
-        // 远端检测行 = RING_FAR_ROW(30)，映射到显示坐标 y = 30*100/IMG_H
+        // ---- 画圆环检测行标记线（白色/黄色虚线效果，4px线段+4px间隔） ----
         {
             uint16 y_f = (uint16)RING_FAR_ROW * 100 / IMG_H;                  // 远端检测行显示Y
+            uint16 y_m = (uint16)RING_MID_ROW * 100 / IMG_H;                  // 中端警告行显示Y
             uint16 y_r = (uint16)RING_NEAR_ROW * 100 / IMG_H;                   // 近端检测行显示Y
             // 画虚线（每8px画一段）
             for(uint16 x = 0; x < 240; x += 12)
             {
                 ips200_draw_line(x, y_f, (x + 4 < 240) ? x + 4 : 239, y_f, RGB565_WHITE);
+                ips200_draw_line(x, y_m, (x + 4 < 240) ? x + 4 : 239, y_m, RGB565_YELLOW);
                 ips200_draw_line(x, y_r, (x + 4 < 240) ? x + 4 : 239, y_r, RGB565_WHITE);
             }
         }
