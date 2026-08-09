@@ -312,10 +312,9 @@ int main(void)
                 uint8 image_lost = 0;
                 {
                     uint16 black_cnt = 0, total = 0;
-                    uint8 r0 = IMG_H - 3 - 5;
-                    uint8 c0 = IMG_W / 2 - 15;
-                    for(uint8 r = r0; r <= IMG_H - 3; r++)
-                        for(uint8 c = c0; c < c0 + 30; c++)
+                    uint8 r = IMG_H - 5;
+                    uint8 c0 = 4;
+                        for(uint8 c = c0; c < IMG_W - 4; c++)
                         {
                             if(binary_image[r][c] == BLACK) black_cnt++;
                             total++;
@@ -389,6 +388,52 @@ int main(void)
                     {
                         weight_position = STRAIGHT_BLEND * ((float)IMG_W / 2.0f)
                                         + (1.0f - STRAIGHT_BLEND) * weight_position;
+                    }
+
+                    // 中心列黑色超1/3 + 单侧列全黑 → 硬打角（十字路口/急弯脱困）
+                    {
+                        uint16 center_black_cnt = 0;
+                        uint8 col5_all_black  = 1;
+                        uint8 colr6_all_black = 1;
+                        int16 cr;
+                        int16 total_rows = IMG_H - 3;
+                        for(cr = 2; cr <= IMG_H - 2; cr++)
+                        {
+                            if(binary_image[cr][IMG_W / 2] == BLACK) center_black_cnt++;
+                            if(binary_image[cr][5]         == WHITE) col5_all_black  = 0;
+                            if(binary_image[cr][IMG_W - 6] == WHITE) colr6_all_black = 0;
+                        }
+
+                        if(center_black_cnt > total_rows / 3)
+                        {
+                            // 左侧第5列全黑 + 右侧IMG_W-6列不全黑 → 右转
+                            if(col5_all_black && !colr6_all_black)
+                            {
+                                servo_set_angle(12.0f);
+                                prev_servo_angle = 12.0f;
+                                continue;
+                            }
+                            // 左侧第5列不全黑 + 右侧IMG_W-6列全黑 → 左转
+                            else if(!col5_all_black && colr6_all_black)
+                            {
+                                servo_set_angle(-12.0f);
+                                prev_servo_angle = -12.0f;
+                                continue;
+                            }
+                        }
+                    }
+
+                    // 中线全部无效（全白/全黑）→ 保持上一帧舵角，避免误判导致乱转
+                    {
+                        uint8 valid_cnt = 0;
+                        int16 vi;
+                        for(vi = 0; vi < IMG_H; vi++)
+                            if(center_line_valid[vi] == 1) valid_cnt++;
+                        if(valid_cnt == 0)
+                        {
+                            servo_set_angle(prev_servo_angle);
+                            continue;                                                   // 跳过本轮 PID 和速度决策
+                        }
                     }
 
                     float groy_z = get_gyro_z();

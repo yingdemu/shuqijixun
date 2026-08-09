@@ -324,7 +324,7 @@ float get_weight_position(uint8 *center_line, uint8 is_straight)
     float weight_total = 0.0f;
 
     int16 i;
-    for(i = 0; i < IMG_H; i++)
+    for(i = RING_FAR_ROW; i < IMG_H; i++)
     {
         if(center_line_valid[i] == 1)
         {

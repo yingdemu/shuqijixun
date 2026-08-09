@@ -976,11 +976,11 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
 
     // ---- 3.5 记录中线有效性（在插值填充之前，只统计八邻域真实找到边界点的行） ----
     // center_line_valid 用于 get_weight_position()，只对真实边界点赋权重
-    // 如果左右边界同时贴在边框上（left=1, right=IMG_W-2），说明两边都沿黑框爬，无有效赛道信息 → 也标记无效
+    // 若左边界 > 3（不在黑框上）或右边界 < IMG_W-4（不在黑框上），说明至少一侧有真实赛道边界 → 标记有效
     for(i = 0; i < IMG_H; i++)
     {
-        uint8 left_ok  = (left_boundary[i] != 0xFF && left_boundary[i] > 1);
-        uint8 right_ok = (right_boundary[i] != 0xFF && right_boundary[i] < IMG_W - 2);
+        uint8 left_ok  = (left_boundary[i] != 0xFF && left_boundary[i] > 3);
+        uint8 right_ok = (right_boundary[i] != 0xFF && right_boundary[i] < IMG_W - 4);
         center_line_valid[i] = (left_ok || right_ok) ? 1 : 0;                   // 至少一侧有真实边界才算有效
     }
 
