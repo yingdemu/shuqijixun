@@ -83,7 +83,7 @@
 #define STRAIGHT_RECOVERY_TICKS   (80)                                            // 直道恢复计时（80×5ms=0.4s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (180)                                           // 弯道第二阶段
-#define DUTY_LOWPASS              (0.5f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
+#define DUTY_LOWPASS              (1.0f)                                          // 电机占空比低通（1.0=无滤波）
 
 // ==================== 主函数 ====================
 
@@ -632,11 +632,22 @@ void pit_handler (void)
     if(zebra_cooldown > 0) zebra_cooldown--;                                        // 斑马线冷却计时（5ms/次）
 
     // ---- 电机速度 PID（固定5ms周期，不受摄像头帧率影响） ----
-    // 使用编码器低通滤波值 encoder_speed_filt_1/2 替代原始脉冲数，减少量化噪声
     if(g_motor_run)
     {
         float L_duty = speed_pid_set(0, g_target_L, encoder_speed_filt_1);
         float R_duty = speed_pid_set(1, g_target_R, encoder_speed_filt_2);
+
+        // ---- PID 调试串口输出（每2次PID打印一次，100Hz） ----
+//        {
+//            static uint16 dbg_cnt = 0;
+//            if(dbg_cnt % 2 == 0)
+//            {
+//                printf("%d,%.1f,%.1f,%.1f,%.1f\r\n",
+//                              dbg_cnt, encoder_speed_filt_1, L_duty,
+//                              encoder_speed_filt_2, R_duty);
+//            }
+//            dbg_cnt++;
+//        }
 
         // 占空比低通滤波
         {

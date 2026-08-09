@@ -46,10 +46,10 @@ float IMU_kp_b =0.0f;
 float IMU_kd =1.06f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 
-float speed_kp = 0.7f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
-float speed_ki = 0.15f;                                                           // 速度I（稳态误差消除）
-float speed_kd = 0.10f;                                                            // 速度D
-float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
+float speed_kp = 0.50f;                                                           // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+float speed_ki = 0.05f;                                                           // 速度I（稳态误差消除）
+float speed_kd = 0.30f;                                                            // 速度D
+float speed_lowpass = 0.5f;                                                       // speed低通滤波系数（默认 0.5）
 
 // float speed_kp = 0.1885f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
 // float speed_ki = 0.0196f;                                                           // 速度I（稳态误差消除）
@@ -885,23 +885,32 @@ void menu_image_display_process(void)
                                1);                         // 二值化阈值=1
 
         // ---- 在二值化图像上叠加赛道中线 + 左右边界 ----
-        // 坐标从图像坐标系(141×90)映射到显示坐标系(240×100)
+        // 坐标从图像坐标系(IMG_W×IMG_H)映射到显示坐标系(240×100)
+        // 边界保护：防止异常值导致缩放后坐标越界触发 ips200 断言
         for(int16 r = 1; r < IMG_H; r++)
         {
             uint16 y1 = (r - 1) * 100 / IMG_H;
             uint16 y2 = r * 100 / IMG_H;
 
+            // clamp 到 IMG_W-1 防止缩放越界
+            uint16 cl_prev = (center_line[r - 1] >= IMG_W) ? (IMG_W - 1) : center_line[r - 1];
+            uint16 cl_curr = (center_line[r]     >= IMG_W) ? (IMG_W - 1) : center_line[r];
+            uint16 lb_prev = (left_boundary[r - 1] >= IMG_W) ? (IMG_W - 1) : left_boundary[r - 1];
+            uint16 lb_curr = (left_boundary[r]     >= IMG_W) ? (IMG_W - 1) : left_boundary[r];
+            uint16 rb_prev = (right_boundary[r - 1] >= IMG_W) ? (IMG_W - 1) : right_boundary[r - 1];
+            uint16 rb_curr = (right_boundary[r]     >= IMG_W) ? (IMG_W - 1) : right_boundary[r];
+
             // 中线（红色）
-            ips200_draw_line(center_line[r - 1] * 240 / IMG_W, y1,
-                             center_line[r] * 240 / IMG_W,     y2, RGB565_RED);
+            ips200_draw_line(cl_prev * 240 / IMG_W, y1,
+                             cl_curr * 240 / IMG_W, y2, RGB565_RED);
 
             // 左边界（蓝色）
-            ips200_draw_line(left_boundary[r - 1] * 240 / IMG_W, y1,
-                             left_boundary[r] * 240 / IMG_W,     y2, RGB565_BLUE);
+            ips200_draw_line(lb_prev * 240 / IMG_W, y1,
+                             lb_curr * 240 / IMG_W, y2, RGB565_BLUE);
 
             // 右边界（绿色）
-            ips200_draw_line(right_boundary[r - 1] * 240 / IMG_W, y1,
-                             right_boundary[r] * 240 / IMG_W,     y2, RGB565_GREEN);
+            ips200_draw_line(rb_prev * 240 / IMG_W, y1,
+                             rb_curr * 240 / IMG_W, y2, RGB565_GREEN);
         }
 
         // ---- 画圆环检测行标记线（白色/黄色虚线效果，4px线段+4px间隔） ----
