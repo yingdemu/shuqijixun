@@ -66,6 +66,7 @@ float v_max_straight_start = 160.0f;                                            
 float v_max_turn_cancel = 160.0f;        //                                            // 弯道超时目标速度（编码器单位）
 float v_max_turn = 135.0f;                                                        // 弯道基础速度（编码器单位）
 float v_max_turn_start = 125.0f;         //                                              // 弯道开始时减速速度（编码器单位）
+float v_warning = 80.0f;                                                              // 中端黑点警告速度（快出界时降到此速度）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 25;                                                             //电机占空比
@@ -903,15 +904,16 @@ void menu_image_display_process(void)
                              right_boundary[r] * 240 / IMG_W,     y2, RGB565_GREEN);
         }
 
-        // ---- 画圆环检测行标记线（白色虚线效果，4px线段+4px间隔） ----
-        // 远端检测行 = RING_FAR_ROW(30)，映射到显示坐标 y = 30*100/IMG_H
+        // ---- 画圆环检测行标记线（白色/黄色虚线效果，4px线段+4px间隔） ----
         {
             uint16 y_f = (uint16)RING_FAR_ROW * 100 / IMG_H;                  // 远端检测行显示Y
+            uint16 y_m = (uint16)RING_MID_ROW * 100 / IMG_H;                  // 中端警告行显示Y
             uint16 y_r = (uint16)RING_NEAR_ROW * 100 / IMG_H;                   // 近端检测行显示Y
             // 画虚线（每8px画一段）
             for(uint16 x = 0; x < 240; x += 12)
             {
                 ips200_draw_line(x, y_f, (x + 4 < 240) ? x + 4 : 239, y_f, RGB565_WHITE);
+                ips200_draw_line(x, y_m, (x + 4 < 240) ? x + 4 : 239, y_m, RGB565_YELLOW);
                 ips200_draw_line(x, y_r, (x + 4 < 240) ? x + 4 : 239, y_r, RGB565_WHITE);
             }
         }

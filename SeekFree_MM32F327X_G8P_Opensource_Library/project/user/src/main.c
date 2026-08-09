@@ -495,6 +495,12 @@ int main(void)
                         }
                     }
 
+                    // 中端警告：如果中心列在中端行处为黑，说明即将出界，强制降速
+                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
+                    {
+                        if(v_target > v_warning) v_target = v_warning;
+                    }
+
                     // 速度目标低通滤波：只在直道稳定时和弯道后期启用
                     // 直→弯跳变时强制重置滤波，确保降速无滞后
                     // 弯道第一阶段（降速到speed_min）跳过滤波，实现快速降速
@@ -542,33 +548,44 @@ int main(void)
                         }
                     }
 
-                    // 阿克曼差速系数：直道/弯道分开计算
+                    // 阿克曼差速系数：直道 / 弯道第一阶段 / 弯道后期 三档独立
                     {
                         float raw_gain;
                         float abs_angle = (final_servo > 0.0f) ? final_servo : -final_servo;
 
-                        if(is_straight)
+                        // 增益状态编码：0=直道, 1=弯道第一阶段, 2=弯道后期
+                        uint8 gain_state = is_straight ? 0
+                                         : (turn_timer_cnt < TURN_TIMER_THRESH1 ? 1 : 2);
+
+                        if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
                             float gain_angle = 0.0f + 0.01f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
                             float gain_speed = 0.0f + 0.007f * v_target;
                             raw_gain = 0.3f * gain_angle + 0.7f * gain_speed;
                         }
-                        else
+                        else if(gain_state == 1)
                         {
-                            // ---- 弯道：大差速，以舵角为主，增强过弯能力 ----
+                            // ---- 弯道第一阶段：最大差速，以舵角为主，快速入弯 ----
                             float gain_angle = 0.0f + 0.013f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
                             float gain_speed = 0.5f + 0.03f * v_target;
                             raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
+                        }
+                        else // gain_state == 2
+                        {
+                            // ---- 弯道后期：适度差速，平衡过弯与速度 ----
+                            float gain_angle = 0.0f + 0.010f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
+                            float gain_speed = 0.3f + 0.025f * v_target;
+                            raw_gain = 0.5f * gain_angle + 0.5f * gain_speed;
                         }
 
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;
-                        static uint8 prev_is_straight_gain = 1;
-                        // 直↔弯切换时重置滤波
-                        if(prev_is_straight_gain != is_straight) gain_init = 1;
-                        prev_is_straight_gain = is_straight;
+                        static uint8 prev_gain_state = 0;
+                        // 增益状态切换时重置滤波
+                        if(prev_gain_state != gain_state) gain_init = 1;
+                        prev_gain_state = gain_state;
 
                         if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
                         else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }
