@@ -80,10 +80,11 @@
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (80)                                            // 直道恢复计时（80×5ms=0.4s）
-#define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
-#define TURN_TIMER_THRESH2        (180)                                           // 弯道第二阶段
+#define STRAIGHT_RECOVERY_TICKS   (40)                                            // 直道恢复计时（80×5ms=0.4s）
+#define TURN_TIMER_THRESH1        (40)                                            // 弯道第一阶段
+#define TURN_TIMER_THRESH2        (185)                                           // 弯道第二阶段
 #define DUTY_LOWPASS              (1.0f)                                          // 电机占空比低通（1.0=无滤波）
+#define CURVE_LOCK_TICKS          (100)                                           // 弯道锁定计时（100×5ms=0.5s），0.5s内不能变直道
 
 // ==================== 主函数 ====================
 
@@ -219,12 +220,18 @@ int main(void)
                         break;
                     }
                 }
-                // // 图像环误差过大（大弯姿态）→ 强制判为弯道
-                // if(is_straight2)
-                // {
-                //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-                //     if(abs_err > 20.0f) is_straight2 = 0;
-                // }
+                // 图像环误差过大（大弯姿态）→ 强制判为弯道
+                if(is_straight2)
+                {
+                    float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+                    if(abs_err > 20.0f) is_straight2 = 0;
+                }
+
+                // 弯道锁定：入弯后0.5s内禁止切回直道
+                if(is_straight2 && turn_timer_cnt > 0 && turn_timer_cnt < CURVE_LOCK_TICKS)
+                {
+                    is_straight2 = 0;
+                }
             }
 
             float weight_position2 = get_weight_position(center_line, is_straight2);
@@ -336,12 +343,18 @@ int main(void)
                                 break;
                             }
                         }
-                        // // 图像环误差过大（大弯姿态）→ 强制判为弯道
-                        // if(is_straight)
-                        // {
-                        //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-                        //     if(abs_err > 20.0f) is_straight = 0;
-                        // }
+                        // 图像环误差过大（大弯姿态）→ 强制判为弯道
+                        if(is_straight)
+                        {
+                            float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+                            if(abs_err > 20.0f) is_straight = 0;
+                        }
+
+                        // 弯道锁定：入弯后0.5s内禁止切回直道，防止直道/弯道快速来回切换
+                        if(is_straight && turn_timer_cnt > 0 && turn_timer_cnt < CURVE_LOCK_TICKS)
+                        {
+                            is_straight = 0;
+                        }
                     }
 
                     // 直→弯转换校验：上一帧直道但本帧非直道时，需确认边界确实偏移
@@ -562,7 +575,7 @@ int main(void)
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
                             float gain_angle = 0.0f + 0.01f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
                             float gain_speed = 0.0f + 0.007f * v_target;
-                            raw_gain = 0.3f * gain_angle + 0.7f * gain_speed;
+                            raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
                         }
                         else if(gain_state == 1)
                         {

@@ -424,8 +424,11 @@ static float image_kp=0;
 float image_pid_set(float target,float actual)
 {
     static uint8 first = 1;
+    static float image_out_prev = 0.0f;
+    #define IMAGE_OUT_RATE_LIMIT 100.0f  // 帧间输出变化率限制，防止 D 项导致符号翻转
+
     image_pid_error = target - actual;
-    if(first) { image_pid_outp = image_pid_error; first = 0; return 0.0f; }  // 首帧跳过D项防尖峰
+    if(first) { image_pid_outp = image_pid_error; image_out_prev = 0.0f; first = 0; return 0.0f; }  // 首帧跳过D项防尖峰
     image_pid_outd = (image_pid_error - image_pid_outp)*image_lowpass+image_pid_outd*(1-image_lowpass);
     image_pid_outp = image_pid_error;
     image_kp=image_kp_a + (image_pid_error*image_pid_error)*image_kp_b;
@@ -433,7 +436,16 @@ float image_pid_set(float target,float actual)
         float abs_img_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
         if(abs_img_err < 12.0f) image_kp = image_kp_a;
     }
-    return (-(image_kp*image_pid_outp + image_kd*image_pid_outd ));
+
+    float raw_out = -(image_kp*image_pid_outp + image_kd*image_pid_outd);
+
+    // 帧间变化率限制：防止 D 项尖峰导致符号翻转（如右弯突然输出左转指令）
+    float diff = raw_out - image_out_prev;
+    if(diff > IMAGE_OUT_RATE_LIMIT)       raw_out = image_out_prev + IMAGE_OUT_RATE_LIMIT;
+    else if(diff < -IMAGE_OUT_RATE_LIMIT) raw_out = image_out_prev - IMAGE_OUT_RATE_LIMIT;
+    image_out_prev = raw_out;
+
+    return raw_out;
 }
 
 // ---- IMU PID：角速度闭环 → 舵机打角 ----
