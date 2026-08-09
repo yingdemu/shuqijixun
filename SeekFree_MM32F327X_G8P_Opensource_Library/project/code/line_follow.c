@@ -324,7 +324,7 @@ float get_weight_position(uint8 *center_line, uint8 is_straight)
     float weight_total = 0.0f;
 
     int16 i;
-    for(i = RING_FAR_ROW; i < IMG_H; i++)
+    for(i = RING_FAR_ROW; i < IMG_H-5; i++)
     {
         if(center_line_valid[i] == 1)
         {
@@ -337,7 +337,7 @@ float get_weight_position(uint8 *center_line, uint8 is_straight)
     if(weight_total > 0.0f)
         raw_pos = weighted_sum / weight_total;
     else
-        raw_pos = 0.0f;
+        raw_pos = (float)(IMG_W / 2);   // 中线全不可用时返回图像中心
 
     // 一阶低通滤波：滤除中线位置的帧间抖动
     #define POS_LOWPASS 0.3f

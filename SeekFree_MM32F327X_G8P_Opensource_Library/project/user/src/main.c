@@ -423,15 +423,20 @@ int main(void)
                         }
                     }
 
-                    // 中线全部无效（全白/全黑）→ 保持上一帧舵角，避免误判导致乱转
+                    // 中线全部无效 → 按上一帧pos方向硬打角脱困
+                    static float prev_weight_position = (float)(IMG_W / 2);
                     {
+                        if(g_main_need_reset) prev_weight_position = (float)(IMG_W / 2);
                         uint8 valid_cnt = 0;
                         int16 vi;
                         for(vi = 0; vi < IMG_H; vi++)
                             if(center_line_valid[vi] == 1) valid_cnt++;
                         if(valid_cnt == 0)
                         {
-                            servo_set_angle(prev_servo_angle);
+                            if(prev_weight_position >= IMG_W / 2)
+                                servo_set_angle(12.0f);
+                            else
+                                servo_set_angle(-12.0f);
                             continue;                                                   // 跳过本轮 PID 和速度决策
                         }
                     }
@@ -660,6 +665,8 @@ int main(void)
                     g_target_L = zebra_stop_flag ? 0.0f : target_L;
                     g_target_R = zebra_stop_flag ? 0.0f : target_R;
                     g_motor_run = 1;
+                    // 保存本帧有效 pos，供下帧中线全无效时判断硬打角方向
+                    prev_weight_position = weight_position;
                     g_main_need_reset = 0;                                              // 首帧结束，清除重置标志
 
                     // // 蓝牙发送
