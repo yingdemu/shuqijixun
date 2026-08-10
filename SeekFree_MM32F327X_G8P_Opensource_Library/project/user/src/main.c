@@ -73,17 +73,17 @@
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
-#define SERVO_LOWPASS            (0.7f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
-#define SERVO_CLIP_MAX            (12.0f)                                         // 舵机限幅上界
-#define SERVO_CLIP_MIN            (-12.0f)                                        // 舵机限幅下界
+#define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
+#define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
+#define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
+#define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
-#define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (80)                                            // 直道恢复计时（120×5ms=0.6s）
+#define TURN_FUSION_ALPHA         (0.1f)                                         // 弯道 servo_fusion_alpha
+#define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（120×5ms=0.6s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
-#define TURN_TIMER_THRESH2        (180)                                           // 弯道第二阶段
-#define DUTY_LOWPASS              (0.5f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
+#define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
+#define DUTY_LOWPASS              (0.2f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
 
 #define CURVE_LOCK_TICKS          (100)                                           // 弯道锁定计时（100×5ms=0.5s），0.5s内不能变直道
 
@@ -625,23 +625,17 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            float gain_angle = 0.0f + 0.01f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
-                            float gain_speed = 0.0f + 0.007f * actual_speed;
-                            raw_gain = 0.3f * gain_angle + 0.7f * gain_speed;
+                            raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);;
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            float gain_angle = 0.0f + 0.013f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
-                            float gain_speed = 0.5f + 0.03f * v_target;
-                            raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
+                            raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);;
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            float gain_angle = 0.0f + 0.013f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
-                            float gain_speed = 0.5f + 0.03f * actual_speed;
-                            raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
+                            raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);;
                         }
 
                         // 中端警告时增大差速，增强修正能力防止出界
