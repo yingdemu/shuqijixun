@@ -77,7 +77,7 @@
 #define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
-#define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
+#define SERVO_RATE_LIMIT          (12.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.1f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（120×5ms=0.6s）
@@ -210,8 +210,11 @@ int main(void)
         {
             menu_image_display_process();
 
-            // 直道/弯道判别：中心列扫描 + 滞回滤波
-            uint8 is_straight2 = 1;
+            // 直道/弯道判别：中心列扫描 + 滞回滤波（与正常模式一致）
+            // 直→弯敏感（≥2黑点+2帧确认），弯→直迟钝（全白+15帧确认）
+            static uint8 is_straight2_state = 1;
+            static uint8 curve_frames2 = 0;
+            static uint8 straight_frames2 = 0;
             {
                 uint8 col = IMG_W / 2;
                 uint8 r;
@@ -221,10 +224,38 @@ int main(void)
                     if(binary_image[r][col] == BLACK)
                         black_cnt++;
                 }
-                // 图像显示模式用简化滞回：≥3个黑点判弯道，否则判直道
-                if(black_cnt >= 3)
-                    is_straight2 = 0;
+
+                if(black_cnt >= 2)      { curve_frames2++;    straight_frames2 = 0; }
+                else if(black_cnt == 0) { straight_frames2++; curve_frames2 = 0;    }
+                else                    { /* 1个黑点：保持当前状态，两边都不累计 */ }
+
+                // 边界丢线辅助判弯：远端行左右都丢 + 至少一侧连续丢到底 → 直接判弯道
+                {
+                    uint8 far_left_lost  = (left_boundary[RING_FAR_ROW] <= 2);
+                    uint8 far_right_lost = (right_boundary[RING_FAR_ROW] >= IMG_W - 3);
+                    if(far_left_lost && far_right_lost)
+                    {
+                        uint8 left_all_lost  = 1;
+                        uint8 right_all_lost = 1;
+                        uint8 rr;
+                        for(rr = RING_FAR_ROW; rr <= IMG_H - 3; rr++)
+                        {
+                            if(left_boundary[rr] > 2)        left_all_lost  = 0;
+                            if(right_boundary[rr] < IMG_W - 3) right_all_lost = 0;
+                            if(!left_all_lost && !right_all_lost) break;
+                        }
+                        if(left_all_lost || right_all_lost)
+                        {
+                            curve_frames2++;
+                            straight_frames2 = 0;
+                        }
+                    }
+                }
+
+                if(curve_frames2 >= 2)        is_straight2_state = 0;
+                else if(straight_frames2 >= 15) is_straight2_state = 1;
             }
+            uint8 is_straight2 = is_straight2_state;
 
             float weight_position2 = get_weight_position(center_line, is_straight2);
 
@@ -375,7 +406,7 @@ int main(void)
                         }
 
                         if(curve_frames >= 2)       is_straight_state = 0;
-                        else if(straight_frames >= 4) is_straight_state = 1;
+                        else if(straight_frames >= 15) is_straight_state = 1;
                     }
                     uint8 is_straight = is_straight_state;
 
@@ -447,6 +478,29 @@ int main(void)
                         }
                     }
 
+                    // 中端警告：中心列RING_MID_ROW处为黑 → 即将出界，硬脱困
+                    // 跳过 PID / 阿克曼，直接设舵机+差速目标
+                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
+                    {
+                        if(weight_position > IMG_W / 2)
+                        {
+                            servo_set_angle(12.0f);
+                            prev_servo_angle = 12.0f;
+                            g_target_L = 100.0f;
+                            g_target_R = 0.0f;
+                        }
+                        else
+                        {
+                            servo_set_angle(-12.0f);
+                            prev_servo_angle = -12.0f;
+                            g_target_L = 0.0f;
+                            g_target_R = 100.0f;
+                        }
+                        g_motor_run = 1;
+                        g_main_need_reset = 0;
+                        continue;
+                    }
+
                     // 中线全部无效 → 按上一帧pos方向硬打角脱困
                     static float prev_weight_position = (float)(IMG_W / 2);
                     {
@@ -485,13 +539,16 @@ int main(void)
 
                     // 弯道时对舵机打角互补滤波，减少抖动
                     // 直→弯跳变时重置滤波，避免前一个弯的残留污染新弯
+                    // 丢线侧翻转时也重置，避免旧方向滤波记忆污染新方向
+                    static uint8 servo_filt_flip_reset = 0;
                     {
                         static float servo_filt = 0.0f;
                         static uint8 last_was_straight = 1;
-                        if(g_main_need_reset) { servo_filt = 0.0f; last_was_straight = 1; }
+                        if(g_main_need_reset) { servo_filt = 0.0f; last_was_straight = 1; servo_filt_flip_reset = 0; }
                         if(!is_straight)
                         {
                             if(last_was_straight) servo_filt = final_servo;          // 刚入弯：重置
+                            else if(servo_filt_flip_reset) { servo_filt = final_servo; servo_filt_flip_reset = 0; }
                             else servo_filt = SERVO_LOWPASS * final_servo + (1.0f - SERVO_LOWPASS) * servo_filt;
                             final_servo = servo_filt;
                         }
@@ -536,10 +593,16 @@ int main(void)
 
                         if(straight_rec_cnt > 0){
                             v_target = v_max_straight_start;
-}
+                        }
                         else{
-
-                            v_target = v_max_straight;}
+                            // 直道第二阶段：必须 RING_FAR_ROW 行左右边界都不丢线
+                            uint8 far_left_ok  = (left_boundary[RING_FAR_ROW] > 2);
+                            uint8 far_right_ok = (right_boundary[RING_FAR_ROW] < IMG_W - 3);
+                            if(far_left_ok && far_right_ok)
+                                v_target = v_max_straight;
+                            else
+                                v_target = v_max_straight_start;
+                        }
                     }
                     else
                     {
@@ -560,6 +623,7 @@ int main(void)
                                && lost_side != prev_lost_side)
                             {
                                 turn_timer_cnt = 0;                // 丢线侧翻转→直接进入弯道第二阶段
+                                servo_filt_flip_reset = 1;         // 下帧重置舵机滤波，避免旧方向记忆污染
                             }
                             if(lost_side != 0) prev_lost_side = lost_side;
                         }
@@ -578,12 +642,6 @@ int main(void)
                             v_target = v_max_turn_cancel;
 
                         }
-                    }
-
-                    // 中端警告：如果中心列在中端行处为黑，说明即将出界，强制降速
-                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
-                    {
-                        if(v_target > v_warning) v_target = v_warning;
                     }
 
                     // 速度目标低通滤波
@@ -648,22 +706,18 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain =(   0.0f + 0.22f * (abs(final_servo) - 3.0f)  ) * 1.0f ;
+                            raw_gain =(   0.0f + 0.22f * (abs(final_servo) - 3.0f)  ) * 0.65f ;
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = (   0.0f + 0.22f * (abs(final_servo) - 3.0f)  ) * 1.0f;
+                            raw_gain = (   0.0f + 0.22f * (abs(final_servo) - 3.0f)  ) * 0.65f;
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = (   0.0f + 0.22f * (abs(final_servo) - 3.0f)  ) * 1.0f;
+                            raw_gain = (   0.0f + 0.22f * (abs(final_servo) - 3.0f)  ) * 0.65f;
                         }
-
-                        // 中端警告时增大差速，增强修正能力防止出界
-                        if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
-                            raw_gain *= 1.3f;
 
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
