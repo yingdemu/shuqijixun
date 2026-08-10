@@ -80,7 +80,7 @@
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (120)                                            // 直道恢复计时（120×5ms=0.6s）
+#define STRAIGHT_RECOVERY_TICKS   (80)                                            // 直道恢复计时（120×5ms=0.6s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (180)                                           // 弯道第二阶段
 #define DUTY_LOWPASS              (0.5f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
@@ -410,6 +410,7 @@ int main(void)
                             {
                                 servo_set_angle(12.0f);
                                 prev_servo_angle = 12.0f;
+                                g_main_need_reset = 0;
                                 continue;
                             }
                             // 左侧第5列不全黑 + 右侧IMG_W-6列全黑 → 左转
@@ -417,6 +418,7 @@ int main(void)
                             {
                                 servo_set_angle(-12.0f);
                                 prev_servo_angle = -12.0f;
+                                g_main_need_reset = 0;
                                 continue;
                             }
                         }
@@ -436,6 +438,7 @@ int main(void)
                                 servo_set_angle(12.0f);
                             else
                                 servo_set_angle(-12.0f);
+                            g_main_need_reset = 0;
                             continue;                                                   // 跳过本轮 PID 和速度决策
                         }
                     }
@@ -533,7 +536,7 @@ int main(void)
                             if(prev_lost_side != 0 && lost_side != 0
                                && lost_side != prev_lost_side)
                             {
-                                turn_timer_cnt = 0;                                // 丢线侧翻转→重新计时
+                                turn_timer_cnt = 0;                // 丢线侧翻转→直接进入弯道第二阶段
                             }
                             if(lost_side != 0) prev_lost_side = lost_side;
                         }
@@ -617,11 +620,13 @@ int main(void)
                         uint8 gain_state = is_straight ? 0
                                          : (turn_timer_cnt < TURN_TIMER_THRESH1 ? 1 : 2);
 
+                        float actual_speed = (encoder_speed_filt_1 + encoder_speed_filt_2) / 2.0f;
+
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
                             float gain_angle = 0.0f + 0.01f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
-                            float gain_speed = 0.0f + 0.007f * v_target;
+                            float gain_speed = 0.0f + 0.007f * actual_speed;
                             raw_gain = 0.3f * gain_angle + 0.7f * gain_speed;
                         }
                         else if(gain_state == 1)
@@ -635,7 +640,7 @@ int main(void)
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
                             float gain_angle = 0.0f + 0.013f * (abs_angle - 3.0f) * (abs_angle - 3.0f);
-                            float gain_speed = 0.5f + 0.03f * v_target;
+                            float gain_speed = 0.5f + 0.03f * actual_speed;
                             raw_gain = 0.7f * gain_angle + 0.3f * gain_speed;
                         }
 
@@ -646,11 +651,7 @@ int main(void)
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;
-                        static uint8 prev_gain_state = 0;
-                        if(g_main_need_reset) { filt_gain = 0.0f; gain_init = 1; prev_gain_state = 0; }
-                        // 直→弯 / 弯道阶段变化时重置滤波（快速响应），弯→直不重置（平滑过渡）
-                        if(prev_gain_state != gain_state && gain_state != 0) gain_init = 1;
-                        prev_gain_state = gain_state;
+                        if(g_main_need_reset) { filt_gain = 0.0f; gain_init = 1; }
 
                         if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
                         else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }

@@ -974,103 +974,57 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 3.5 记录中线有效性（在插值填充之前，只统计八邻域真实找到边界点的行） ----
-    // center_line_valid 用于 get_weight_position()，只对真实边界点赋权重
-    // 若左边界 > 3（不在黑框上）或右边界 < IMG_W-4（不在黑框上），说明至少一侧有真实赛道边界 → 标记有效
+    // ---- 4. 八邻域未爬到的行：用中心列扫描重新查找边界（最长白列法） ----
+    // 不再使用上下行插值，改为从IMG_W/2向两侧找白黑跳变点
     for(i = 0; i < IMG_H; i++)
     {
-        uint8 left_ok  = (left_boundary[i] != 0xFF && left_boundary[i] > 3);
-        uint8 right_ok = (right_boundary[i] != 0xFF && right_boundary[i] < IMG_W - 4);
-        center_line_valid[i] = (left_ok || right_ok) ? 1 : 0;                   // 至少一侧有真实边界才算有效
-    }
-
-    // ---- 4. 对于没有边界点的行，用最近的有效行插值填充 ----
-    // 4.1 从下往上填充左边界空缺（用下方最近的有效值）
-    {
-        uint8 last_valid = 0;                                                   // 上一个有效值
-        uint8 has_valid = 0;                                                    // 是否已遇到有效值
-        for(i = IMG_H - 1; i >= 0; i--)
+        // 左边界缺失 → 从IMG_W/2向左扫描找白→黑跳变
+        if(left_boundary[i] == 0xFF)
         {
-            if(left_boundary[i] != 0xFF)
+            int16 c;
+            for(c = IMG_W / 2; c > 0; c--)
             {
-                last_valid = left_boundary[i];
-                has_valid = 1;
+                if(image[i][c - 1] == BLACK && image[i][c] == WHITE)
+                {
+                    left_boundary[i] = (uint8)(c - 1);
+                    break;
+                }
             }
-            else if(has_valid)
-            {
-                left_boundary[i] = last_valid;                                  // 用下方有效值填充
-            }
+            if(left_boundary[i] == 0xFF)
+                left_boundary[i] = 0;                                           // 未找到 → 默认最左边
         }
-    }
 
-    // 4.2 从上往下填充左边界空缺（用上方最近的有效值）
-    {
-        uint8 last_valid = 0;
-        uint8 has_valid = 0;
-        for(i = 0; i < IMG_H; i++)
+        // 右边界缺失 → 从IMG_W/2向右扫描找白→黑跳变
+        if(right_boundary[i] == 0xFF)
         {
-            if(left_boundary[i] != 0xFF)
+            int16 c;
+            for(c = IMG_W / 2; c < IMG_W - 1; c++)
             {
-                last_valid = left_boundary[i];
-                has_valid = 1;
+                if(image[i][c] == WHITE && image[i][c + 1] == BLACK)
+                {
+                    right_boundary[i] = (uint8)(c + 1);
+                    break;
+                }
             }
-            else if(has_valid)
-            {
-                left_boundary[i] = last_valid;                                  // 用上方有效值填充
-            }
-            else
-            {
-                left_boundary[i] = 0;                                           // 顶部无有效值 → 默认最左边
-            }
-        }
-    }
-
-    // 4.3 从下往上填充右边界空缺
-    {
-        uint8 last_valid = IMG_W - 1;
-        uint8 has_valid = 0;
-        for(i = IMG_H - 1; i >= 0; i--)
-        {
-            if(right_boundary[i] != 0xFF)
-            {
-                last_valid = right_boundary[i];
-                has_valid = 1;
-            }
-            else if(has_valid)
-            {
-                right_boundary[i] = last_valid;
-            }
-        }
-    }
-
-    // 4.4 从上往下填充右边界空缺
-    {
-        uint8 last_valid = IMG_W - 1;
-        uint8 has_valid = 0;
-        for(i = 0; i < IMG_H; i++)
-        {
-            if(right_boundary[i] != 0xFF)
-            {
-                last_valid = right_boundary[i];
-                has_valid = 1;
-            }
-            else if(has_valid)
-            {
-                right_boundary[i] = last_valid;
-            }
-            else
-            {
-                right_boundary[i] = IMG_W - 1;                                  // 顶部无有效值 → 默认最右边
-            }
+            if(right_boundary[i] == 0xFF)
+                right_boundary[i] = IMG_W - 1;                                  // 未找到 → 默认最右边
         }
     }
 
 
-    // ---- 4.6 记录边界有效性（在插值填充之后，只看最终列坐标） ----
-    // 插值后 left_boundary/right_boundary 不再有 0xFF，所有行都有值
-    // 如果最终值在左右边框上(col<=1 或 col>=IMG_W-2)，说明八邻域没找到真实边界，
-    // 要么沿黑框爬到了边，要么完全没有边界点被插值填为默认0/IMG_W-1
-    // 如果最终值来自邻居的有效插值(不在边框上)，不应算丢线
+    // ---- 4.5 统一计算中线有效性（所有边界填充完成后一次性判断） ----
+    // 之前分散在 step 3.5 和 step 4 的 center_line_valid 赋值合并到这里
+    // 此时 left_boundary/right_boundary 已无 0xFF，无需额外判断
+    for(i = 0; i < IMG_H; i++)
+    {
+        uint8 left_ok  = (left_boundary[i] > 3);
+        uint8 right_ok = (right_boundary[i] < IMG_W - 4);
+        center_line_valid[i] = (left_ok || right_ok) ? 1 : 0;
+    }
+
+    // ---- 4.6 记录边界有效性（在中心列扫描补齐之后，只看最终列坐标） ----
+    // 中心列扫描后 left_boundary/right_boundary 不再有 0xFF，所有行都有值
+    // 如果在左右边框上(col<=1 或 col>=IMG_W-2)，说明八邻域+中心扫描都没找到真实边界
     for(i = 0; i < IMG_H; i++)
     {
         left_valid[i] = (left_boundary[i] > 1) ? 1 : 0;
