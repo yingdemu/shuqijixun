@@ -46,10 +46,10 @@ float IMU_kp_b =0.0f;
 float IMU_kd =1.06f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 
-float speed_kp = 0.7f;                                                           // 速度P（误差单位=脉冲/5ms，输出=占空比%）
-float speed_ki = 0.15f;                                                           // 速度I（稳态误差消除）
-float speed_kd = 0.10f;                                                            // 速度D
-float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
+float speed_kp = 0.50f;                                                           // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+float speed_ki = 0.05f;                                                           // 速度I（稳态误差消除）
+float speed_kd = 0.30f;                                                            // 速度D
+float speed_lowpass = 0.5f;                                                       // speed低通滤波系数（默认 0.5）
 
 // float speed_kp = 0.1885f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
 // float speed_ki = 0.0196f;                                                           // 速度I（稳态误差消除）

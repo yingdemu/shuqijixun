@@ -352,7 +352,7 @@ int main(void)
                         else                    { /* 1个黑点：保持当前状态，两边都不累计 */ }
 
                         if(curve_frames >= 2)       is_straight_state = 0;
-                        else if(straight_frames >= 4) is_straight_state = 1;
+                        else if(straight_frames >= 20) is_straight_state = 1;
                     }
                     uint8 is_straight = is_straight_state;
 
@@ -422,6 +422,29 @@ int main(void)
                                 continue;
                             }
                         }
+                    }
+
+                    // 中端警告：中心列RING_MID_ROW处为黑 → 即将出界，硬脱困
+                    // 跳过 PID / 阿克曼，直接设舵机+差速目标
+                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
+                    {
+                        if(weight_position > IMG_W / 2)
+                        {
+                            servo_set_angle(12.0f);
+                            prev_servo_angle = 12.0f;
+                            g_target_L = 80.0f;
+                            g_target_R = 0.0f;
+                        }
+                        else
+                        {
+                            servo_set_angle(-12.0f);
+                            prev_servo_angle = -12.0f;
+                            g_target_L = 0.0f;
+                            g_target_R = 80.0f;
+                        }
+                        g_motor_run = 1;
+                        g_main_need_reset = 0;
+                        continue;
                     }
 
                     // 中线全部无效 → 按上一帧pos方向硬打角脱困
@@ -520,8 +543,10 @@ int main(void)
                             uint8 far_right_ok = (right_boundary[RING_FAR_ROW] < IMG_W - 3);
                             if(far_left_ok && far_right_ok)
                                 v_target = v_max_straight;
-                            else
+                            else{
+                                straight_rec_cnt = STRAIGHT_RECOVERY_TICKS;
                                 v_target = v_max_straight_start;
+                            }
                         }
                     }
                     else
@@ -561,12 +586,6 @@ int main(void)
                             v_target = v_max_turn_cancel;
 
                         }
-                    }
-
-                    // 中端警告：如果中心列在中端行处为黑，说明即将出界，强制降速
-                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
-                    {
-                        if(v_target > v_warning) v_target = v_warning;
                     }
 
                     // 速度目标低通滤波
@@ -631,22 +650,18 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);;
+                            raw_gain = (0.0f + 0.22f * (abs(final_servo) - 3.0f)) * 0.8f;;
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);;
+                            raw_gain = (0.0f + 0.22f * (abs(final_servo) - 3.0f)) * 0.6f;;
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);;
+                            raw_gain = (0.0f + 0.22f * (abs(final_servo) - 3.0f)) * 0.4f;;
                         }
-
-                        // 中端警告时增大差速，增强修正能力防止出界
-                        if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
-                            raw_gain *= 1.3f;
 
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
