@@ -1,4 +1,4 @@
-/*********************************************************************************************************************
+﻿/*********************************************************************************************************************
 * MM32F327X-G8P Opensourec Library 即（MM32F327X-G8P 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
@@ -75,12 +75,12 @@
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.7f)                                          // 弯道舵机互补滤波系数
 #define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
-#define SERVO_CLIP_MAX            (10.0f)                                         // 舵机限幅上界
-#define SERVO_CLIP_MIN            (-10.0f)                                        // 舵机限幅下界
+#define SERVO_CLIP_MAX            (12.0f)                                         // 舵机限幅上界
+#define SERVO_CLIP_MIN            (-12.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
-#define STRAIGHT_RECOVERY_TICKS   (80)                                            // 直道恢复计时（80×5ms=0.4s）
+#define STRAIGHT_RECOVERY_TICKS   (120)                                            // 直道恢复计时（120×5ms=0.6s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (180)                                           // 弯道第二阶段
 #define DUTY_LOWPASS              (0.5f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
@@ -210,25 +210,20 @@ int main(void)
         {
             menu_image_display_process();
 
-            // 直道/弯道判别：列扫描 + 图像环误差约束
+            // 直道/弯道判别：中心列扫描 + 滞回滤波
             uint8 is_straight2 = 1;
             {
                 uint8 col = IMG_W / 2;
                 uint8 r;
+                uint8 black_cnt = 0;
                 for(r = RING_FAR_ROW; r <= IMG_H - 3; r++)
                 {
                     if(binary_image[r][col] == BLACK)
-                    {
-                        is_straight2 = 0;
-                        break;
-                    }
+                        black_cnt++;
                 }
-                // // 图像环误差过大（大弯姿态）→ 强制判为弯道
-                // if(is_straight2)
-                // {
-                //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-                //     if(abs_err > 20.0f) is_straight2 = 0;
-                // }
+                // 图像显示模式用简化滞回：≥3个黑点判弯道，否则判直道
+                if(black_cnt >= 3)
+                    is_straight2 = 0;
             }
 
             float weight_position2 = get_weight_position(center_line, is_straight2);
@@ -336,26 +331,30 @@ int main(void)
                 {
                     // 不提前清零 g_motor_run，避免 PIT 中断在图像处理期间误关电机
                     // g_motor_run 只在上方 image_lost 或下方正常路径中被设置
-                    // ---- 直道/弯道判别：列扫描 + 图像环误差约束 ----
-                    uint8 is_straight = 1;
+                    // ---- 直道/弯道判别：中心列扫描 + 滞回滤波 ----
+                    // 直→弯敏感（≥2黑点+2帧确认），弯→直迟钝（全白+4帧确认）
+                    static uint8 is_straight_state = 1;
+                    static uint8 curve_frames = 0;
+                    static uint8 straight_frames = 0;
+                    if(g_main_need_reset) { is_straight_state = 1; curve_frames = 0; straight_frames = 0; }
                     {
                         uint8 col = IMG_W / 2;
                         uint8 r;
+                        uint8 black_cnt = 0;
                         for(r = RING_FAR_ROW; r <= IMG_H - 3; r++)
                         {
                             if(binary_image[r][col] == BLACK)
-                            {
-                                is_straight = 0;
-                                break;
-                            }
+                                black_cnt++;
                         }
-                        // // 图像环误差过大（大弯姿态）→ 强制判为弯道
-                        // if(is_straight)
-                        // {
-                        //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-                        //     if(abs_err > 20.0f) is_straight = 0;
-                        // }
+
+                        if(black_cnt >= 2)      { curve_frames++;    straight_frames = 0; }
+                        else if(black_cnt == 0) { straight_frames++; curve_frames = 0;    }
+                        else                    { /* 1个黑点：保持当前状态，两边都不累计 */ }
+
+                        if(curve_frames >= 2)       is_straight_state = 0;
+                        else if(straight_frames >= 4) is_straight_state = 1;
                     }
+                    uint8 is_straight = is_straight_state;
 
                     // 直→弯转换校验：上一帧直道但本帧非直道时，需确认边界确实偏移
                     //{
@@ -561,9 +560,7 @@ int main(void)
                         if(v_target > v_warning) v_target = v_warning;
                     }
 
-                    // 速度目标低通滤波：只在直道稳定时和弯道后期启用
-                    // 直→弯跳变时强制重置滤波，确保降速无滞后
-                    // 弯道第一阶段（降速到speed_min）跳过滤波，实现快速降速
+                    // 速度目标低通滤波
                     {
                         #define VTARGET_LOWPASS 0.5f
                         static float v_filt = 0.0f;
@@ -571,11 +568,12 @@ int main(void)
                         static uint8 prev_was_straight = 1;
                         if(g_main_need_reset) { v_filt = 0.0f; vf_init = 1; prev_was_straight = 1; }
 
-                        // 直→弯跳变：重置滤波状态，避免高速残留
+                        // 直→弯跳变：重置滤波，确保快速降速
                         if(prev_was_straight && !is_straight)
                             vf_init = 1;
                         prev_was_straight = is_straight;
 
+                        // 弯道第一阶段跳过滤波
                         if(!(!is_straight && turn_timer_cnt < TURN_TIMER_THRESH1))
                         {
                             if(vf_init) { v_filt = v_target; vf_init = 0; }
@@ -650,8 +648,8 @@ int main(void)
                         static uint8 gain_init = 1;
                         static uint8 prev_gain_state = 0;
                         if(g_main_need_reset) { filt_gain = 0.0f; gain_init = 1; prev_gain_state = 0; }
-                        // 增益状态切换时重置滤波
-                        if(prev_gain_state != gain_state) gain_init = 1;
+                        // 直→弯 / 弯道阶段变化时重置滤波（快速响应），弯→直不重置（平滑过渡）
+                        if(prev_gain_state != gain_state && gain_state != 0) gain_init = 1;
                         prev_gain_state = gain_state;
 
                         if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
