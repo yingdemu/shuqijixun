@@ -351,6 +351,29 @@ int main(void)
                         else if(black_cnt == 0) { straight_frames++; curve_frames = 0;    }
                         else                    { /* 1个黑点：保持当前状态，两边都不累计 */ }
 
+                        // 边界丢线辅助判弯：远端行左右都丢 + 至少一侧连续丢到底 → 直接判弯道
+                        {
+                            uint8 far_left_lost  = (left_boundary[RING_FAR_ROW] <= 2);
+                            uint8 far_right_lost = (right_boundary[RING_FAR_ROW] >= IMG_W - 3);
+                            if(far_left_lost && far_right_lost)
+                            {
+                                uint8 left_all_lost  = 1;
+                                uint8 right_all_lost = 1;
+                                uint8 rr;
+                                for(rr = RING_FAR_ROW; rr <= IMG_H - 3; rr++)
+                                {
+                                    if(left_boundary[rr] > 2)        left_all_lost  = 0;
+                                    if(right_boundary[rr] < IMG_W - 3) right_all_lost = 0;
+                                    if(!left_all_lost && !right_all_lost) break;
+                                }
+                                if(left_all_lost || right_all_lost)
+                                {
+                                    curve_frames++;
+                                    straight_frames = 0;
+                                }
+                            }
+                        }
+
                         if(curve_frames >= 2)       is_straight_state = 0;
                         else if(straight_frames >= 4) is_straight_state = 1;
                     }
@@ -625,17 +648,17 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);;
+                            raw_gain =(   0.0f + 0.22f * (abs(final_servo) - 3.0f)  ) * 1.0f ;
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);;
+                            raw_gain = (   0.0f + 0.22f * (abs(final_servo) - 3.0f)  ) * 1.0f;
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.22f * (abs(final_servo) - 3.0f);;
+                            raw_gain = (   0.0f + 0.22f * (abs(final_servo) - 3.0f)  ) * 1.0f;
                         }
 
                         // 中端警告时增大差速，增强修正能力防止出界
@@ -717,7 +740,7 @@ void pit_handler (void)
                 L_duty = L_filt;
                 R_duty = R_filt;
             }
-
+            
             motor_set_duty(L_duty, R_duty);
         }
         else
