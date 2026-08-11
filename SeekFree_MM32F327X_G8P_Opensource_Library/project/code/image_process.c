@@ -68,6 +68,9 @@ ring_state_enum ring_state = RING_S_NONE;                                       
 float ring_error_sum = 0.0f;                                                    // 圆环误差累积和（进环阶段累积，出环阶段使用）
 uint16 ring_error_count = 0;                                                    // 圆环误差累积次数
 
+// ---- 十字路口强制打角（crossroad_fix 输出） ----
+int16 crossroad_forced_angle = 0;
+
 // ---- 圆环检测调试变量 ----
 uint8 ring_dbg_ref_fl = 0;                                                      // 远端甲侧参考边宽
 uint8 ring_dbg_ref_fr = 0;                                                      // 远端乙侧参考边宽
@@ -856,7 +859,7 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
     // 条件2：第2列全白 或 第IMG_W-3列全白（说明至少一侧没有边界线，即进入路口）
     if(!col2_all_white && !colR_all_white) return;
 
-    // ---- 3. 统计左右边界丢线行数 ----
+    // ---- 3. 统计左右边界丢线行数，设置强制打角 ----
     {
         uint16 left_lost  = 0;
         uint16 right_lost = 0;
@@ -869,28 +872,12 @@ void crossroad_fix(uint8 image[IMG_H][IMG_W])
                 right_lost++;
         }
 
-        // ---- 4. 根据丢线情况偏移中线 ----
+        // 左边界丢线多 → 左转-12°；右边界丢线多 → 右转12°
         if(left_lost > right_lost)
-        {
-            // 左边界丢线多 → 中线右移（col增大）
-            for(i = 0; i < IMG_H; i++)
-            {
-                int16 new_col = (int16)center_line[i] - CROSS_SHIFT;
-                if(new_col >= IMG_W) new_col = IMG_W - 1;
-                center_line[i] = (uint8)new_col;
-            }
-        }
+            crossroad_forced_angle = -12;
         else if(right_lost > left_lost)
-        {
-            // 右边界丢线多 → 中线左移（col减小）
-            for(i = 0; i < IMG_H; i++)
-            {
-                int16 new_col = (int16)center_line[i] + CROSS_SHIFT;
-                if(new_col < 0) new_col = 0;
-                center_line[i] = (uint8)new_col;
-            }
-        }
-        // 丢线数相等 → 不处理
+            crossroad_forced_angle = 12;
+        // 丢线数相等 → 不触发（保持上一个值，由调用方在每帧开始时清零）
     }
 }
 
@@ -1484,8 +1471,9 @@ void ring_centerline_extract(void)
 //-------------------------------------------------------------------------------------------------------------------
 void image_process_pipeline(void)
 {
-    // ---- 第1步：清除上次的边界点数据 ----
+    // ---- 第1步：清除上次的边界点数据和强制打角 ----
     clear_edge_data();
+    crossroad_forced_angle = 0;
 
     // ---- 第2步：根据模式计算二值化阈值 ----
     if(threshold_mode)                                                          // 模式1：大津法

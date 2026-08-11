@@ -73,8 +73,8 @@
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
-#define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
+#define SERVO_LOWPASS            (0.1f)                                          // 弯道舵机互补滤波系数
+#define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
@@ -232,6 +232,14 @@ int main(void)
             }
 
             static float prev_wp2 = (float)(IMG_W / 2);
+
+            // ---- 十字路口强制打角（crossroad_fix 输出） ----
+            if(crossroad_forced_angle != 0)
+            {
+                servo_set_angle((float)crossroad_forced_angle);
+                prev_servo_angle = (float)crossroad_forced_angle;
+                continue;
+            }
 
             // ---- 脱困检测1：中心列黑色超1/3 + 单侧列全黑 → 硬打角 ----
             {
@@ -476,6 +484,15 @@ int main(void)
                                         + (1.0f - STRAIGHT_BLEND) * weight_position;
                     }
 
+                    // ---- 十字路口强制打角（crossroad_fix 输出） ----
+                    if(crossroad_forced_angle != 0)
+                    {
+                        servo_set_angle((float)crossroad_forced_angle);
+                        prev_servo_angle = (float)crossroad_forced_angle;
+                        g_main_need_reset = 0;
+                        continue;
+                    }
+
                     // 中心列黑色超1/3 + 单侧列全黑 → 硬打角（十字路口/急弯脱困）
                     {
                         uint16 center_black_cnt = 0;
@@ -670,7 +687,7 @@ int main(void)
                             if(prev_lost_side != 0 && lost_side != 0
                                && lost_side != prev_lost_side)
                             {
-                                turn_timer_cnt = 0;                // 丢线侧翻转→直接进入弯道第二阶段
+                                turn_timer_cnt = TURN_TIMER_THRESH1;                // 丢线侧翻转→直接进入弯道第二阶段
                             }
                             if(lost_side != 0) prev_lost_side = lost_side;
                         }
@@ -759,17 +776,17 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain = 0.0f + 0.015f * (actual_speed);
+                            raw_gain = 0.0f + 0.011f * (actual_speed);
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.011f * (actual_speed);
+                            raw_gain = 0.0f + 0.013f * (actual_speed);
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.008f * (actual_speed);
+                            raw_gain = 0.0f + 0.0015f * (actual_speed);
                         }
 
                         // 中端警告时增大差速，增强修正能力防止出界
