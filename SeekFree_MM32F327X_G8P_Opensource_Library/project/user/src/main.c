@@ -726,11 +726,11 @@ int main(void)
                         }
                     }
 
-                    // 中端警告：如果中心列在中端行处为黑，说明即将出界，强制降速
-                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
-                    {
-                        if(v_target > v_warning) v_target = v_warning;
-                    }
+                    // 中端警告：已禁用（弯道中容易误触发，导致速度骤降）
+                    //if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
+                    //{
+                    //    if(v_target > v_warning) v_target = v_warning;
+                    //}
 
                     // 速度目标低通滤波
                     {
@@ -799,17 +799,17 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain = 0.0f + 0.015f * (actual_speed);
+                            raw_gain = 0.0f + 0.008f * (actual_speed);
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.017f * (actual_speed);
+                            raw_gain = 0.0f + 0.005f * (actual_speed);
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.0019f * (actual_speed);
+                            raw_gain = 0.0f + 0.005f * (actual_speed);
                         }
 
                         // 中端警告时增大差速，增强修正能力防止出界
