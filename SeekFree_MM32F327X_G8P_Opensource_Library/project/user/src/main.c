@@ -651,7 +651,9 @@ int main(void)
 
                     // 0→1跳变检测
                     static uint8 prev_straight = 0;
-                    if(g_main_need_reset) prev_straight = 0;
+                    static float prev_v_target = 0;
+                    static float straight_start_speed = 0.0f;
+                    if(g_main_need_reset) { prev_straight = 0; prev_v_target = 0; straight_start_speed = v_max_straight_start; }
 
                     if(is_straight)
                     {
@@ -660,6 +662,9 @@ int main(void)
 
                         if(!prev_straight){
                             straight_rec_cnt = STRAIGHT_RECOVERY_TICKS;            // ×5ms = 0.2s
+                            straight_start_speed = (prev_v_target > 20.0f)         // 从出弯实际速度起步（上电首帧用默认值）
+                                                        ? prev_v_target
+                                                        : v_max_straight_start;
                         prev_straight = 1;
                         }
 
@@ -671,12 +676,16 @@ int main(void)
                                 straight_rec_cnt = STRAIGHT_RECOVERY_TICKS;
                         }
 
-                        if(straight_rec_cnt > 0){
-                            v_target = v_max_straight_start;
-}
-                        else{
-
-                            v_target = v_max_straight;}
+                        // 直道阶梯升速：从出弯实际速度线性过渡到 v_max_straight
+                        if(straight_rec_cnt > 0)
+                        {
+                            float t = 1.0f - (float)straight_rec_cnt / (float)STRAIGHT_RECOVERY_TICKS;
+                            v_target = straight_start_speed + (v_max_straight - straight_start_speed) * t;
+                        }
+                        else
+                        {
+                            v_target = v_max_straight;
+                        }
                     }
                     else
                     {
@@ -748,6 +757,8 @@ int main(void)
                         }
                     }
 
+                    prev_v_target = v_target;                           // 保存本帧最终速度，供下帧出弯过渡使用
+
                     // 斑马线检测：RING_NEAR_ROW 行 BW 跳变计数，两阶段确认后停车
                     if(zebra_cooldown == 0)
                     {
@@ -788,17 +799,17 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain = 0.0f + 0.011f * (actual_speed);
+                            raw_gain = 0.0f + 0.015f * (actual_speed);
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.013f * (actual_speed);
+                            raw_gain = 0.0f + 0.017f * (actual_speed);
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.0015f * (actual_speed);
+                            raw_gain = 0.0f + 0.0019f * (actual_speed);
                         }
 
                         // 中端警告时增大差速，增强修正能力防止出界
