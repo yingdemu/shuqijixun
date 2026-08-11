@@ -974,57 +974,17 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 4. 八邻域未爬到的行：用中心列扫描重新查找边界（最长白列法） ----
-    // 不再使用上下行插值，改为从IMG_W/2向两侧找白黑跳变点
-    for(i = 0; i < IMG_H; i++)
-    {
-        // 左边界缺失 → 从IMG_W/2向左扫描找白→黑跳变
-        if(left_boundary[i] == 0xFF)
-        {
-            int16 c;
-            for(c = IMG_W / 2; c > 0; c--)
-            {
-                if(image[i][c - 1] == BLACK && image[i][c] == WHITE)
-                {
-                    left_boundary[i] = (uint8)(c - 1);
-                    break;
-                }
-            }
-            if(left_boundary[i] == 0xFF)
-                left_boundary[i] = 0;                                           // 未找到 → 默认最左边
-        }
-
-        // 右边界缺失 → 从IMG_W/2向右扫描找白→黑跳变
-        if(right_boundary[i] == 0xFF)
-        {
-            int16 c;
-            for(c = IMG_W / 2; c < IMG_W - 1; c++)
-            {
-                if(image[i][c] == WHITE && image[i][c + 1] == BLACK)
-                {
-                    right_boundary[i] = (uint8)(c + 1);
-                    break;
-                }
-            }
-            if(right_boundary[i] == 0xFF)
-                right_boundary[i] = IMG_W - 1;                                  // 未找到 → 默认最右边
-        }
-    }
-
-
-    // ---- 4.5 统一计算中线有效性（所有边界填充完成后一次性判断） ----
-    // 之前分散在 step 3.5 和 step 4 的 center_line_valid 赋值合并到这里
-    // 此时 left_boundary/right_boundary 已无 0xFF，无需额外判断
+    // ---- 4. 统一计算中线有效性（基于八邻域爬到的边界点） ----
     for(i = 0; i < IMG_H; i++)
     {
         uint8 left_ok  = (left_boundary[i] > 3);
         uint8 right_ok = (right_boundary[i] < IMG_W - 4);
-        center_line_valid[i] = (left_ok || right_ok) ? 1 : 0;
+        uint8 bound_sane = (right_boundary[i] > left_boundary[i] + 5);
+        center_line_valid[i] = ((left_ok || right_ok) && bound_sane) ? 1 : 0;
     }
 
-    // ---- 4.6 记录边界有效性（在中心列扫描补齐之后，只看最终列坐标） ----
-    // 中心列扫描后 left_boundary/right_boundary 不再有 0xFF，所有行都有值
-    // 如果在左右边框上(col<=1 或 col>=IMG_W-2)，说明八邻域+中心扫描都没找到真实边界
+    // ---- 5. 记录边界有效性（仅看八邻域是否爬到该行） ----
+    // 如果在左右边框上(col<=1 或 col>=IMG_W-2)，说明八邻域没找到该行真实边界
     for(i = 0; i < IMG_H; i++)
     {
         left_valid[i] = (left_boundary[i] > 1) ? 1 : 0;
@@ -1554,86 +1514,6 @@ void image_process_pipeline(void)
     // ---- 第7步：提取赛道中线（得到 left_boundary[] / right_boundary[]） ----
     extract_centerline(binary_image);
 
-    // // ---- 第7.5步：右边界提前丢失补线 ----
-    // // 从IMG_H-2向3找一个有效的右边界点，若其列 < IMG_W/5则补线到(IMG_H-3, IMG_W/2)
-    // {
-    //     int16 r_last = -1;
-    //     int16 i;
-    //     for(i = IMG_H - 2; i >= 3; i--)
-    //     {
-    //         if(right_valid[i])
-    //         {
-    //             r_last = i;
-    //             break;
-    //         }
-    //     }
-    //     if(r_last >= 1 && right_boundary[r_last] < IMG_W / 5)
-    //     {
-    //         int16 c_start = (int16)right_boundary[r_last];
-    //         int16 r_end = IMG_H - 3;
-    //         int16 c_end = IMG_W / 2;
-    //         float k = (float)(c_end - c_start) / (float)(r_end - r_last);
-
-    //         for(i = r_last; i <= r_end && i < IMG_H; i++)
-    //         {
-    //             int16 draw_col = c_start + (int16)((i - r_last) * k);
-    //             if(draw_col > 2 && draw_col < IMG_W - 2)
-    //             {
-    //                 binary_image[i][draw_col] = BLACK;
-    //                 binary_image[i][draw_col - 1] = BLACK;
-    //                 right_boundary[i] = (uint8)draw_col;
-    //             }
-    //         }
-    //         // 重算受影响行的中线
-    //         for(i = r_last; i <= r_end && i < IMG_H; i++)
-    //         {
-    //             if(left_boundary[i] < right_boundary[i])
-    //                 center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
-    //         }
-    //     }
-    // }
-
-    // // ---- 第7.6步：左边界提前丢失补线 ----
-    // // 从IMG_H-2向3找一个有效的左边界点，若其列 > IMG_W*4/5则补线到(IMG_H-3, IMG_W/2)
-    // {
-    //     int16 l_last = -1;
-    //     int16 i;
-    //     for(i = IMG_H - 2; i >= 3; i--)
-    //     {
-    //         if(left_valid[i])
-    //         {
-    //             l_last = i;
-    //             break;
-    //         }
-    //     }
-    //     if(l_last >= 3 && left_boundary[l_last] > IMG_W * 4 / 5)
-    //     {
-    //         int16 c_start = (int16)left_boundary[l_last];
-    //         int16 r_end = IMG_H - 3;
-    //         int16 c_end = IMG_W / 2;
-    //         float k = (float)(c_end - c_start) / (float)(r_end - l_last);
-
-    //         for(i = l_last; i <= r_end && i < IMG_H; i++)
-    //         {
-    //             int16 draw_col = c_start + (int16)((i - l_last) * k);
-    //             if(draw_col > 2 && draw_col < IMG_W - 2)
-    //             {
-    //                 binary_image[i][draw_col] = BLACK;
-    //                 binary_image[i][draw_col - 1] = BLACK;
-    //                 left_boundary[i] = (uint8)draw_col;
-    //             }
-    //         }
-    //         // 重算受影响行的中线
-    //         for(i = l_last; i <= r_end && i < IMG_H; i++)
-    //         {
-    //             if(left_boundary[i] < right_boundary[i])
-    //                 center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
-    //         }
-    //     }
-    // }
-
-    // ---- 第8步：从 left_boundary[]/right_boundary[] 中找 A/B/C/D 关键点 ----
-    //find_key_points(binary_image);
 
     // ---- 第9步：十字路口判断与中线偏移（三列扫描法） ----
     crossroad_fix(binary_image);

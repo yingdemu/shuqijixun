@@ -1,4 +1,4 @@
-/*********************************************************************************************************************
+﻿/*********************************************************************************************************************
 * MM32F327X-G8P Opensourec Library 即（MM32F327X-G8P 开源库）是一个基于官方 SDK 接口的第三方开源库
 * Copyright (c) 2022 SEEKFREE 逐飞科技
 *
@@ -74,12 +74,12 @@
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
+#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
-#define TURN_FUSION_ALPHA         (0.1f)                                         // 弯道 servo_fusion_alpha
+#define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（120×5ms=0.6s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
@@ -210,9 +210,12 @@ int main(void)
         {
             menu_image_display_process();
 
-            // 直道/弯道判别：中心列扫描 + 滞回滤波
-            uint8 is_straight2 = 1;
+            // 直道/弯道判别：中心列扫描 + 滞回滤波（与巡线模式一致）
+            uint8 is_straight2;
             {
+                static uint8 is_straight_state2 = 1;
+                static uint8 curve_frames2 = 0;
+                static uint8 straight_frames2 = 0;
                 uint8 col = IMG_W / 2;
                 uint8 r;
                 uint8 black_cnt = 0;
@@ -221,9 +224,90 @@ int main(void)
                     if(binary_image[r][col] == BLACK)
                         black_cnt++;
                 }
-                // 图像显示模式用简化滞回：≥3个黑点判弯道，否则判直道
-                if(black_cnt >= 3)
-                    is_straight2 = 0;
+                if(black_cnt >= 2)       { curve_frames2++;    straight_frames2 = 0; }
+                else if(black_cnt == 0)  { straight_frames2++; curve_frames2 = 0;    }
+                if(curve_frames2 >= 2)       is_straight_state2 = 0;
+                else if(straight_frames2 >= 15) is_straight_state2 = 1;
+                is_straight2 = is_straight_state2;
+            }
+
+            static float prev_wp2 = (float)(IMG_W / 2);
+
+            // ---- 脱困检测1：中心列黑色超1/3 + 单侧列全黑 → 硬打角 ----
+            {
+                uint16 center_black_cnt = 0;
+                uint8 col5_all_black  = 1;
+                uint8 colr6_all_black = 1;
+                int16 cr;
+                int16 total_rows = IMG_H - 3;
+                for(cr = 2; cr <= IMG_H - 2; cr++)
+                {
+                    if(binary_image[cr][IMG_W / 2] == BLACK) center_black_cnt++;
+                    if(binary_image[cr][5]         == WHITE) col5_all_black  = 0;
+                    if(binary_image[cr][IMG_W - 6] == WHITE) colr6_all_black = 0;
+                }
+                if(center_black_cnt > total_rows / 3)
+                {
+                    if(col5_all_black && !colr6_all_black)
+                    {
+                        servo_set_angle(12.0f);
+                        prev_servo_angle = 12.0f;
+                        continue;
+                    }
+                    else if(!col5_all_black && colr6_all_black)
+                    {
+                        servo_set_angle(-12.0f);
+                        prev_servo_angle = -12.0f;
+                        continue;
+                    }
+                }
+            }
+
+            // ---- 脱困检测2：底部半图三列4/5黑检测 ----
+            {
+                int16 r;
+                uint16 center_black = 0, col4_black = 0, colr5_black = 0;
+                int16 scan_start = IMG_H - 2;
+                int16 scan_end   = IMG_H / 2;
+                uint16 total = scan_start - scan_end + 1;
+                uint16 thresh = total * 4 / 5;
+                for(r = scan_end; r <= scan_start; r++)
+                {
+                    if(binary_image[r][IMG_W / 2] == BLACK) center_black++;
+                    if(binary_image[r][4]          == BLACK) col4_black++;
+                    if(binary_image[r][IMG_W - 5]  == BLACK) colr5_black++;
+                }
+                if(center_black >= thresh)
+                {
+                    if(col4_black >= thresh && colr5_black < thresh)
+                    {
+                        servo_set_angle(12.0f);
+                        prev_servo_angle = 12.0f;
+                        continue;
+                    }
+                    else if(col4_black < thresh && colr5_black >= thresh)
+                    {
+                        servo_set_angle(-12.0f);
+                        prev_servo_angle = -12.0f;
+                        continue;
+                    }
+                }
+            }
+
+            // ---- 脱困检测3：中线全部无效 → 按上一帧方向硬打角 ----
+            {
+                uint8 valid_cnt = 0;
+                int16 vi;
+                for(vi = 0; vi < IMG_H; vi++)
+                    if(center_line_valid[vi] == 1) valid_cnt++;
+                if(valid_cnt == 0)
+                {
+                    if(prev_wp2 >= IMG_W / 2)
+                        servo_set_angle(12.0f);
+                    else
+                        servo_set_angle(-12.0f);
+                    continue;
+                }
             }
 
             float weight_position2 = get_weight_position(center_line, is_straight2);
@@ -275,6 +359,9 @@ int main(void)
 
             if(is_straight2) servo_fusion_alpha = STRAIGHT_FUSION_ALPHA;
             else             servo_fusion_alpha = TURN_FUSION_ALPHA;
+
+            // 保存本帧有效位置，供下帧中线全无效时判断硬打角方向
+            prev_wp2 = weight_position2;
         }
         else
         {
@@ -352,7 +439,7 @@ int main(void)
                         else                    { /* 1个黑点：保持当前状态，两边都不累计 */ }
 
                         if(curve_frames >= 2)       is_straight_state = 0;
-                        else if(straight_frames >= 20) is_straight_state = 1;
+                        else if(straight_frames >= 15) is_straight_state = 1;
                     }
                     uint8 is_straight = is_straight_state;
 
@@ -424,27 +511,43 @@ int main(void)
                         }
                     }
 
-                    // 中端警告：中心列RING_MID_ROW处为黑 → 即将出界，硬脱困
-                    // 跳过 PID / 阿克曼，直接设舵机+差速目标
-                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
+                    // 底部1/2区域三列4/5黑检测 → 硬打角脱困
+                    // 中心列+左侧列同时黑 → 右边有路，右转12°
+                    // 中心列+右侧列同时黑 → 左边有路，左转-12°
                     {
-                        if(weight_position > IMG_W / 2)
+                        int16 r;
+                        uint16 center_black = 0, col4_black = 0, colr5_black = 0;
+                        int16 scan_start = IMG_H - 2;
+                        int16 scan_end   = IMG_H / 2;
+                        uint16 total = scan_start - scan_end + 1;
+                        uint16 thresh = total * 4 / 5;                               // 4/5 阈值
+
+                        for(r = scan_end; r <= scan_start; r++)
                         {
-                            servo_set_angle(12.0f);
-                            prev_servo_angle = 12.0f;
-                            g_target_L = 80.0f;
-                            g_target_R = 0.0f;
+                            if(binary_image[r][IMG_W / 2] == BLACK) center_black++;
+                            if(binary_image[r][4]          == BLACK) col4_black++;
+                            if(binary_image[r][IMG_W - 5]  == BLACK) colr5_black++;
                         }
-                        else
+
+                        if(center_black >= thresh)
                         {
-                            servo_set_angle(-12.0f);
-                            prev_servo_angle = -12.0f;
-                            g_target_L = 0.0f;
-                            g_target_R = 80.0f;
+                            // 左侧列黑 + 右侧列不黑 → 右转
+                            if(col4_black >= thresh && colr5_black < thresh)
+                            {
+                                servo_set_angle(12.0f);
+                                prev_servo_angle = 12.0f;
+                                g_main_need_reset = 0;
+                                continue;
+                            }
+                            // 左侧列不黑 + 右侧列黑 → 左转
+                            else if(col4_black < thresh && colr5_black >= thresh)
+                            {
+                                servo_set_angle(-12.0f);
+                                prev_servo_angle = -12.0f;
+                                g_main_need_reset = 0;
+                                continue;
+                            }
                         }
-                        g_motor_run = 1;
-                        g_main_need_reset = 0;
-                        continue;
                     }
 
                     // 中线全部无效 → 按上一帧pos方向硬打角脱困
@@ -534,20 +637,20 @@ int main(void)
                         prev_straight = 1;
                         }
 
+                        // 直道中远端单侧丢线 → 强制退回第一阶段（可能是假直道，前方有弯）
+                        {
+                            uint8 far_left_ok  = left_valid[RING_FAR_ROW];
+                            uint8 far_right_ok = right_valid[RING_FAR_ROW];
+                            if(far_left_ok != far_right_ok)                         // 仅单侧有边界
+                                straight_rec_cnt = STRAIGHT_RECOVERY_TICKS;
+                        }
+
                         if(straight_rec_cnt > 0){
                             v_target = v_max_straight_start;
-                        }
+}
                         else{
-                            // 直道第二阶段：必须 RING_FAR_ROW 行左右边界都不丢线
-                            uint8 far_left_ok  = (left_boundary[RING_FAR_ROW] > 2);
-                            uint8 far_right_ok = (right_boundary[RING_FAR_ROW] < IMG_W - 3);
-                            if(far_left_ok && far_right_ok)
-                                v_target = v_max_straight;
-                            else{
-                                straight_rec_cnt = STRAIGHT_RECOVERY_TICKS;
-                                v_target = v_max_straight_start;
-                            }
-                        }
+
+                            v_target = v_max_straight;}
                     }
                     else
                     {
@@ -586,6 +689,12 @@ int main(void)
                             v_target = v_max_turn_cancel;
 
                         }
+                    }
+
+                    // 中端警告：如果中心列在中端行处为黑，说明即将出界，强制降速
+                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
+                    {
+                        if(v_target > v_warning) v_target = v_warning;
                     }
 
                     // 速度目标低通滤波
@@ -650,18 +759,22 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain = (0.0f + 0.22f * (abs(final_servo) - 3.0f)) * 0.8f;;
+                            raw_gain = 0.0f + 0.015f * (actual_speed);
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = (0.0f + 0.22f * (abs(final_servo) - 3.0f)) * 0.6f;;
+                            raw_gain = 0.0f + 0.011f * (actual_speed);
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = (0.0f + 0.22f * (abs(final_servo) - 3.0f)) * 0.4f;;
+                            raw_gain = 0.0f + 0.008f * (actual_speed);
                         }
+
+                        // 中端警告时增大差速，增强修正能力防止出界
+                        if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
+                            raw_gain *= 1.3f;
 
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
