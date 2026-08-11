@@ -97,6 +97,7 @@ uint8 turn_timer_cnt = 0;                                                       
 uint8 straight_rec_cnt = 0;                                                       // 直道恢复计时：PIT递减，0=已恢复
 uint8 zebra_stop_flag = 0;                                                        // 斑马线停车标志：1=停车
 uint16 zebra_cooldown = 0;                                                         // 斑马线冷却计时：PIT递减
+uint8 g_duty_filt_reset = 0;                                                       // 占空比滤波重置（主循环写入，PIT读取清零）
 static uint8 g_main_need_reset = 0;                                                 // 主循环状态重置标志（0→1发车时置1，帧末清零）
 static uint8 g_prev_car_go = 0;                                                     // 上一帧 car_go_flag 状态（用于检测0→1跳变）
 
@@ -426,6 +427,10 @@ int main(void)
                 {
                     // 不提前清零 g_motor_run，避免 PIT 中断在图像处理期间误关电机
                     // g_motor_run 只在上方 image_lost 或下方正常路径中被设置
+
+                    // 丢线侧翻转时置1，跳过舵机滤波和速率限制
+                    uint8 reset_servo_filt = 0;
+
                     // ---- 直道/弯道判别：中心列扫描 + 滞回滤波 ----
                     // 直→弯敏感（≥2黑点+2帧确认），弯→直迟钝（全白+4帧确认）
                     static uint8 is_straight_state = 1;
@@ -612,19 +617,23 @@ int main(void)
                         if(!is_straight)
                         {
                             if(last_was_straight) servo_filt = final_servo;          // 刚入弯：重置
+                            else if(reset_servo_filt) servo_filt = final_servo;     // 丢线翻转：立即重置
                             else servo_filt = SERVO_LOWPASS * final_servo + (1.0f - SERVO_LOWPASS) * servo_filt;
                             final_servo = servo_filt;
                         }
                         last_was_straight = is_straight;
                     }
 
-                    // 舵机输出速率限制
+                    // 舵机输出速率限制（丢线翻转时跳过，快速反向打角）
                     {
                         static float prev_servo_out = 0.0f;
                         if(g_main_need_reset) prev_servo_out = 0.0f;
-                        float delta = final_servo - prev_servo_out;
-                        if(delta > SERVO_RATE_LIMIT)       final_servo = prev_servo_out + SERVO_RATE_LIMIT;
-                        else if(delta < -SERVO_RATE_LIMIT) final_servo = prev_servo_out - SERVO_RATE_LIMIT;
+                        if(!reset_servo_filt)
+                        {
+                            float delta = final_servo - prev_servo_out;
+                            if(delta > SERVO_RATE_LIMIT)       final_servo = prev_servo_out + SERVO_RATE_LIMIT;
+                            else if(delta < -SERVO_RATE_LIMIT) final_servo = prev_servo_out - SERVO_RATE_LIMIT;
+                        }
                         prev_servo_out = final_servo;
                     }
 
@@ -688,23 +697,23 @@ int main(void)
                                && lost_side != prev_lost_side)
                             {
                                 turn_timer_cnt = TURN_TIMER_THRESH1;                // 丢线侧翻转→直接进入弯道第二阶段
+                                reset_servo_filt = 1;                               // 跳过舵机滤波+速率限制
                             }
                             if(lost_side != 0) prev_lost_side = lost_side;
                         }
 
-                        if(turn_timer_cnt < TURN_TIMER_THRESH1){
+                        // 弯道阶梯升速：从 speed_min 线性过渡到 v_max_turn_cancel
+                        {
                             if(turn_timer_cnt == 0) turn_timer_cnt = 1;
-                            v_target = speed_min;
-                        }
-                        else if(turn_timer_cnt < TURN_TIMER_THRESH2)
-                        {
-                            v_target = v_max_turn_start;
-
-                        }
-                        else
-                        {
-                            v_target = v_max_turn_cancel;
-
+                            if(turn_timer_cnt < TURN_TIMER_THRESH2)
+                            {
+                                float t = (float)turn_timer_cnt / (float)TURN_TIMER_THRESH2;
+                                v_target = speed_min + (v_max_turn_cancel - speed_min) * t;
+                            }
+                            else
+                            {
+                                v_target = v_max_turn_cancel;
+                            }
                         }
                     }
 
@@ -724,7 +733,10 @@ int main(void)
 
                         // 直→弯跳变：重置滤波，确保快速降速
                         if(prev_was_straight && !is_straight)
+                        {
                             vf_init = 1;
+                            g_duty_filt_reset = 1;                                    // 通知PIT重置占空比滤波
+                        }
                         prev_was_straight = is_straight;
 
                         // 弯道第一阶段跳过滤波
@@ -860,6 +872,7 @@ void pit_handler (void)
                 static float L_filt = 0.0f, R_filt = 0.0f;
                 static uint8 duty_init = 1;
                 if(!prev_motor_run) duty_init = 1;                                      // 电机刚启动，重置滤波
+                if(g_duty_filt_reset) { duty_init = 1; g_duty_filt_reset = 0; }        // 直→弯跳变：立即重置
                 if(duty_init) { L_filt = L_duty; R_filt = R_duty; duty_init = 0; }
                 else {
                     L_filt = DUTY_LOWPASS * L_duty + (1.0f - DUTY_LOWPASS) * L_filt;
