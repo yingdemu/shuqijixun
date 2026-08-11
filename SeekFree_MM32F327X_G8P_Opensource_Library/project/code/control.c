@@ -203,10 +203,10 @@ void ackermann_differential(float servo_angle_deg, float base_duty, float *left_
 
     if(diff >0.0f){
     *left_duty  = base_duty * (1.0f + diff)*0.8f;
-    *right_duty = base_duty * (1.0f - diff)*0.7f;
+    *right_duty = base_duty * (1.0f - diff)*0.63f;
   
     }else{
-    *left_duty  = base_duty * (1.0f + diff)*0.7f;
+    *left_duty  = base_duty * (1.0f + diff)*0.63f;
     *right_duty = base_duty * (1.0f - diff)*0.8f;
 
     }
