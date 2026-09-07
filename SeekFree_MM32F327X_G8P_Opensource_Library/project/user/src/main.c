@@ -73,7 +73,7 @@
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
-#define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
+#define SERVO_LOWPASS            (0.1f)                                          // 弯道舵机互补滤波系数
 #define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
@@ -608,7 +608,21 @@ int main(void)
                     if(final_servo > SERVO_CLIP_MAX)  final_servo = 12.0f;
                     if(final_servo < SERVO_CLIP_MIN) final_servo = -12.0f;
 
-                    // 舵机低通滤波已禁用（响应速度优先）
+                    // 弯道时对舵机打角互补滤波，减少抖动
+                    // 直→弯跳变时重置滤波，避免前一个弯的残留污染新弯
+                    {
+                        static float servo_filt = 0.0f;
+                        static uint8 last_was_straight = 1;
+                        if(g_main_need_reset) { servo_filt = 0.0f; last_was_straight = 1; }
+                        if(!is_straight)
+                        {
+                            if(last_was_straight) servo_filt = final_servo;          // 刚入弯：重置
+                            else if(reset_servo_filt) servo_filt = final_servo;     // 丢线翻转：立即重置
+                            else servo_filt = SERVO_LOWPASS * final_servo + (1.0f - SERVO_LOWPASS) * servo_filt;
+                            final_servo = servo_filt;
+                        }
+                        last_was_straight = is_straight;
+                    }
 
                     // 舵机输出速率限制（丢线翻转时跳过，快速反向打角）
                     {
@@ -637,9 +651,7 @@ int main(void)
 
                     // 0→1跳变检测
                     static uint8 prev_straight = 0;
-                    static float prev_v_target = 0;
-                    static float straight_start_speed = 0.0f;
-                    if(g_main_need_reset) { prev_straight = 0; prev_v_target = 0; straight_start_speed = v_max_straight_start; }
+                    if(g_main_need_reset) prev_straight = 0;
 
                     if(is_straight)
                     {
@@ -648,9 +660,6 @@ int main(void)
 
                         if(!prev_straight){
                             straight_rec_cnt = STRAIGHT_RECOVERY_TICKS;            // ×5ms = 0.2s
-                            straight_start_speed = (prev_v_target > 20.0f)         // 从出弯实际速度起步（上电首帧用默认值）
-                                                        ? prev_v_target
-                                                        : v_max_straight_start;
                         prev_straight = 1;
                         }
 
@@ -662,16 +671,12 @@ int main(void)
                                 straight_rec_cnt = STRAIGHT_RECOVERY_TICKS;
                         }
 
-                        // 直道阶梯升速：从出弯实际速度线性过渡到 v_max_straight
-                        if(straight_rec_cnt > 0)
-                        {
-                            float t = 1.0f - (float)straight_rec_cnt / (float)STRAIGHT_RECOVERY_TICKS;
-                            v_target = straight_start_speed + (v_max_straight - straight_start_speed) * t;
-                        }
-                        else
-                        {
-                            v_target = v_max_straight;
-                        }
+                        if(straight_rec_cnt > 0){
+                            v_target = v_max_straight_start;
+}
+                        else{
+
+                            v_target = v_max_straight;}
                     }
                     else
                     {
@@ -712,23 +717,36 @@ int main(void)
                         }
                     }
 
-                    // 中端警告：已禁用（弯道中容易误触发，导致速度骤降）
-                    //if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
-                    //{
-                    //    if(v_target > v_warning) v_target = v_warning;
-                    //}
-
-                    // 速度目标低通滤波已禁用（响应速度优先）
-                    // prev_was_straight 保留用于 g_duty_filt_reset
+                    // 中端警告：如果中心列在中端行处为黑，说明即将出界，强制降速
+                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
                     {
-                        static uint8 prev_was_straight = 1;
-                        if(g_main_need_reset) { prev_was_straight = 1; }
-                        if(prev_was_straight && !is_straight)
-                            g_duty_filt_reset = 1;                              // 通知PIT重置占空比滤波（DUTY_LOWPASS也已禁用，保留以备后用）
-                        prev_was_straight = is_straight;
+                        if(v_target > v_warning) v_target = v_warning;
                     }
 
-                    prev_v_target = v_target;                           // 保存本帧最终速度，供下帧出弯过渡使用
+                    // 速度目标低通滤波
+                    {
+                        #define VTARGET_LOWPASS 0.5f
+                        static float v_filt = 0.0f;
+                        static uint8 vf_init = 1;
+                        static uint8 prev_was_straight = 1;
+                        if(g_main_need_reset) { v_filt = 0.0f; vf_init = 1; prev_was_straight = 1; }
+
+                        // 直→弯跳变：重置滤波，确保快速降速
+                        if(prev_was_straight && !is_straight)
+                        {
+                            vf_init = 1;
+                            g_duty_filt_reset = 1;                                    // 通知PIT重置占空比滤波
+                        }
+                        prev_was_straight = is_straight;
+
+                        // 弯道第一阶段跳过滤波
+                        if(!(!is_straight && turn_timer_cnt < TURN_TIMER_THRESH1))
+                        {
+                            if(vf_init) { v_filt = v_target; vf_init = 0; }
+                            else { v_filt = VTARGET_LOWPASS * v_target + (1.0f - VTARGET_LOWPASS) * v_filt; }
+                            v_target = v_filt;
+                        }
+                    }
 
                     // 斑马线检测：RING_NEAR_ROW 行 BW 跳变计数，两阶段确认后停车
                     if(zebra_cooldown == 0)
@@ -770,17 +788,17 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain = 0.0f + 0.008f * (actual_speed);
+                            raw_gain = 0.0f + 0.011f * (actual_speed);
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.006f * (actual_speed);
+                            raw_gain = 0.0f + 0.013f * (actual_speed);
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.006f * (actual_speed);
+                            raw_gain = 0.0f + 0.0015f * (actual_speed);
                         }
 
                         // 中端警告时增大差速，增强修正能力防止出界
@@ -849,7 +867,21 @@ void pit_handler (void)
             float L_duty = speed_pid_set(0, g_target_L, encoder_speed_filt_1);
             float R_duty = speed_pid_set(1, g_target_R, encoder_speed_filt_2);
 
-            // 占空比低通滤波已禁用（响应速度优先）
+            // 占空比低通滤波
+            {
+                static float L_filt = 0.0f, R_filt = 0.0f;
+                static uint8 duty_init = 1;
+                if(!prev_motor_run) duty_init = 1;                                      // 电机刚启动，重置滤波
+                if(g_duty_filt_reset) { duty_init = 1; g_duty_filt_reset = 0; }        // 直→弯跳变：立即重置
+                if(duty_init) { L_filt = L_duty; R_filt = R_duty; duty_init = 0; }
+                else {
+                    L_filt = DUTY_LOWPASS * L_duty + (1.0f - DUTY_LOWPASS) * L_filt;
+                    R_filt = DUTY_LOWPASS * R_duty + (1.0f - DUTY_LOWPASS) * R_filt;
+                }
+                L_duty = L_filt;
+                R_duty = R_filt;
+            }
+
             motor_set_duty(L_duty, R_duty);
         }
         else
