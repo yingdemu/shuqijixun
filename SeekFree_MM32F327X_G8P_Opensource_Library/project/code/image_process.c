@@ -68,6 +68,9 @@ ring_state_enum ring_state = RING_S_NONE;                                       
 float ring_error_sum = 0.0f;                                                    // 圆环误差累积和（进环阶段累积，出环阶段使用）
 uint16 ring_error_count = 0;                                                    // 圆环误差累积次数
 
+// ---- 十字路口强制打角（crossroad_fix 输出） ----
+int16 crossroad_forced_angle = 0;
+
 // ---- 圆环检测调试变量 ----
 uint8 ring_dbg_ref_fl = 0;                                                      // 远端甲侧参考边宽
 uint8 ring_dbg_ref_fr = 0;                                                      // 远端乙侧参考边宽
@@ -811,99 +814,71 @@ void find_key_points(uint8 image[IMG_H][IMG_W])
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：crossroad_fix
-// 功能：十字路口判断与补线处理
+// 功能：十字路口判断与中线偏移
 // 参数：image —— 二值化图像数组（IMG_H × IMG_W）
 // 返回：void
 // 说明：
-//   判断条件：
-//     1. |CY - DY| < 10 —— C和D的高度差小于10行（左右拐点高度接近，对称）
-//     2. CY > 15 且 DY > 15 —— 拐点在前方较远处
-//     3. 拐点�方区域黑点很少（赛道边界断开）
-//   补线方法：
-//     十字路口处赛道边界线会断开（因为路口区域没有边界线）
-//     需要人为沿AC方向和BD方向画延长线（黑色边界线）
-//     使小车能看到"虚拟的赛道边界"，从而正确通过十字路口
+//   检测条件（三列扫描法）：
+//     1. 第 IMG_W/2 列 从 IMG_H-3 到 2 行 不是全白（至少一个黑点）
+//     2. 第2列 或 第 IMG_W-3 列 从 IMG_H-3 到 2 行 全白（无黑点）
+//   满足条件后：
+//     - 统计左右边界丢线行数
+//     - 左丢线多 → center_line[] 全体右移20像素
+//     - 右丢线多 → center_line[] 全体左移20像素
+//
+//   调用时机：extract_centerline() 之后
 //-------------------------------------------------------------------------------------------------------------------
 void crossroad_fix(uint8 image[IMG_H][IMG_W])
 {
-    float k_left, k_right;
     int16 i;
-    uint8 use_left_row, use_left_col;
-    uint8 use_right_row, use_right_col;
+    uint8 col_mid_has_black = 0;                    // IMG_W/2 列是否有黑点
+    uint8 col2_all_white    = 1;                    // 第2列是否全白
+    uint8 colR_all_white    = 1;                    // 第IMG_W-3列是否全白
 
-    // ======== 确定左侧补线点（E优先，C备用） ========
-    if(point_E_row > 0)
-    {
-        use_left_row = point_E_row;
-        use_left_col = point_E_col;
-    }
-    else if(point_C_row > 0)
-    {
-        use_left_row = point_C_row;
-        use_left_col = point_C_col;
-    }
-    else
-    {
-        use_left_row = 0;
-    }
+    #define CROSS_CHECK_COL_MID    (IMG_W / 2)      // 中间检测列
+    #define CROSS_CHECK_COL_R      (IMG_W - 3)      // 右侧检测列
+    #define CROSS_SHIFT            20               // 中线偏移量（像素）
 
-    // ======== 确定右侧补线点（F优先，D备用） ========
-    if(point_F_row > 0)
+    // ---- 1. 扫描三列，统计黑白 ----
+    for(i = IMG_H - 3; i >= 7; i--)
     {
-        use_right_row = point_F_row;
-        use_right_col = point_F_col;
-    }
-    else if(point_D_row > 0)
-    {
-        use_right_row = point_D_row;
-        use_right_col = point_D_col;
-    }
-    else
-    {
-        use_right_row = 0;
+        if(image[i][CROSS_CHECK_COL_MID] == BLACK)
+            col_mid_has_black = 1;
+
+        if(image[i][2] == BLACK)
+            col2_all_white = 0;
+
+        if(image[i][CROSS_CHECK_COL_R] == BLACK)
+            colR_all_white = 0;
     }
 
-    // ======== 补左侧线（→A，从7行画到IMG_H-3） ========
-    if(use_left_row > 0 && use_left_row != point_A_row)
-    {
-        k_left = (float)(use_left_col - point_A_col) / (float)(use_left_row - point_A_row);
-        int16 start_row = (use_left_row > 7) ? use_left_row : 7;
+    // ---- 2. 检测条件 ----
+    // 条件1：中间列不能全白（必须有黑点，说明有赛道边界穿过中间列）
+    if(!col_mid_has_black) return;
 
-        for(i = start_row; i <= point_A_row && i < IMG_H; i++)
+    // 条件2：第2列全白 或 第IMG_W-3列全白（说明至少一侧没有边界线，即进入路口）
+    if(!col2_all_white && !colR_all_white) return;
+
+    // ---- 3. 统计左右边界丢线行数，设置强制打角 ----
+    {
+        uint16 left_lost  = 0;
+        uint16 right_lost = 0;
+
+        for(i = IMG_H - 3; i >= IMG_H/2; i--)
         {
-            int16 offset = (int16)((i - use_left_row) * k_left);
-            int16 draw_col = use_left_col + offset;
-
-            if(draw_col > 2 && draw_col < IMG_W - 2)
-            {
-                image[i][draw_col] = BLACK;
-                image[i][draw_col - 1] = BLACK;
-                left_boundary[i] = (uint8)draw_col;
-            }
+            if(center_line_valid[i] == 0 || left_boundary[i] < 3)
+                left_lost++;
+            if(center_line_valid[i] == 0 || right_boundary[i] > IMG_W - 4)
+                right_lost++;
         }
+
+        // 左边界丢线多 → 左转-12°；右边界丢线多 → 右转12°
+        if(left_lost > right_lost)
+            crossroad_forced_angle = -12;
+        else if(right_lost > left_lost)
+            crossroad_forced_angle = 12;
+        // 丢线数相等 → 不触发（保持上一个值，由调用方在每帧开始时清零）
     }
-
-    // ======== 补右侧线（→B，从7行画到IMG_H-3） ========
-    if(use_right_row > 0 && use_right_row != point_B_row)
-    {
-        k_right = (float)(use_right_col - point_B_col) / (float)(use_right_row - point_B_row);
-        int16 start_row = (use_right_row > 7) ? use_right_row : 7;
-
-        for(i = start_row; i <= point_B_row && i < IMG_H; i++)
-        {
-            int16 offset = (int16)((i - use_right_row) * k_right);
-            int16 draw_col = use_right_col + offset;
-
-            if(draw_col > 2 && draw_col < IMG_W - 2)
-            {
-                image[i][draw_col] = BLACK;
-                image[i][draw_col - 1] = BLACK;
-                right_boundary[i] = (uint8)draw_col;
-            }
-        }
-    }
-
-    // 中线重算移到了流水线中，此处不再重复
 }
 
 //==================================================== 赛道中线提取 ====================================================
@@ -986,103 +961,17 @@ void extract_centerline(uint8 image[IMG_H][IMG_W])
         }
     }
 
-    // ---- 3.5 记录中线有效性（在插值填充之前，只统计八邻域真实找到边界点的行） ----
-    // center_line_valid 用于 get_weight_position()，只对真实边界点赋权重
-    // 如果左右边界同时贴在边框上（left=1, right=IMG_W-2），说明两边都沿黑框爬，无有效赛道信息 → 也标记无效
+    // ---- 4. 统一计算中线有效性（基于八邻域爬到的边界点） ----
     for(i = 0; i < IMG_H; i++)
     {
-        uint8 left_ok  = (left_boundary[i] != 0xFF && left_boundary[i] > 1);
-        uint8 right_ok = (right_boundary[i] != 0xFF && right_boundary[i] < IMG_W - 2);
-        center_line_valid[i] = (left_ok || right_ok) ? 1 : 0;                   // 至少一侧有真实边界才算有效
+        uint8 left_ok  = (left_boundary[i] > 3);
+        uint8 right_ok = (right_boundary[i] < IMG_W - 4);
+        uint8 bound_sane = (right_boundary[i] > left_boundary[i] + 5);
+        center_line_valid[i] = ((left_ok || right_ok) && bound_sane) ? 1 : 0;
     }
 
-    // ---- 4. 对于没有边界点的行，用最近的有效行插值填充 ----
-    // 4.1 从下往上填充左边界空缺（用下方最近的有效值）
-    {
-        uint8 last_valid = 0;                                                   // 上一个有效值
-        uint8 has_valid = 0;                                                    // 是否已遇到有效值
-        for(i = IMG_H - 1; i >= 0; i--)
-        {
-            if(left_boundary[i] != 0xFF)
-            {
-                last_valid = left_boundary[i];
-                has_valid = 1;
-            }
-            else if(has_valid)
-            {
-                left_boundary[i] = last_valid;                                  // 用下方有效值填充
-            }
-        }
-    }
-
-    // 4.2 从上往下填充左边界空缺（用上方最近的有效值）
-    {
-        uint8 last_valid = 0;
-        uint8 has_valid = 0;
-        for(i = 0; i < IMG_H; i++)
-        {
-            if(left_boundary[i] != 0xFF)
-            {
-                last_valid = left_boundary[i];
-                has_valid = 1;
-            }
-            else if(has_valid)
-            {
-                left_boundary[i] = last_valid;                                  // 用上方有效值填充
-            }
-            else
-            {
-                left_boundary[i] = 0;                                           // 顶部无有效值 → 默认最左边
-            }
-        }
-    }
-
-    // 4.3 从下往上填充右边界空缺
-    {
-        uint8 last_valid = IMG_W - 1;
-        uint8 has_valid = 0;
-        for(i = IMG_H - 1; i >= 0; i--)
-        {
-            if(right_boundary[i] != 0xFF)
-            {
-                last_valid = right_boundary[i];
-                has_valid = 1;
-            }
-            else if(has_valid)
-            {
-                right_boundary[i] = last_valid;
-            }
-        }
-    }
-
-    // 4.4 从上往下填充右边界空缺
-    {
-        uint8 last_valid = IMG_W - 1;
-        uint8 has_valid = 0;
-        for(i = 0; i < IMG_H; i++)
-        {
-            if(right_boundary[i] != 0xFF)
-            {
-                last_valid = right_boundary[i];
-                has_valid = 1;
-            }
-            else if(has_valid)
-            {
-                right_boundary[i] = last_valid;
-            }
-            else
-            {
-                right_boundary[i] = IMG_W - 1;                                  // 顶部无有效值 → 默认最右边
-            }
-        }
-    }
-
-
-    // ---- 4.6 记录边界有效性（在插值填充之后，只看最终列坐标） ----
-    // 插值后 left_boundary/right_boundary 不再有 0xFF，所有行都有值
-    // 如果最终值在左右边框上(col<=1 或 col>=IMG_W-2)，说明八邻域没找到真实边界，
-    // 要么沿黑框爬到了边，要么完全没有边界点被插值填为默认0/IMG_W-1
-    // 如果最终值来自邻居的有效插值(不在边框上)，不应算丢线
+    // ---- 5. 记录边界有效性（仅看八邻域是否爬到该行） ----
+    // 如果在左右边框上(col<=1 或 col>=IMG_W-2)，说明八邻域没找到该行真实边界
     for(i = 0; i < IMG_H; i++)
     {
         left_valid[i] = (left_boundary[i] > 1) ? 1 : 0;
@@ -1563,9 +1452,9 @@ void ring_centerline_extract(void)
 //     3. 图像外围画黑框（为八邻域爬线提供安全边界）
 //     4. 寻找边界起始点（在图像底部找到左右边界的起点）
 //     5. 八邻域边界追踪（从起点向上追踪完整边界线）
-//     6. 寻找A/B/C/D关键点（找到边界的拐角位置）
-//     7. 十字路口判断与补线（在十字路口处补画虚拟边界线）
-//     8. 提取赛道中线（逐行计算左右边界的中点）
+//     6. 提取赛道中线（逐行计算左右边界的中点）
+//     7. 十字路口补线（HFK风格：远侧边界追踪，覆写中线）
+//     8. 圆环检测与中线覆写
 //
 //   所有结果存储在全局变量中：
 //     otsu_threshold   —— 二值化阈值
@@ -1582,8 +1471,9 @@ void ring_centerline_extract(void)
 //-------------------------------------------------------------------------------------------------------------------
 void image_process_pipeline(void)
 {
-    // ---- 第1步：清除上次的边界点数据 ----
+    // ---- 第1步：清除上次的边界点数据和强制打角 ----
     clear_edge_data();
+    crossroad_forced_angle = 0;
 
     // ---- 第2步：根据模式计算二值化阈值 ----
     if(threshold_mode)                                                          // 模式1：大津法
@@ -1612,104 +1502,9 @@ void image_process_pipeline(void)
     // ---- 第7步：提取赛道中线（得到 left_boundary[] / right_boundary[]） ----
     extract_centerline(binary_image);
 
-    // // ---- 第7.5步：右边界提前丢失补线 ----
-    // // 从IMG_H-2向3找一个有效的右边界点，若其列 < IMG_W/5则补线到(IMG_H-3, IMG_W/2)
-    // {
-    //     int16 r_last = -1;
-    //     int16 i;
-    //     for(i = IMG_H - 2; i >= 3; i--)
-    //     {
-    //         if(right_valid[i])
-    //         {
-    //             r_last = i;
-    //             break;
-    //         }
-    //     }
-    //     if(r_last >= 1 && right_boundary[r_last] < IMG_W / 5)
-    //     {
-    //         int16 c_start = (int16)right_boundary[r_last];
-    //         int16 r_end = IMG_H - 3;
-    //         int16 c_end = IMG_W / 2;
-    //         float k = (float)(c_end - c_start) / (float)(r_end - r_last);
 
-    //         for(i = r_last; i <= r_end && i < IMG_H; i++)
-    //         {
-    //             int16 draw_col = c_start + (int16)((i - r_last) * k);
-    //             if(draw_col > 2 && draw_col < IMG_W - 2)
-    //             {
-    //                 binary_image[i][draw_col] = BLACK;
-    //                 binary_image[i][draw_col - 1] = BLACK;
-    //                 right_boundary[i] = (uint8)draw_col;
-    //             }
-    //         }
-    //         // 重算受影响行的中线
-    //         for(i = r_last; i <= r_end && i < IMG_H; i++)
-    //         {
-    //             if(left_boundary[i] < right_boundary[i])
-    //                 center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
-    //         }
-    //     }
-    // }
-
-    // // ---- 第7.6步：左边界提前丢失补线 ----
-    // // 从IMG_H-2向3找一个有效的左边界点，若其列 > IMG_W*4/5则补线到(IMG_H-3, IMG_W/2)
-    // {
-    //     int16 l_last = -1;
-    //     int16 i;
-    //     for(i = IMG_H - 2; i >= 3; i--)
-    //     {
-    //         if(left_valid[i])
-    //         {
-    //             l_last = i;
-    //             break;
-    //         }
-    //     }
-    //     if(l_last >= 3 && left_boundary[l_last] > IMG_W * 4 / 5)
-    //     {
-    //         int16 c_start = (int16)left_boundary[l_last];
-    //         int16 r_end = IMG_H - 3;
-    //         int16 c_end = IMG_W / 2;
-    //         float k = (float)(c_end - c_start) / (float)(r_end - l_last);
-
-    //         for(i = l_last; i <= r_end && i < IMG_H; i++)
-    //         {
-    //             int16 draw_col = c_start + (int16)((i - l_last) * k);
-    //             if(draw_col > 2 && draw_col < IMG_W - 2)
-    //             {
-    //                 binary_image[i][draw_col] = BLACK;
-    //                 binary_image[i][draw_col - 1] = BLACK;
-    //                 left_boundary[i] = (uint8)draw_col;
-    //             }
-    //         }
-    //         // 重算受影响行的中线
-    //         for(i = l_last; i <= r_end && i < IMG_H; i++)
-    //         {
-    //             if(left_boundary[i] < right_boundary[i])
-    //                 center_line[i] = (left_boundary[i] + right_boundary[i]) / 2;
-    //         }
-    //     }
-    // }
-
-    // ---- 第8步：从 left_boundary[]/right_boundary[] 中找 A/B/C/D 关键点 ----
-    //find_key_points(binary_image);
-
-    // ---- 第9步：十字路口判断与补线 ----
-    //crossroad_fix(binary_image);
-
-    // ---- 第9.5步：用修正后的边界刷新受影响行的中线 ----
-    //{
-    //    int16 _i;
-    //    uint8 _lr = (point_C_row > 0) ? point_C_row : point_E_row;
-    //    uint8 _rr = (point_D_row > 0) ? point_D_row : point_F_row;
-    //    if(_lr > 0)
-    //        for(_i = _lr; _i <= point_A_row && _i < IMG_H; _i++)
-    //            if(left_boundary[_i] < right_boundary[_i])
-    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-    //    if(_rr > 0)
-    //        for(_i = _rr; _i <= point_B_row && _i < IMG_H; _i++)
-    //            if(left_boundary[_i] < right_boundary[_i])
-    //                center_line[_i] = (left_boundary[_i] + right_boundary[_i]) / 2;
-    //}
+    // ---- 第9步：十字路口判断与中线偏移（三列扫描法） ----
+    crossroad_fix(binary_image);
 
     // ---- 第10步：圆环检测 + 中线覆写 ----
     // 基于边沿宽度变化趋势更新圆环状态机

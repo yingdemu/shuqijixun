@@ -79,6 +79,7 @@ extern float v_max_straight_start;                                              
 extern float v_max_turn;                                                          // 弯道基础速度（编码器单位）
 extern float v_max_turn_cancel;
 extern float v_max_turn_start;                                                       // 弯道开始时减速速度（编码器单位）
+extern float v_warning;                                                               // 中端黑点警告速度
 
 extern bool car_go_flag;                                                         // 发车标志位（1=开始巡线，0=停止巡线）
 extern uint8 motor_duty; //电机占空比
