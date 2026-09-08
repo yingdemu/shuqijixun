@@ -74,6 +74,7 @@
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
+#define STRAIGHT_DETECT_ROW       (3)                                             // 直道检测行号
 #define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
@@ -211,19 +212,17 @@ int main(void)
         {
             menu_image_display_process();
 
-            // 直道/弯道判别：中心列扫描（扫到黑点即判弯道）
-            uint8 is_straight2 = 1;
+            // 直道/弯道判别（与正常模式一致）
+            uint8 is_straight2 = 0;
             {
-                uint8 col = IMG_W / 2;
-                uint8 r;
-                for(r = RING_FAR_ROW; r > 1; r--)
-                {
-                    if(binary_image[r][col] == BLACK)
-                    {
-                        is_straight2 = 0;
-                        break;
-                    }
-                }
+                uint8 row = STRAIGHT_DETECT_ROW;
+                uint8 white_cnt = 0;
+                int16 c;
+                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
+                    if(binary_image[row][c] == WHITE) white_cnt++;
+                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
+                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
+                    is_straight2 = 1;
             }
 
             static float prev_wp2 = (float)(IMG_W / 2);
@@ -425,17 +424,31 @@ int main(void)
                     // 丢线侧翻转时置1，跳过舵机滤波和速率限制
                     uint8 reset_servo_filt = 0;
 
-                    // ---- 直道/弯道判别：中心列扫描（扫到黑点即判弯道） ----
-                    uint8 is_straight = 1;
+                    // ---- 直道/弯道判别（在使用中线前检测） ----
+                    uint8 is_straight = 0;
                     {
-                        uint8 col = IMG_W / 2;
-                        uint8 r;
-                        for(r = RING_FAR_ROW; r > 2; r--)
+                        uint8 row = STRAIGHT_DETECT_ROW;
+                        // 统计 IMG_W/3 ~ IMG_W*2/3 范围内的白点数量
+                        uint8 white_cnt = 0;
                         {
-                            if(binary_image[r][col] == BLACK)
+                            int16 c;
+                            for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
                             {
-                                is_straight = 0;
-                                break;
+                                if(binary_image[row][c] == WHITE) white_cnt++;
+                            }
+                        }
+                        if(white_cnt >= 3)
+                        {
+                            if(left_valid[row] && right_valid[row])
+                            {
+                                if(
+                                left_boundary[row] >= 5 &&
+                                    right_boundary[row] <= IMG_W - 5 &&
+                                    right_boundary[row] >=IMG_W/2
+                                    && left_boundary[row] <=IMG_W/2)
+                                {
+                                    is_straight = 1;
+                                }
                             }
                         }
                     }
@@ -681,12 +694,6 @@ int main(void)
                         {
                             v_target = v_max_turn_cancel;
                         }
-                    }
-
-                    // 中端警告：中端行扫到黑点（疑似弯道/障碍）时把速度上限压到 v_warning
-                    if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
-                    {
-                        if(v_target > v_warning) v_target = v_warning;
                     }
 
                     // 速度目标低通滤波已禁用（响应速度优先）
