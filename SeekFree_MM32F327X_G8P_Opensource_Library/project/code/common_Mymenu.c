@@ -52,7 +52,7 @@ float speed_kd = 0.30f;                                                         
 float speed_lowpass = 0.5f;                                                       // speed低通滤波系数（默认 0.5）
 
 //或者减1加2？
-float speed_min = 140.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_min = 120.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
 float v_max_straight = 200.0f;                                                    // 直道目标速度（编码器单位）
 float v_max_straight_start = 160.0f;                                              // 直道恢复前0.2s过渡速度
@@ -927,25 +927,30 @@ void menu_image_display_process(void)
             char buf[40];
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 直道/弯道判别：列扫描 + 图像环误差约束
-            uint8 is_straight = 1;
+            // 直道/弯道判别（与 main.c 正常运行模式一致）
+            uint8 is_straight = 0;
             {
-                uint8 col = IMG_W / 2;
-                uint8 r;
-                for(r = RING_FAR_ROW; r > 1; r--)
+                uint8 row = STRAIGHT_DETECT_ROW;
+                // 统计 IMG_W/3 ~ IMG_W*2/3 范围内的白点数量
+                uint8 white_cnt = 0;
+                int16 c;
+                for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
+                    if(binary_image[row][c] == WHITE) white_cnt++;
+                // 中心列从 STRAIGHT_DETECT_ROW 到 IMG_H-5 全白才可能为直道
+                uint8 center_all_white = 1;
+                int16 r;
+                for(r = STRAIGHT_DETECT_ROW; r <= IMG_H - 5; r++)
                 {
-                    if(binary_image[r][col] == BLACK)
+                    if(binary_image[r][IMG_W / 2] == BLACK)
                     {
-                        is_straight = 0;
+                        center_all_white = 0;
                         break;
                     }
                 }
-                // // 图像环误差过大（大弯姿态）→ 强制判为弯道
-                // if(is_straight)
-                // {
-                //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
-                //     if(abs_err > 20.0f) is_straight = 0;
-                // }
+                if(white_cnt >= 3 && center_all_white && left_valid[row] && right_valid[row]
+                   && left_boundary[row] >= 5 && right_boundary[row] <= IMG_W - 5
+                   && right_boundary[row] >= IMG_W / 2 && left_boundary[row] <= IMG_W / 2)
+                    is_straight = 1;
             }
 
             // 行1：直道/弯道状态

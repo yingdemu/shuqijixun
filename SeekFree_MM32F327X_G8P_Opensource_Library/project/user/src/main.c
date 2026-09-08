@@ -73,8 +73,7 @@
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
-#define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_DETECT_ROW       (3)                                             // 直道检测行号
+#define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
 #define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
@@ -220,7 +219,18 @@ int main(void)
                 int16 c;
                 for(c = IMG_W / 3; c <= IMG_W * 2 / 3; c++)
                     if(binary_image[row][c] == WHITE) white_cnt++;
-                if(white_cnt >= 4 && left_valid[row] && right_valid[row]
+                // 中心列从 STRAIGHT_DETECT_ROW 到 IMG_H-5 全白才可能为直道
+                uint8 center_all_white = 1;
+                int16 r;
+                for(r = STRAIGHT_DETECT_ROW; r <= IMG_H - 5; r++)
+                {
+                    if(binary_image[r][IMG_W / 2] == BLACK)
+                    {
+                        center_all_white = 0;
+                        break;
+                    }
+                }
+                if(white_cnt >= 4 && center_all_white && left_valid[row] && right_valid[row]
                    && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
                     is_straight2 = 1;
             }
@@ -437,7 +447,20 @@ int main(void)
                                 if(binary_image[row][c] == WHITE) white_cnt++;
                             }
                         }
-                        if(white_cnt >= 3)
+                        // 中心列从 STRAIGHT_DETECT_ROW 到 IMG_H-5 全白才可能为直道
+                        uint8 center_all_white = 1;
+                        {
+                            int16 r;
+                            for(r = STRAIGHT_DETECT_ROW; r <= IMG_H - 5; r++)
+                            {
+                                if(binary_image[r][IMG_W / 2] == BLACK)
+                                {
+                                    center_all_white = 0;
+                                    break;
+                                }
+                            }
+                        }
+                        if(white_cnt >= 3 && center_all_white)
                         {
                             if(left_valid[row] && right_valid[row])
                             {
@@ -605,8 +628,6 @@ int main(void)
                     if(final_servo > SERVO_CLIP_MAX)  final_servo = 12.0f;
                     if(final_servo < SERVO_CLIP_MIN) final_servo = -12.0f;
 
-                    // 舵机低通滤波已禁用（响应速度优先）
-
                     // 丢线侧翻转检测：提前到速率限制之前，使本帧即可跳过舵机滤波+速率限制
                     if(!is_straight)
                     {
@@ -624,6 +645,20 @@ int main(void)
                             reset_servo_filt = 1;                               // 跳过舵机滤波+速率限制
                         }
                         if(lost_side != 0) prev_lost_side = lost_side;
+                    }
+
+                    // 弯道舵机互补滤波（直→弯跳变时重置，丢线翻转时跳过）
+                    {
+                        static float servo_filt = 0.0f;
+                        static uint8 last_was_straight = 1;
+                        if(g_main_need_reset) { servo_filt = 0.0f; last_was_straight = 1; }
+                        if(!is_straight && !reset_servo_filt)
+                        {
+                            if(last_was_straight) servo_filt = final_servo;          // 刚入弯：重置
+                            else servo_filt = SERVO_LOWPASS * final_servo + (1.0f - SERVO_LOWPASS) * servo_filt;
+                            final_servo = servo_filt;
+                        }
+                        last_was_straight = is_straight;
                     }
 
                     // 舵机输出速率限制（丢线翻转时跳过，快速反向打角）
