@@ -74,7 +74,7 @@
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_BLEND            (0.7f)                                          // 直道中线50%滤波系数
+#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
@@ -216,7 +216,7 @@ int main(void)
             {
                 uint8 col = IMG_W / 2;
                 uint8 r;
-                for(r = RING_FAR_ROW; r <= IMG_H - 3; r++)
+                for(r = RING_FAR_ROW; r > 1; r--)
                 {
                     if(binary_image[r][col] == BLACK)
                     {
@@ -430,7 +430,7 @@ int main(void)
                     {
                         uint8 col = IMG_W / 2;
                         uint8 r;
-                        for(r = RING_FAR_ROW; r <= IMG_H - 3; r++)
+                        for(r = RING_FAR_ROW; r > 2; r--)
                         {
                             if(binary_image[r][col] == BLACK)
                             {

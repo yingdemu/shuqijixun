@@ -933,7 +933,7 @@ void menu_image_display_process(void)
             {
                 uint8 col = IMG_W / 2;
                 uint8 r;
-                for(r = RING_FAR_ROW; r <= IMG_H - 3; r++)
+                for(r = RING_FAR_ROW; r > 1; r--)
                 {
                     if(binary_image[r][col] == BLACK)
                     {
