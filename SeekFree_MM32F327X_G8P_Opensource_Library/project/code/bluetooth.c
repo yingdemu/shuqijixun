@@ -96,7 +96,7 @@ extern float IMU_lowpass;
 extern float motor_kp_a;
 extern float motor_kp_b;
 extern float motor_kd;
-extern float ackermann_gain;
+extern float ackermann_gain_big;
 extern float angle_kp_a;
 extern float angle_kp_b;
 extern float angle_kd;
@@ -107,6 +107,7 @@ extern float speed_kd;
 extern float speed_min;
 extern float speed_decision_k;
 extern float v_max_straight;
+extern float v_max_straight_start;
 extern float v_max_turn;
 extern float v_max_turn_cancel;
 extern float v_max_turn_start;
@@ -276,8 +277,8 @@ void bluetooth_receive_process(void)
                 }
                 else if(strcmp(name, "ackermann_gain") == 0)
                 {
-                    ackermann_gain = val;
-                    serial_printf("OK ackermann_gain=%.3f\r\n", ackermann_gain);
+                    ackermann_gain_big = val;
+                    serial_printf("OK ackermann_gain_big=%.3f\r\n", ackermann_gain_big);
                 }
                 else if(strcmp(name, "angle_kp_a") == 0)
                 {
@@ -328,6 +329,11 @@ void bluetooth_receive_process(void)
                 {
                     v_max_straight = val;
                     serial_printf("OK v_max_straight=%.0f\r\n", v_max_straight);
+                }
+                else if(strcmp(name, "v_max_straight_start") == 0)
+                {
+                    v_max_straight_start = val;
+                    serial_printf("OK v_max_straight_start=%.0f\r\n", v_max_straight_start);
                 }
                 else if(strcmp(name, "v_max_turn") == 0)
                 {

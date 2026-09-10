@@ -75,9 +75,11 @@ extern float speed_lowpass;                                                     
 extern float speed_min;                                                           // 弯道最低速度（编码器单位）
 extern float speed_decision_k;                                                    // 速度决策系数
 extern float v_max_straight;                                                      // 直道目标速度（编码器单位）
+extern float v_max_straight_start;                                                // 直道恢复前0.2s过渡速度
 extern float v_max_turn;                                                          // 弯道基础速度（编码器单位）
 extern float v_max_turn_cancel;
 extern float v_max_turn_start;                                                       // 弯道开始时减速速度（编码器单位）
+extern float v_warning;                                                               // 中端黑点警告速度
 
 extern bool car_go_flag;                                                         // 发车标志位（1=开始巡线，0=停止巡线）
 extern uint8 motor_duty; //电机占空比

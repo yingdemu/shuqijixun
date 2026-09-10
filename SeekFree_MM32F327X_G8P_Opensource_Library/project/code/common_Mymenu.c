@@ -32,7 +32,7 @@ extern uint8 fixed_threshold;
 // image_kd: 微分系数 —— 抑制振荡和超调
 float image_kp_a = 4.17f;                                                       // 图像 Kp_a（线性项/小弯）
 float image_kp_b = 0.069f;                                                      // 图像 Kp_b（三次项/大弯）
-float image_kd = 9.670f;                                                         // 图像 Kd
+float image_kd = 10.00f;                                                         // 图像 Kd
 float image_lowpass = 0.8f;                                                       // 图像低通滤波系数（默认 0.8）
 // ---- 电机PID控制参数 ----
 // 电机PID用于控制后轮驱动速度
@@ -43,25 +43,23 @@ float motor_lowpass = 0.8f;                                                     
 //IMU PID 控制参数
 float IMU_kp_a =0.04f;
 float IMU_kp_b =0.0f;
-float IMU_kd =0.869f;
+float IMU_kd =1.06f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 
-// float speed_kp = 0.0859f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
-// float speed_ki = 0.1814f;                                                           // 速度I（稳态误差消除）
-// float speed_kd = 0.1618f;                                                            // 速度D
-// float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
+float speed_kp = 0.50f;                                                           // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+float speed_ki = 0.05f;                                                           // 速度I（稳态误差消除）
+float speed_kd = 0.30f;                                                            // 速度D
+float speed_lowpass = 0.5f;                                                       // speed低通滤波系数（默认 0.5）
 
-float speed_kp = 0.1885f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
-float speed_ki = 0.0196f;                                                           // 速度I（稳态误差消除）
-float speed_kd = 0.0386f;                                                            // 速度D
-float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
-
-float speed_min = 110.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
-float speed_decision_k = 0.8f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
-float v_max_straight = 210.0f;                                                    // 直道目标速度（编码器单位）
-float v_max_turn_cancel = 130.0f;                                                    // 弯道超时目标速度（编码器单位）
-float v_max_turn = 130.0f;                                                        // 弯道基础速度（编码器单位）
-float v_max_turn_start = 100;                                                       // 弯道开始时减速速度（编码器单位）
+//或者减1加2？
+float speed_min = 130.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
+float v_max_straight = 180.0f;                                                    // 直道目标速度（编码器单位）
+float v_max_straight_start = 160.0f;                                              // 直道恢复前0.2s过渡速度
+float v_max_turn_cancel = 160.0f;        //                                            // 弯道超时目标速度（编码器单位）
+float v_max_turn = 121.0f;                                                        // 弯道基础速度（编码器单位）
+float v_max_turn_start = 160.0f;         //                                              // 弯道开始时减速速度（编码器单位）
+float v_warning = 100.0f;                                                              // 中端黑点警告速度（快出界时降到此速度）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 25;                                                             //电机占空比
@@ -880,34 +878,44 @@ void menu_image_display_process(void)
                                1);                         // 二值化阈值=1
 
         // ---- 在二值化图像上叠加赛道中线 + 左右边界 ----
-        // 坐标从图像坐标系(141×90)映射到显示坐标系(240×100)
+        // 坐标从图像坐标系(IMG_W×IMG_H)映射到显示坐标系(240×100)
+        // 边界保护：防止异常值导致缩放后坐标越界触发 ips200 断言
         for(int16 r = 1; r < IMG_H; r++)
         {
             uint16 y1 = (r - 1) * 100 / IMG_H;
             uint16 y2 = r * 100 / IMG_H;
 
+            // clamp 到 IMG_W-1 防止缩放越界
+            uint16 cl_prev = (center_line[r - 1] >= IMG_W) ? (IMG_W - 1) : center_line[r - 1];
+            uint16 cl_curr = (center_line[r]     >= IMG_W) ? (IMG_W - 1) : center_line[r];
+            uint16 lb_prev = (left_boundary[r - 1] >= IMG_W) ? (IMG_W - 1) : left_boundary[r - 1];
+            uint16 lb_curr = (left_boundary[r]     >= IMG_W) ? (IMG_W - 1) : left_boundary[r];
+            uint16 rb_prev = (right_boundary[r - 1] >= IMG_W) ? (IMG_W - 1) : right_boundary[r - 1];
+            uint16 rb_curr = (right_boundary[r]     >= IMG_W) ? (IMG_W - 1) : right_boundary[r];
+
             // 中线（红色）
-            ips200_draw_line(center_line[r - 1] * 240 / IMG_W, y1,
-                             center_line[r] * 240 / IMG_W,     y2, RGB565_RED);
+            ips200_draw_line(cl_prev * 240 / IMG_W, y1,
+                             cl_curr * 240 / IMG_W, y2, RGB565_RED);
 
             // 左边界（蓝色）
-            ips200_draw_line(left_boundary[r - 1] * 240 / IMG_W, y1,
-                             left_boundary[r] * 240 / IMG_W,     y2, RGB565_BLUE);
+            ips200_draw_line(lb_prev * 240 / IMG_W, y1,
+                             lb_curr * 240 / IMG_W, y2, RGB565_BLUE);
 
             // 右边界（绿色）
-            ips200_draw_line(right_boundary[r - 1] * 240 / IMG_W, y1,
-                             right_boundary[r] * 240 / IMG_W,     y2, RGB565_GREEN);
+            ips200_draw_line(rb_prev * 240 / IMG_W, y1,
+                             rb_curr * 240 / IMG_W, y2, RGB565_GREEN);
         }
 
-        // ---- 画圆环检测行标记线（白色虚线效果，4px线段+4px间隔） ----
-        // 远端检测行 = RING_FAR_ROW(30)，映射到显示坐标 y = 30*100/IMG_H
+        // ---- 画圆环检测行标记线（白色/黄色虚线效果，4px线段+4px间隔） ----
         {
             uint16 y_f = (uint16)RING_FAR_ROW * 100 / IMG_H;                  // 远端检测行显示Y
+            uint16 y_m = (uint16)RING_MID_ROW * 100 / IMG_H;                  // 中端警告行显示Y
             uint16 y_r = (uint16)RING_NEAR_ROW * 100 / IMG_H;                   // 近端检测行显示Y
             // 画虚线（每8px画一段）
             for(uint16 x = 0; x < 240; x += 12)
             {
                 ips200_draw_line(x, y_f, (x + 4 < 240) ? x + 4 : 239, y_f, RGB565_WHITE);
+                ips200_draw_line(x, y_m, (x + 4 < 240) ? x + 4 : 239, y_m, RGB565_YELLOW);
                 ips200_draw_line(x, y_r, (x + 4 < 240) ? x + 4 : 239, y_r, RGB565_WHITE);
             }
         }
@@ -915,47 +923,51 @@ void menu_image_display_process(void)
         // ---- 分隔线 ----
         ips200_draw_line(0, 102, 239, 102, RGB565_RED);
 
-        // ---- 下半屏：显示圆环检测调试数据（替换原灰度图） ----
-        // 8×16字体，320宽=40字/行，y=106起共7行
+        // ---- 下半屏：状态信息 ----
         {
             char buf[40];
             ips200_set_color(RGB565_BLACK, RGB565_WHITE);
 
-            // 行1：标题
-            sprintf(buf, "        REF      CUR");
-            ips200_show_string(0, 106, buf);
-
-            // 行2：远端甲侧(左)
-            sprintf(buf, "farL  %3u      %3u", ring_dbg_ref_fl, ring_dbg_cur_fl);
-            ips200_show_string(0, 122, buf);
-
-            // 行3：远端乙侧(右)
-            sprintf(buf, "farR  %3u      %3u", ring_dbg_ref_fr, ring_dbg_cur_fr);
-            ips200_show_string(0, 138, buf);
-
-            // 行4：近端甲侧(左)
-            sprintf(buf, "nearL %3u      %3u", ring_dbg_ref_nl, ring_dbg_cur_nl);
-            ips200_show_string(0, 154, buf);
-
-            // 行5：近端乙侧(右)
-            sprintf(buf, "nearR %3u      %3u", ring_dbg_ref_nr, ring_dbg_cur_nr);
-            ips200_show_string(0, 170, buf);
-
-            // 行6：远端赛道宽度 + 近端赛道宽度（同行显示）
-            sprintf(buf, "farT  %3u>%3u  nearT %3u>%3u",
-                    ring_dbg_ref_ft, ring_dbg_cur_ft,
-                    ring_dbg_ref_nt, ring_dbg_cur_nt);
-            ips200_show_string(0, 186, buf);
-
-            // 行7：加权位置、阈值、圆环状态
+            // 直道/弯道判别：列扫描 + 图像环误差约束
+            uint8 is_straight = 1;
             {
-                float pos = get_weight_position(center_line);
-                const char *ring_names = "NPCIEOD";
-                sprintf(buf, "pos:%.1f OT:%3u R:%c", pos, otsu_threshold,
-                        ring_names[ring_state]);
-                ips200_set_color(RGB565_YELLOW, RGB565_BLACK);
-                ips200_show_string(0, 202, buf);
-                ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+                uint8 col = IMG_W / 2;
+                uint8 r;
+                for(r = RING_FAR_ROW; r <= IMG_H - 3; r++)
+                {
+                    if(binary_image[r][col] == BLACK)
+                    {
+                        is_straight = 0;
+                        break;
+                    }
+                }
+                // // 图像环误差过大（大弯姿态）→ 强制判为弯道
+                // if(is_straight)
+                // {
+                //     float abs_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
+                //     if(abs_err > 20.0f) is_straight = 0;
+                // }
+            }
+
+            // 行1：直道/弯道状态
+            if(is_straight)
+            {
+                ips200_set_color(RGB565_WHITE, RGB565_GREEN);
+                sprintf(buf, "  STRAIGHT  ");
+            }
+            else
+            {
+                ips200_set_color(RGB565_WHITE, RGB565_RED);
+                sprintf(buf, "   CURVE    ");
+            }
+            ips200_show_string(0, 106, buf);
+            ips200_set_color(RGB565_BLACK, RGB565_WHITE);
+
+            // 行2：加权位置、阈值
+            {
+                float pos = get_weight_position(center_line, is_straight);
+                sprintf(buf, "pos:%.1f  OT:%3u", pos, otsu_threshold);
+                ips200_show_string(0, 122, buf);
             }
         }
 
