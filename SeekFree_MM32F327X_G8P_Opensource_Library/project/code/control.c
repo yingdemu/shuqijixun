@@ -20,8 +20,8 @@
 #include "control.h"
 
 // 阿克曼差速全局变量
-float ackermann_gain_big = 1.5f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
-float ackermann_gain_small = 1.0f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
+float ackermann_gain_big = 1.9f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
+float ackermann_gain_small = 0.0f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
 float ackermann_gain = 1.0f;   //这个速度可以考虑给到2                                                // 差速增益（蓝牙可调）
 
 
@@ -94,6 +94,7 @@ void servo_set_angle(float angle)
 //   motor_set_duty(80, 20);   → 左轮快右轮慢，向右转弯
 //   motor_set_duty(20, 80);   → 左轮慢右轮快，向左转弯
 //   motor_set_duty(0, 0);     → 停止
+//注意：此函数第一个参数虽然叫right_duty，但实际上是左电机占空比，第二个参数是右电机占空比
 //-------------------------------------------------------------------------------------------------------------------
 void motor_set_duty(float right_duty, float left_duty)
 {
@@ -189,18 +190,27 @@ void ackermann_differential(float servo_angle_deg, float base_duty, float *left_
     }
 
     // 角度转弧度，计算 tan(δ)
-    float angle_rad = servo_angle_deg * 3.1415926f / 180.0f;
+    #define DEG2RAD 0.017453293f                                                  // PI/180
+    float angle_rad = servo_angle_deg * DEG2RAD;
     float tan_angle = angle_rad;                                                  // 小角度近似 tan(θ) ≈ θ（<12° 误差<2%）
     // 如需精确计算可替换为：tan_angle = tanf(angle_rad);
 
-    if(abs_angle>10){ackermann_gain = ackermann_gain_big;
-    }else {ackermann_gain = ackermann_gain_small;}
+    // if(abs_angle>8){ackermann_gain = ackermann_gain_big;
+    // }else {ackermann_gain = ackermann_gain_small;}
 
     // 阿克曼差速因子：diff = tan(δ) × W / L × gain
     float diff = tan_angle * ACKERMANN_TRACK / ACKERMANN_WHEELBASE * ackermann_gain;
 
-    // 正角（右转）：左轮减速、右轮加速
-    // 负角（左转）：左轮加速、右轮减速（tan负值自动反转）
-    *left_duty  = base_duty * (1.0f + diff);
-    *right_duty = base_duty * (1.0f - diff);
+    if(diff >0.0f){
+    *left_duty  = base_duty * (1.0f + diff)*0.9f;
+    *right_duty = base_duty * (1.0f - diff)*0.8f;
+  
+    }else{
+    *left_duty  = base_duty * (1.0f + diff)*0.8f;
+    *right_duty = base_duty * (1.0f - diff)*0.9f;
+    
+    }
+    //  *left_duty  = base_duty * (1.0f + diff)*1.0f;
+    //  *right_duty = base_duty * (1.0f - diff)*1.0f;
+
 }

@@ -36,12 +36,20 @@ uint8 line_data_ready = 0;                                                      
 
 
 
-uint8 weight[IMG_H]={   1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 ,
+static const uint8 weight[IMG_H]={   1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 ,
                         2 , 3 , 3 , 4 , 4 , 5 , 6 , 7 , 8 , 9 , 10 , 11 , 12 , 12 , 13 ,
                         14, 14, 15, 16, 16, 17, 18, 18, 19, 19, 18, 18, 17, 17, 16,
                         16, 15, 15, 14, 13, 13, 12, 12, 11, 11, 10, 10, 9 , 9 , 8 ,
                         8 , 7 , 7 , 6 , 6 , 5 , 5 , 4 , 4 , 3 , 3 , 2 , 2 , 1 , 1 ,
-                        5 , 4 , 4 , 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 , 1 , 1 , 1 , 1 };    //加权数组 15*6
+                        5 , 4 , 4 , 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 , 1 , 1 , 1 , 1 };    // 15*6=90
+
+static const uint8 weight2[IMG_H]={   20, 20, 20, 20, 19, 19, 19, 19, 18, 18, 18, 18, 17, 17, 17,
+                        17, 16, 16, 16, 16, 15, 15, 15, 15, 14, 14, 14, 14, 13, 13 ,
+                        13, 13, 12, 12, 12, 12, 11, 11, 11, 11, 10, 10, 10, 10, 9 ,
+                        9 , 9 , 9 , 8 , 8 , 8 , 8 , 7 , 7 , 7 , 7 , 6 , 6 , 6 , 6 ,
+                        5 , 5 , 5 , 5 , 4 , 4 , 4 , 4 , 3 , 3 , 3 , 3 , 2 , 2 , 2 ,
+                        2 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 };    // 15*6=90
+
 //==================================================== 巡线模块初始化 ====================================================
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -200,7 +208,7 @@ uint8 get_center_line(uint8 row)
     }
     else
     {
-        return IMG_W / 2;                                                       // 默认返回图像中心（40）
+        return IMG_W / 2;                                                       // 默认返回图像中心（94）
     }
 }
 
@@ -303,18 +311,25 @@ int16 calc_deviation(uint8 look_ahead_rows)
     return (int16)mid_x - (int16)(IMG_W / 2);
 }
 
-float get_weight_position(uint8 *center_line)
+// ---- 中线位置低通滤波状态（发车时需重置） ----
+static float g_filtered_pos = 0.0f;
+static uint8 g_weight_first_run = 1;
+static uint8 g_weight_need_reset = 0;
+
+float get_weight_position(uint8 *center_line, uint8 is_straight)
 {
+    const uint8 *w = is_straight ? weight : weight2;
+
     float weighted_sum = 0.0f;
     float weight_total = 0.0f;
 
     int16 i;
-    for(i = 0; i < IMG_H; i++)
+    for(i = RING_FAR_ROW; i < IMG_H-5; i++)
     {
         if(center_line_valid[i] == 1)
         {
-            weighted_sum += (float)center_line[i] * weight[i];
-            weight_total += weight[i];
+            weighted_sum += (float)center_line[i] * w[i];
+            weight_total += w[i];
         }
     }
 
@@ -322,22 +337,21 @@ float get_weight_position(uint8 *center_line)
     if(weight_total > 0.0f)
         raw_pos = weighted_sum / weight_total;
     else
-        raw_pos = 0.0f;
+        raw_pos = (float)(IMG_W / 2);   // 中线全不可用时返回图像中心
 
     // 一阶低通滤波：滤除中线位置的帧间抖动
     #define POS_LOWPASS 0.3f
-    static float filtered_pos = 0.0f;
-    static uint8 first_run = 1;
-    if(first_run)
+    if(g_weight_need_reset) { g_weight_first_run = 1; g_filtered_pos = 0.0f; g_weight_need_reset = 0; }
+    if(g_weight_first_run)
     {
-        filtered_pos = raw_pos;
-        first_run = 0;
+        g_filtered_pos = raw_pos;
+        g_weight_first_run = 0;
     }
     else
     {
-        filtered_pos = POS_LOWPASS * raw_pos + (1.0f - POS_LOWPASS) * filtered_pos;
+        g_filtered_pos = POS_LOWPASS * raw_pos + (1.0f - POS_LOWPASS) * g_filtered_pos;
     }
-    return filtered_pos;
+    return g_filtered_pos;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -361,8 +375,8 @@ void boundary_lost_compensate(void)
     }
     if(total_rows == 0) return;
 
-    uint8 left_lost_flag  = (left_lost   >= total_rows );
-    uint8 right_lost_flag = (right_lost  >= total_rows );
+    uint8 left_lost_flag  = (left_lost * 10  >= total_rows * 9);
+    uint8 right_lost_flag = (right_lost * 10 >= total_rows * 9);
 
     if(left_lost_flag && !right_lost_flag)
     {
@@ -408,14 +422,20 @@ void boundary_lost_compensate(void)
 
 // ---- 图像 PID：中线偏差 → 目标角速度 ----
 float image_pid_error=0;
-float image_pid_outd=0;
-float image_pid_outp=0;
-float image_kp=0;
+static float image_pid_outd=0;
+static float image_pid_outp=0;
+static float image_kp=0;
+static uint8 g_image_pid_first = 1;
+static float g_image_out_prev = 0.0f;
+static uint8 g_image_pid_need_reset = 0;
+#define IMAGE_OUT_RATE_LIMIT 100.0f  // 帧间输出变化率限制，防止 D 项导致符号翻转
+
 float image_pid_set(float target,float actual)
 {
-    static uint8 first = 1;
+    if(g_image_pid_need_reset) { g_image_pid_first = 1; image_pid_outd = 0.0f; image_pid_outp = 0.0f; g_image_out_prev = 0.0f; g_image_pid_need_reset = 0; }
+
     image_pid_error = target - actual;
-    if(first) { image_pid_outp = image_pid_error; first = 0; return 0.0f; }  // 首帧跳过D项防尖峰
+    if(g_image_pid_first) { image_pid_outp = image_pid_error; g_image_out_prev = 0.0f; g_image_pid_first = 0; return 0.0f; }  // 首帧跳过D项防尖峰
     image_pid_outd = (image_pid_error - image_pid_outp)*image_lowpass+image_pid_outd*(1-image_lowpass);
     image_pid_outp = image_pid_error;
     image_kp=image_kp_a + (image_pid_error*image_pid_error)*image_kp_b;
@@ -423,20 +443,32 @@ float image_pid_set(float target,float actual)
         float abs_img_err = (image_pid_error > 0.0f) ? image_pid_error : -image_pid_error;
         if(abs_img_err < 12.0f) image_kp = image_kp_a;
     }
-    return (-(image_kp*image_pid_outp + image_kd*image_pid_outd ));
+
+    float raw_out = -(image_kp*image_pid_outp + image_kd*image_pid_outd);
+
+    // 帧间变化率限制：防止 D 项尖峰导致符号翻转（如右弯突然输出左转指令）
+    float diff = raw_out - g_image_out_prev;
+    if(diff > IMAGE_OUT_RATE_LIMIT)       raw_out = g_image_out_prev + IMAGE_OUT_RATE_LIMIT;
+    else if(diff < -IMAGE_OUT_RATE_LIMIT) raw_out = g_image_out_prev - IMAGE_OUT_RATE_LIMIT;
+    g_image_out_prev = raw_out;
+
+    return raw_out;
 }
 
 // ---- IMU PID：角速度闭环 → 舵机打角 ----
-float IMU_pid_error=0;
-float IMU_pid_outd=0;
-float IMU_pid_outp=0;
-float IMU_kp=0;
-float finall_out;
+static float IMU_pid_error=0;
+static float IMU_pid_outd=0;
+static float IMU_pid_outp=0;
+static float IMU_kp=0;
+static float finall_out;
+static uint8 g_imu_pid_first = 1;
+static uint8 g_imu_pid_need_reset = 0;
 float IMU_pid_set(float target,float actual)
 {
-    static uint8 first = 1;
+    if(g_imu_pid_need_reset) { g_imu_pid_first = 1; IMU_pid_outd = 0.0f; IMU_pid_outp = 0.0f; g_imu_pid_need_reset = 0; }
+
     IMU_pid_error = target - actual;
-    if(first) { IMU_pid_outp = IMU_pid_error; first = 0; return 0.0f; }
+    if(g_imu_pid_first) { IMU_pid_outp = IMU_pid_error; g_imu_pid_first = 0; return 0.0f; }
     IMU_pid_outd = (IMU_pid_error - IMU_pid_outp)*IMU_lowpass+IMU_pid_outd*(1-IMU_lowpass);
     IMU_pid_outp = IMU_pid_error;
     IMU_kp=IMU_kp_a + (IMU_pid_error*IMU_pid_error)*IMU_kp_b;
@@ -454,10 +486,10 @@ float IMU_pid_set(float target,float actual)
 }
 
 // ---- 电机 PID：中线偏差 → 差速量 ----
-float motor_pid_error=0;
-float motor_pid_outd=0;
-float motor_pid_outp=0;
-float motor_kp=0;
+static float motor_pid_error=0;
+static float motor_pid_outd=0;
+static float motor_pid_outp=0;
+static float motor_kp=0;
 float motor_pid_set(float target,float actual)
 {
     static uint8 first = 1;
@@ -489,7 +521,7 @@ float atti_yaw = 0.0f;                                                          
 // ---- 角度 PID 参数（蓝牙可调） ----
 float angle_kp_a = 0.0f;
 float angle_kp_b = 0.0f;
-float angle_kd  = 0.02f;
+float angle_kd  = 0.32f;
 float angle_lowpass = 0.8f;
 
 // ---- 融合系数 ----
@@ -628,11 +660,14 @@ float angle_kp = 0;
 //   若车向右转（curr > prev）→ error < 0 → 输出负 → 左转 ← 抑制过度右转
 //   若车向左转（curr < prev）→ error > 0 → 输出正 → 右转 ← 抑制过度左转
 //-------------------------------------------------------------------------------------------------------------------
+static uint8 g_angle_pid_first = 1;
+static uint8 g_angle_pid_need_reset = 0;
 float angle_pid_set(float target, float actual)
 {
-    static uint8 first = 1;
+    if(g_angle_pid_need_reset) { g_angle_pid_first = 1; angle_pid_outd = 0.0f; angle_pid_outp = 0.0f; g_angle_pid_need_reset = 0; }
+
     angle_pid_error = target - actual;
-    if(first) { angle_pid_outp = angle_pid_error; first = 0; return 0.0f; }
+    if(g_angle_pid_first) { angle_pid_outp = angle_pid_error; g_angle_pid_first = 0; return 0.0f; }
     angle_pid_outd = (angle_pid_error - angle_pid_outp) * angle_lowpass
                    + angle_pid_outd * (1.0f - angle_lowpass);
     angle_pid_outp = angle_pid_error;
@@ -650,66 +685,117 @@ float angle_pid_set(float target, float actual)
 
 
 
-// ---- 速度 PID 状态变量（左右轮独立） ----
-float speed_pid_error = 0;
-
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：speed_pid_set
-// 功能：速度闭环 PID（增量式，带输出饱和抗积分饱和），左右轮独立状态
+// 功能：速度闭环 PID（增量式，D项低通滤波 + 零速死区 + 静摩擦补偿），左右轮独立状态
 // 参数：channel —— 0=左轮, 1=右轮
 // 参数：target  —— 目标速度（脉冲/5ms）
-// 参数：actual  —— 实际速度（脉冲/5ms）
+// 参数：actual  —— 实际速度（脉冲/5ms，已通过编码器低通滤波）
 // 返回：float —— 电机占空比（-100~100）
 //-------------------------------------------------------------------------------------------------------------------
 
+#define SPEED_DEADBAND          (2.0f)                                              // 零速死区阈值（脉冲/5ms），目标和实际都小于此值时输出0
+#define STICTION_THRESHOLD      (3.0f)                                              // 静摩擦补偿阈值（%占空比），输出绝对值小于此值且误差很小时归零
+
+static uint8 g_speed_pid_first[2] = {1, 1};
+static float g_speed_pid_out[2] = {0.0f, 0.0f};
+static float g_speed_error_prev[2]  = {0.0f, 0.0f};
+static float g_speed_error_prev2[2] = {0.0f, 0.0f};
+static float g_speed_deriv_filt[2]  = {0.0f, 0.0f};
+static uint8 g_speed_pid_need_reset = 0;
+
 float speed_pid_set(uint8 channel, float target, float actual)
 {
-    static uint8 first[2] = {1, 1};
-    static float speed_pid_out[2] = {0.0f, 0.0f};
-    static float error_prev[2]  = {0.0f, 0.0f};
-    static float error_prev2[2] = {0.0f, 0.0f};
-
-    speed_pid_error = target - actual;
-
-    if(first[channel])
-    {
-        speed_pid_out[channel] = (float)motor_duty;
-        error_prev[channel]  = speed_pid_error;
-        error_prev2[channel] = speed_pid_error;
-        first[channel] = 0;
-        return speed_pid_out[channel];
+    if(g_speed_pid_need_reset) {
+        g_speed_pid_first[0] = 1; g_speed_pid_first[1] = 1;
+        g_speed_pid_out[0] = 0.0f; g_speed_pid_out[1] = 0.0f;
+        g_speed_error_prev[0] = 0.0f; g_speed_error_prev[1] = 0.0f;
+        g_speed_error_prev2[0] = 0.0f; g_speed_error_prev2[1] = 0.0f;
+        g_speed_deriv_filt[0] = 0.0f; g_speed_deriv_filt[1] = 0.0f;
+        g_speed_pid_need_reset = 0;
     }
 
-    float err = speed_pid_error;
-    float err_p = error_prev[channel];
-    float err_pp = error_prev2[channel];
+    // ---- 零速死区：目标和实际都接近零时，直接输出0并重置状态 ----
+    float abs_tgt = (target > 0.0f) ? target : -target;
+    float abs_act = (actual > 0.0f) ? actual : -actual;
+    if(abs_tgt < SPEED_DEADBAND && abs_act < SPEED_DEADBAND)
+    {
+        g_speed_pid_out[channel] = 0.0f;
+        g_speed_error_prev[channel]    = 0.0f;
+        g_speed_error_prev2[channel]   = 0.0f;
+        g_speed_deriv_filt[channel]    = 0.0f;
+        g_speed_pid_first[channel] = 0;
+        return 0.0f;
+    }
 
-    // 增量式 PID：Δu = Kp*(e0-e1) + Ki*e0 + Kd*(e0-2*e1+e2)
+    float err = target - actual;
+
+    if(g_speed_pid_first[channel])
+    {
+        // 初始输出：目标为零时从0开始，避免从 motor_duty 一路降下来造成过冲
+        g_speed_pid_out[channel] = (abs_tgt < SPEED_DEADBAND) ? 0.0f : (float)motor_duty;
+        g_speed_error_prev[channel]    = err;
+        g_speed_error_prev2[channel]   = err;
+        g_speed_deriv_filt[channel]    = 0.0f;
+        g_speed_pid_first[channel] = 0;
+        return g_speed_pid_out[channel];
+    }
+
+    float err_p  = g_speed_error_prev[channel];
+    float err_pp = g_speed_error_prev2[channel];
+
+    // D 项低通滤波（与 image_pid / IMU_pid / angle_pid 一致，滤除编码器量化噪声）
+    // raw_deriv = e0 - 2*e1 + e2（误差的二阶差分）
+    float raw_deriv = err - 2.0f * err_p + err_pp;
+    g_speed_deriv_filt[channel] = speed_lowpass * raw_deriv + (1.0f - speed_lowpass) * g_speed_deriv_filt[channel];
+
+    // 增量式 PID：Δu = Kp*(e0-e1) + Ki*e0 + Kd*filtered_deriv
     float increment = speed_kp * (err - err_p)
                     + speed_ki * err
-                    + speed_kd * (err - 2.0f * err_p + err_pp);
+                    + speed_kd * g_speed_deriv_filt[channel];
 
-    // 增量限幅：encoder≈duty×10，±8匹配正常duty范围0~20
-    float inc_max = 8.0f;
-    if(increment > inc_max)  increment = inc_max;
-    if(increment < -inc_max) increment = -inc_max;
+    // 增量限幅已禁用（响应速度优先）
+    g_speed_pid_out[channel] += increment;
 
-    speed_pid_out[channel] += increment;
+    // 输出饱和
+    if(g_speed_pid_out[channel] > (float)MOTOR_DUTY_MAX)
+        g_speed_pid_out[channel] = (float)MOTOR_DUTY_MAX;
+    else if(g_speed_pid_out[channel] < (float)MOTOR_DUTY_MIN)
+        g_speed_pid_out[channel] = (float)MOTOR_DUTY_MIN;
 
-    // 输出饱和 + 抗积分饱和（条件积分法）
-    // 只有输出已饱和且增量同向时才钳位，堵转时允许输出继续上升
-    if(speed_pid_out[channel] > (float)MOTOR_DUTY_MAX)
-        speed_pid_out[channel] = (float)MOTOR_DUTY_MAX;
-    else if(speed_pid_out[channel] < (float)MOTOR_DUTY_MIN)
-        speed_pid_out[channel] = (float)MOTOR_DUTY_MIN;
+    // ---- 静摩擦补偿：输出很小且误差也小时归零，避免无效微振耗电 ----
+    float abs_out = (g_speed_pid_out[channel] > 0.0f) ? g_speed_pid_out[channel] : -g_speed_pid_out[channel];
+    float abs_err = (err > 0.0f) ? err : -err;
+    if(abs_out < STICTION_THRESHOLD && abs_err < SPEED_DEADBAND * 3.0f)
+    {
+        g_speed_pid_out[channel] = 0.0f;
+    }
 
     // 更新历史误差
-    error_prev2[channel] = err_p;
-    error_prev[channel]  = err;
+    g_speed_error_prev2[channel] = err_p;
+    g_speed_error_prev[channel]  = err;
 
-    return speed_pid_out[channel];
+    return g_speed_pid_out[channel];
 }
 
+
+//-------------------------------------------------------------------------------------------------------------------
+// 函数名称：control_state_reset
+// 功能：重置所有 PID 和滤波器状态（发车时调用，防止 image 模式残留状态导致首帧异常）
+//-------------------------------------------------------------------------------------------------------------------
+void control_state_reset(void)
+{
+    // ---- 中线低通滤波 ----
+    g_weight_need_reset = 1;
+    // ---- 图像 PID ----
+    g_image_pid_need_reset = 1;
+    // ---- IMU PID ----
+    g_imu_pid_need_reset = 1;
+    // ---- 角度 PID ----
+    g_angle_pid_need_reset = 1;
+    // ---- 速度 PID ----
+    g_speed_pid_need_reset = 1;
+}
 
 //-------------------------------------------------------------------------------------------------------------------
 // 函数名称：servo_fusion

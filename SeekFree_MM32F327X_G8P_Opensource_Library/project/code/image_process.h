@@ -23,9 +23,9 @@
 
 // 图像尺寸与 MT9V03X 摄像头配置一致
 // 注意：这些值必须与 zf_device_mt9v03x.h 中的 MT9V03X_W 和 MT9V03X_H 保持一致
-#define IMG_W                   MT9V03X_W                                       // 图像宽度 = 188 列
+#define IMG_W                   MT9V03X_W                                       // 图像宽度 = 141 列
 #define IMG_H                   MT9V03X_H                                       // 图像高度 = 90 行
-#define IMG_SIZE                (IMG_W * IMG_H)                                 // 图像总像素数 = 4800
+#define IMG_SIZE                (IMG_W * IMG_H)                                 // 图像总像素数 = 12690
 
 //==================================================== 二值化常量定义 ====================================================
 
@@ -42,7 +42,9 @@
 
 //==================================================== 圆环巡线常量 ====================================================
 
-#define RING_FAR_ROW            15                                              // 远端检测行号
+#define RING_FAR_ROW            3                                              // 远端检测行号
+#define STRAIGHT_DETECT_ROW     (3)                                             // 直道检测行号（中心列全白扫描起始行）
+#define RING_MID_ROW            (36)                                            // 中端警告行号
 #define RING_NEAR_ROW           (IMG_H - 30)                                    // 近端检测行号
 #define RING_HALF_WIDTH         30                                              // 赛道半宽（圆环跟随模式用）
 #define RING_NORMAL_WIDTH_MIN   20                                              // 正常赛道宽度下限
@@ -121,6 +123,9 @@ extern uint8 right_valid[IMG_H];                                                
 
 // ---- 圆环状态 ----
 extern ring_state_enum ring_state;                                              // 圆环当前状态
+
+// ---- 十字路口强制打角（crossroad_fix 输出，0=不触发，±12=强制角度） ----
+extern int16 crossroad_forced_angle;
 
 // ---- 圆环检测调试变量（供显示用） ----
 extern uint8 ring_dbg_ref_fl;                                                   // 远端甲侧参考边宽
@@ -212,16 +217,16 @@ void boundary_trace(uint8 image[IMG_H][IMG_W]);
 void find_key_points(uint8 image[IMG_H][IMG_W]);
 
 //-------------------------------------------------------------------------------------------------------------------
-// 函数简介     十字路口判断与补线处理
+// 函数简介     十字路口判断与中线偏移（三列扫描法）
 // 参数说明     image —— 二值化图像数组（IMG_H × IMG_W）
 // 返回参数     void
-// 使用示例     crossroad_fix(binary_image);
-// 备注信息     判断条件：
-//               1. |CY - DY| < 10 —— C和D的高度差小于10行（左右拐点高度接近）
-//               2. CY > 20 且 DY > 20 —— 拐点在前方较远处（行号大=距离远）
-//             补线方法：
-//               在十字路口处沿AC方向和BD方向画延长线（黑色）
-//               使赛道边界线在十字路口处不断开
+// 使用示例     crossroad_fix(binary_image);  // 需在 extract_centerline() 之后调用
+// 备注信息     检测：
+//               1. IMG_W/2列 从IMG_H-3到2行 不是全白（有黑点）
+//               2. 第2列 或 IMG_W-3列 全白（无黑点）
+//             偏移：
+//               左丢线多 → center_line 全体右移20
+//               右丢线多 → center_line 全体左移20
 //-------------------------------------------------------------------------------------------------------------------
 void crossroad_fix(uint8 image[IMG_H][IMG_W]);
 

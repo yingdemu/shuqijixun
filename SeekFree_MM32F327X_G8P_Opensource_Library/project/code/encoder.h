@@ -28,6 +28,8 @@ extern int16 encoder_speed_1;                                                   
 extern int16 encoder_speed_2;                                                       // 右轮速度（PIT周期内脉冲数）
 extern int32 encoder_total_1;                                                       // 左轮累计脉冲
 extern int32 encoder_total_2;                                                       // 右轮累计脉冲
+extern float encoder_speed_filt_1;                                                   // 左轮速度低通滤波值（供 PID 使用）
+extern float encoder_speed_filt_2;                                                   // 右轮速度低通滤波值
 
 //==================================================== 函数声明 ====================================================
 

@@ -75,6 +75,7 @@ extern float speed_lowpass;                                                     
 extern float speed_min;                                                           // 弯道最低速度（编码器单位）
 extern float speed_decision_k;                                                    // 速度决策系数
 extern float v_max_straight;                                                      // 直道目标速度（编码器单位）
+extern float v_max_straight_start;                                                // 直道恢复前0.2s过渡速度
 extern float v_max_turn;                                                          // 弯道基础速度（编码器单位）
 extern float v_max_turn_cancel;
 extern float v_max_turn_start;                                                       // 弯道开始时减速速度（编码器单位）
