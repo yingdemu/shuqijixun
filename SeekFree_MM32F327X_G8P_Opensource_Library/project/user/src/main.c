@@ -775,7 +775,7 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：无差速（左右轮等速） ----
-                            raw_gain = 0.0f;
+                            raw_gain = 0.0f + 0.15f * (abs(final_servo) - 4.0f);;
                         }
                         else if(gain_state == 1)
                         {
