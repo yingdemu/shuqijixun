@@ -732,7 +732,7 @@ int main(void)
                         for(c = 0; c < IMG_W; c++)
                             if(binary_image[STRAIGHT_DETECT_ROW][c] == BLACK) row_black_cnt++;
                         if(row_black_cnt > IMG_W / 2)
-                            v_target = speed_min;
+                            v_target = speed_min+30;
                     }
 
                     // 速度目标低通滤波已禁用（响应速度优先）
