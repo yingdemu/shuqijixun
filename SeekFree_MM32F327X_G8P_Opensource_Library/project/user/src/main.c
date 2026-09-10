@@ -882,7 +882,7 @@ void pit_handler (void)
                 R_duty = R_filt;
             }
 
-            motor_set_duty(L_duty, R_duty);
+            motor_set_duty(R_duty, L_duty);
         }
         else
         {
