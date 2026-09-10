@@ -42,7 +42,7 @@
 
 //==================================================== 圆环巡线常量 ====================================================
 
-#define RING_FAR_ROW            3                                              // 远端检测行号
+#define RING_FAR_ROW            5                                              // 远端检测行号
 #define RING_MID_ROW            (36)                                            // 中端警告行号
 #define RING_NEAR_ROW           (IMG_H - 30)                                    // 近端检测行号
 #define RING_HALF_WIDTH         30                                              // 赛道半宽（圆环跟随模式用）
@@ -122,9 +122,6 @@ extern uint8 right_valid[IMG_H];                                                
 
 // ---- 圆环状态 ----
 extern ring_state_enum ring_state;                                              // 圆环当前状态
-
-// ---- 十字路口强制打角（crossroad_fix 输出，0=不触发，±12=强制角度） ----
-extern int16 crossroad_forced_angle;
 
 // ---- 圆环检测调试变量（供显示用） ----
 extern uint8 ring_dbg_ref_fl;                                                   // 远端甲侧参考边宽

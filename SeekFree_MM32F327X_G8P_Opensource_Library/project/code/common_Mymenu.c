@@ -46,20 +46,27 @@ float IMU_kp_b =0.0f;
 float IMU_kd =1.06f;
 float IMU_lowpass = 0.8f;                                                       // IMU低通滤波系数（默认 0.8）
 
-float speed_kp = 0.50f;                                                           // 速度P（误差单位=脉冲/5ms，输出=占空比%）
-float speed_ki = 0.05f;                                                           // 速度I（稳态误差消除）
-float speed_kd = 0.30f;                                                            // 速度D
-float speed_lowpass = 0.5f;                                                       // speed低通滤波系数（默认 0.5）
+float speed_kp = 0.7f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+float speed_ki = 0.15f;                                                           // 速度I（稳态误差消除）
+float speed_kd = 0.10f;                                                            // 速度D
+float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
 
+// float speed_kp = 0.1885f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+// float speed_ki = 0.0196f;                                                           // 速度I（稳态误差消除）
+// float speed_kd = 0.0386f;                                                            // 速度D
+// float speed_lowpass = 0.8f;                                                       // speed低通滤波系数（默认 0.8）
+// float speed_kp = 0.1400f;                                                            // 速度P（误差单位=脉冲/5ms，输出=占空比%）
+// float speed_ki = 0.0400f;                                                           // 速度I（稳态误差消除）
+// float speed_kd = 0.0500f;                                                            // 速度D
 //或者减1加2？
-float speed_min = 130.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
+float speed_min = 135.0f;                                                          // 弯道最低速度（编码器单位，脉冲/5ms）
 float speed_decision_k = 1.0f;                                                    // 速度决策系数（1=标准，>1弯道更慢）
 float v_max_straight = 180.0f;                                                    // 直道目标速度（编码器单位）
-float v_max_straight_start = 160.0f;                                              // 直道恢复前0.2s过渡速度
-float v_max_turn_cancel = 160.0f;        //                                            // 弯道超时目标速度（编码器单位）
+float v_max_straight_start = 144.0f;                                              // 直道恢复前0.2s过渡速度
+float v_max_turn_cancel = 144.0f;        //                                            // 弯道超时目标速度（编码器单位）
 float v_max_turn = 121.0f;                                                        // 弯道基础速度（编码器单位）
-float v_max_turn_start = 160.0f;         //                                              // 弯道开始时减速速度（编码器单位）
-float v_warning = 100.0f;                                                              // 中端黑点警告速度（快出界时降到此速度）
+float v_max_turn_start = 144.0f;         //                                              // 弯道开始时减速速度（编码器单位）
+float v_warning = 20.0f;                                                              // 中端黑点警告速度（快出界时降到此速度）
 //-----发车标志位-----
 bool car_go_flag = 0;                                                            // 发车标志位（1=开始巡线，0=停止巡线）
 uint8 motor_duty = 25;                                                             //电机占空比

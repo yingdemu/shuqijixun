@@ -201,13 +201,8 @@ void ackermann_differential(float servo_angle_deg, float base_duty, float *left_
     // 阿克曼差速因子：diff = tan(δ) × W / L × gain
     float diff = tan_angle * ACKERMANN_TRACK / ACKERMANN_WHEELBASE * ackermann_gain;
 
-    if(diff >0.0f){
-    *left_duty  = base_duty * (1.0f + diff)*0.8f;
-    *right_duty = base_duty * (1.0f - diff)*0.7f;
-  
-    }else{
-    *left_duty  = base_duty * (1.0f + diff)*0.7f;
-    *right_duty = base_duty * (1.0f - diff)*0.8f;
-
-    }
+    // 正角（右转）：左轮减速、右轮加速
+    // 负角（左转）：左轮加速、右轮减速（tan负值自动反转）
+    *left_duty  = base_duty * (1.0f + diff);
+    *right_duty = base_duty * (1.0f - diff);
 }
