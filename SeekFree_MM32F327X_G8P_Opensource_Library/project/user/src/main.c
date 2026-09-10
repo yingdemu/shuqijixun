@@ -230,8 +230,7 @@ int main(void)
                         break;
                     }
                 }
-                if(white_cnt >= 4 && center_all_white
-                   && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
+                if(white_cnt >= 4 && center_all_white)
                     is_straight2 = 1;
             }
 
@@ -463,8 +462,6 @@ int main(void)
                         if(white_cnt >= 3 && center_all_white)
                         {
                             if(
-                            left_boundary[row] >= 5 &&
-                                right_boundary[row] <= IMG_W - 5 &&
                                 right_boundary[row] >=IMG_W/2
                                 && left_boundary[row] <=IMG_W/2)
                             {
@@ -777,32 +774,32 @@ int main(void)
 
                         if(gain_state == 0)
                         {
-                            // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain = 0.0f + 0.15f * (abs(final_servo) - 3.0f);;
+                            // ---- 直道：无差速（左右轮等速） ----
+                            raw_gain = 0.0f;
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.15f * (abs(final_servo) - 3.0f);;
+                            raw_gain = 0.0f + 0.11f * (abs(final_servo) - 4.0f);;
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.15f * (abs(final_servo) - 3.0f);;
+                            raw_gain = 0.0f + 0.11f * (abs(final_servo) - 4.0f);;
                         }
 
                         // // 中端警告时增大差速，增强修正能力防止出界
                         // if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
                         //     raw_gain *= 1.3f;
 
-                        #define ACKERMANN_LOWPASS 0.3f
+                        #define ACKERMANN_LOWPASS 0.6f
                         static float filt_gain = 0.0f;
                         static uint8 gain_init = 1;
                         if(g_main_need_reset) { filt_gain = 0.0f; gain_init = 1; }
 
                         if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
                         else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }
-                        ackermann_gain = 0;
+                        ackermann_gain = filt_gain;
                     }
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);

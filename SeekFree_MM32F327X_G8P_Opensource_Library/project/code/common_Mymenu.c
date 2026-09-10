@@ -948,7 +948,6 @@ void menu_image_display_process(void)
                     }
                 }
                 if(white_cnt >= 3 && center_all_white
-                   && left_boundary[row] >= 5 && right_boundary[row] <= IMG_W - 5
                    && right_boundary[row] >= IMG_W / 2 && left_boundary[row] <= IMG_W / 2)
                     is_straight = 1;
             }
