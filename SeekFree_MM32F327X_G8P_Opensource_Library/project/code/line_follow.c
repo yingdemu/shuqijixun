@@ -318,7 +318,7 @@ static uint8 g_weight_need_reset = 0;
 
 float get_weight_position(uint8 *center_line, uint8 is_straight)
 {
-    const uint8 *w = is_straight ? weight : weight2;
+    const uint8 *w = weight;   // 直弯统一用直道权重（中间重），弯道暂不用远端权重 weight2
 
     float weighted_sum = 0.0f;
     float weight_total = 0.0f;

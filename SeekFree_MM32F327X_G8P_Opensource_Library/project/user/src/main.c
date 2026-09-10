@@ -621,6 +621,10 @@ int main(void)
                     float angle_out = angle_pid_set(prev_yaw, atti_yaw);
                     prev_yaw = atti_yaw;
 
+                    // 融合系数：在 servo_fusion 之前根据本帧 is_straight 设置（避免滞后一帧）
+                    if(is_straight) servo_fusion_alpha = STRAIGHT_FUSION_ALPHA;
+                    else            servo_fusion_alpha = TURN_FUSION_ALPHA;
+
                     // 融合 IMU PID 和角度 PID 输出
                     float final_servo = servo_fusion(angle_out, servo_angle);
 
@@ -692,7 +696,6 @@ int main(void)
 
                     if(is_straight)
                     {
-                        servo_fusion_alpha = STRAIGHT_FUSION_ALPHA;                 // 直道：20%角度+80%IMU
                         turn_timer_cnt = 0;
 
                         if(!prev_straight){
@@ -712,7 +715,6 @@ int main(void)
                     }
                     else
                     {
-                        servo_fusion_alpha = TURN_FUSION_ALPHA;                     // 弯道：10%角度+90%IMU
                         straight_rec_cnt = 0;                                      // 弯道清零
                         prev_straight = 0;
 
