@@ -251,34 +251,7 @@ int main(void)
                 }
                 else
                 {
-                    // ---- 直道/弯道判别（在使用中线前检测） ----
-                    uint8 is_straight = 0;
-                    {
-                        uint8 row = 4;
-                        uint8 col = IMG_W / 2;
-                        if(binary_image[row][col] == WHITE &&
-                           binary_image[row][col-1] == WHITE &&
-                           binary_image[row][col+1] == WHITE)
-                        {
-                            if(left_valid[row] && right_valid[row])
-                            {
-                                if(left_boundary[row] >= 15 &&
-                                   right_boundary[row] <= IMG_W - 15)
-                                {
-                                    is_straight = 1;
-                                }
-                            }
-                        }
-                    }
-
                     float weight_position = get_weight_position(center_line);
-
-                    // 直道时中线与图像中心 50% 滤波，减小不必要的转向修正
-                    if(is_straight)
-                    {
-                        weight_position = 0.6f * ((float)IMG_W / 2.0f) + 0.4f * weight_position;
-                    }
-
                     float groy_z = get_gyro_z();
                     float IMU_target = image_pid_set(0, IMG_W/2 - weight_position);
                     float servo_angle = IMU_pid_set(IMU_target, groy_z);
@@ -306,6 +279,29 @@ int main(void)
 
                     servo_set_angle(final_servo);
                     prev_servo_angle = final_servo;
+
+                    // ---- 直道/弯道判别 ----
+                    // 条件1: 图像顶部中央3像素全白（前方是赛道）
+                    // 条件2: 左右边界来自八邻域有效爬线
+                    // 条件3: 左右边界未丢线（不贴边）
+                    uint8 is_straight = 0;
+                    {
+                        uint8 row = 4;
+                        uint8 col = IMG_W / 2;
+                        if(binary_image[row][col] == WHITE &&
+                           binary_image[row][col-1] == WHITE &&
+                           binary_image[row][col+1] == WHITE)
+                        {
+                            if(left_valid[row] && right_valid[row])
+                            {
+                                if(left_boundary[row] >= 30 &&
+                                   right_boundary[row] <= IMG_W - 30)
+                                {
+                                    is_straight = 1;
+                                }
+                            }
+                        }
+                    }
 
                     // ---- 速度决策：直道全速，弯道降速 ----
                     float v_target;
