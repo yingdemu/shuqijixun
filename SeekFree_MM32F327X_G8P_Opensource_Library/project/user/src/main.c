@@ -73,13 +73,13 @@
                                                                                 // 单排排针 SPI → IPS200_TYPE_SPI
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
-#define SERVO_LOWPASS            (0.5f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
+#define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
+#define STRAIGHT_BLEND            (0.0f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
-#define TURN_FUSION_ALPHA         (0.1f)                                         // 弯道 servo_fusion_alpha
+#define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（120×5ms=0.6s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
@@ -230,7 +230,7 @@ int main(void)
                         break;
                     }
                 }
-                if(white_cnt >= 4 && center_all_white && left_valid[row] && right_valid[row]
+                if(white_cnt >= 4 && center_all_white
                    && left_boundary[row] >= 10 && right_boundary[row] <= IMG_W - 10)
                     is_straight2 = 1;
             }
@@ -462,16 +462,13 @@ int main(void)
                         }
                         if(white_cnt >= 3 && center_all_white)
                         {
-                            if(left_valid[row] && right_valid[row])
+                            if(
+                            left_boundary[row] >= 5 &&
+                                right_boundary[row] <= IMG_W - 5 &&
+                                right_boundary[row] >=IMG_W/2
+                                && left_boundary[row] <=IMG_W/2)
                             {
-                                if(
-                                left_boundary[row] >= 5 &&
-                                    right_boundary[row] <= IMG_W - 5 &&
-                                    right_boundary[row] >=IMG_W/2
-                                    && left_boundary[row] <=IMG_W/2)
-                                {
-                                    is_straight = 1;
-                                }
+                                is_straight = 1;
                             }
                         }
                     }
@@ -781,22 +778,22 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：小差速，以速度为主，减少无谓的左右摆动 ----
-                            raw_gain = 0.0f + 0.008f * (actual_speed);
+                            raw_gain = 0.0f + 0.15f * (abs(final_servo) - 3.0f);;
                         }
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.006f * (actual_speed);
+                            raw_gain = 0.0f + 0.15f * (abs(final_servo) - 3.0f);;
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.006f * (actual_speed);
+                            raw_gain = 0.0f + 0.15f * (abs(final_servo) - 3.0f);;
                         }
 
-                        // 中端警告时增大差速，增强修正能力防止出界
-                        if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
-                            raw_gain *= 1.3f;
+                        // // 中端警告时增大差速，增强修正能力防止出界
+                        // if(binary_image[RING_MID_ROW][IMG_W / 2] == BLACK)
+                        //     raw_gain *= 1.3f;
 
                         #define ACKERMANN_LOWPASS 0.3f
                         static float filt_gain = 0.0f;
@@ -805,7 +802,7 @@ int main(void)
 
                         if(gain_init) { filt_gain = raw_gain; gain_init = 0; }
                         else { filt_gain = ACKERMANN_LOWPASS * raw_gain + (1.0f - ACKERMANN_LOWPASS) * filt_gain; }
-                        ackermann_gain = filt_gain;
+                        ackermann_gain = 0;
                     }
 
                     ackermann_differential(final_servo, v_target, &target_L, &target_R);
@@ -861,7 +858,7 @@ void pit_handler (void)
             float R_duty = speed_pid_set(1, g_target_R, encoder_speed_filt_2);
 
             // 占空比低通滤波已禁用（响应速度优先）
-            motor_set_duty(L_duty, R_duty);
+            motor_set_duty( R_duty, L_duty);
         }
         else
         {
