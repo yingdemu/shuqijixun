@@ -74,7 +74,7 @@
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
+#define STRAIGHT_BLEND            (0.8f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
@@ -732,7 +732,7 @@ int main(void)
                         for(c = 0; c < IMG_W; c++)
                             if(binary_image[STRAIGHT_DETECT_ROW][c] == BLACK) row_black_cnt++;
                         if(row_black_cnt > IMG_W / 2)
-                            v_target = speed_min;
+                            v_target = speed_min+30;
                     }
 
                     // 速度目标低通滤波已禁用（响应速度优先）
@@ -785,7 +785,7 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：无差速（左右轮等速） ----
-                            raw_gain = 0.0f + 0.16f * (abs(final_servo) - 4.0f);;
+                            raw_gain = 0.0f + 0.20f * (abs(final_servo) - 4.0f);;
                         }
                         else if(gain_state == 1)
                         {
@@ -795,7 +795,7 @@ int main(void)
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.17f * (abs(final_servo) - 4.0f);;
+                            raw_gain = 0.0f + 0.20f * (abs(final_servo) - 4.0f);;
                         }
 
                         // // 中端警告时增大差速，增强修正能力防止出界
