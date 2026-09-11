@@ -78,7 +78,7 @@
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
-#define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
+#define STRAIGHT_FUSION_ALPHA     (0.7f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（120×5ms=0.6s）
 #define DUTY_LOWPASS              (0.2f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
@@ -785,6 +785,7 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：无差速（左右轮等速） ----
+                            // raw_gain = 0.0f + 0.05f * abs((abs(final_servo) - 1.0f));
                             raw_gain = 0.0f;
                         }
                         else
