@@ -85,7 +85,7 @@
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
 #define DUTY_LOWPASS              (0.2f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
 
-#define CURVE_LOCK_TICKS          (100)                                           // 弯道锁定计时（100×5ms=0.5s），0.5s内不能变直道
+#define CURVE_LOCK_TICKS          (60)                                            // 弯道锁定计时（60×5ms=0.3s），进入弯道后0.3s内不能变直道
 
 // ==================== 主函数 ====================
 
@@ -95,6 +95,7 @@ float g_target_L = 0, g_target_R = 0;                                           
 uint8  g_motor_run = 0;                                                           // PIT 电机 PID 使能标志（1=运行）
 uint8 turn_timer_cnt = 0;                                                         // 弯道状态1计时：PIT累加，0=空闲
 uint8 straight_rec_cnt = 0;                                                       // 直道恢复计时：PIT递减，0=已恢复
+uint8 curve_lock_cnt = 0;                                                         // 弯道锁定计时：PIT递减，0=未锁定（锁定期间不判定为直道）
 uint8 zebra_stop_flag = 0;                                                        // 斑马线停车标志：1=停车
 uint16 zebra_cooldown = 0;                                                         // 斑马线冷却计时：PIT递减
 uint8 g_duty_filt_reset = 0;                                                       // 占空比滤波重置（主循环写入，PIT读取清零）
@@ -470,6 +471,17 @@ int main(void)
                         }
                     }
 
+                    // 弯道锁定：进入弯道后 0.3s 内不判定为直道
+                    {
+                        static uint8 prev_is_straight = 0;
+                        if(g_main_need_reset) { prev_is_straight = 0; curve_lock_cnt = 0; }
+                        if(prev_is_straight && !is_straight)
+                            curve_lock_cnt = CURVE_LOCK_TICKS;                      // 直→弯跳变，启动弯道锁定
+                        prev_is_straight = is_straight;
+                        if(curve_lock_cnt > 0)
+                            is_straight = 0;                                        // 锁定期间强制为弯道
+                    }
+
                     // 直→弯转换校验：上一帧直道但本帧非直道时，需确认边界确实偏移
                     //{
                     //    static uint8 prev_was_straight = 0;
@@ -843,6 +855,7 @@ void pit_handler (void)
     atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
     if(turn_timer_cnt > 0 && turn_timer_cnt < TURN_TIMER_THRESH2) turn_timer_cnt++;  // 弯道状态1计时
     if(straight_rec_cnt > 0) straight_rec_cnt--;                                    // 直道恢复计时（5ms/次）
+    if(curve_lock_cnt > 0) curve_lock_cnt--;                                        // 弯道锁定计时（5ms/次）
     if(zebra_cooldown > 0) zebra_cooldown--;                                        // 斑马线冷却计时（5ms/次）
 
     // ---- 电机速度 PID（固定5ms周期，不受摄像头帧率影响） ----
