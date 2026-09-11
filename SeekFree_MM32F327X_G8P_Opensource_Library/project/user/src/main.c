@@ -77,9 +77,9 @@
 #define STRAIGHT_BLEND            (0.8f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
-#define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
-#define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
-#define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
+#define SERVO_RATE_LIMIT          (2.0f)                                          // 舵机速率限制（°/帧）
+#define STRAIGHT_FUSION_ALPHA     (0.5f)                                          // 直道 servo_fusion_alpha
+#define TURN_FUSION_ALPHA         (0.2f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（120×5ms=0.6s）
 #define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
 #define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
