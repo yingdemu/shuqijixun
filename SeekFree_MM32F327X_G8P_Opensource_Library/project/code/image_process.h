@@ -23,9 +23,9 @@
 
 // 图像尺寸与 MT9V03X 摄像头配置一致
 // 注意：这些值必须与 zf_device_mt9v03x.h 中的 MT9V03X_W 和 MT9V03X_H 保持一致
-#define IMG_W                   MT9V03X_W                                       // 图像宽度 = 141 列
+#define IMG_W                   MT9V03X_W                                       // 图像宽度 = 188 列
 #define IMG_H                   MT9V03X_H                                       // 图像高度 = 90 行
-#define IMG_SIZE                (IMG_W * IMG_H)                                 // 图像总像素数 = 12690
+#define IMG_SIZE                (IMG_W * IMG_H)                                 // 图像总像素数 = 4800
 
 //==================================================== 二值化常量定义 ====================================================
 
@@ -42,8 +42,7 @@
 
 //==================================================== 圆环巡线常量 ====================================================
 
-#define RING_FAR_ROW            5                                              // 远端检测行号
-#define STRAIGHT_DETECT_ROW     (8)                                             // 直道检测行号（中心列全白扫描起始行）
+#define RING_FAR_ROW            3                                              // 远端检测行号
 #define RING_MID_ROW            (36)                                            // 中端警告行号
 #define RING_NEAR_ROW           (IMG_H - 30)                                    // 近端检测行号
 #define RING_HALF_WIDTH         30                                              // 赛道半宽（圆环跟随模式用）

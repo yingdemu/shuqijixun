@@ -754,7 +754,11 @@ float speed_pid_set(uint8 channel, float target, float actual)
                     + speed_ki * err
                     + speed_kd * g_speed_deriv_filt[channel];
 
-    // 增量限幅已禁用（响应速度优先）
+    // 增量限幅
+    float inc_max = 8.0f;
+    if(increment > inc_max)  increment = inc_max;
+    if(increment < -inc_max) increment = -inc_max;
+
     g_speed_pid_out[channel] += increment;
 
     // 输出饱和
