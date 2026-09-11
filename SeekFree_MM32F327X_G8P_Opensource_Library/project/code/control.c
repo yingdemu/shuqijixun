@@ -175,10 +175,10 @@ void motor_set_duty(float right_duty, float left_duty)
 //
 // 使用示例：
 //   float L, R;
-//   ackermann_differential(servo_angle, motor_duty, &L, &R);
+//   ackermann_differential(servo_angle, motor_duty, inner_factor, &L, &R);
 //   motor_set_duty(L, R);
 //-------------------------------------------------------------------------------------------------------------------
-void ackermann_differential(float servo_angle_deg, float base_duty, float *left_duty, float *right_duty)
+void ackermann_differential(float servo_angle_deg, float base_duty, float inner_factor, float *left_duty, float *right_duty)
 {
     // 死区：打角绝对值小于阈值时不产生差速（避免直线微摆）
     float abs_angle = (servo_angle_deg > 0.0f) ? servo_angle_deg : -servo_angle_deg;
@@ -203,10 +203,10 @@ void ackermann_differential(float servo_angle_deg, float base_duty, float *left_
 
     if(diff >0.0f){
     *left_duty  = base_duty * (1.0f + diff)*1.0f;
-    *right_duty = base_duty * (1.0f - diff)*0.8f;
+    *right_duty = base_duty * (1.0f - diff)*inner_factor;
   
     }else{
-    *left_duty  = base_duty * (1.0f + diff)*0.8f;
+    *left_duty  = base_duty * (1.0f + diff)*inner_factor;
     *right_duty = base_duty * (1.0f - diff)*1.0f;
     
     }

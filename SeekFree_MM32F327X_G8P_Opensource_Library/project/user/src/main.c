@@ -74,12 +74,12 @@
 #define PIT                     (TIM6_PIT )                                     // 使用的周期中断编号 如果修改 需要同步对应修改周期中断编号与 isr.c 中的调用
 #define PIT_PRIORITY            (TIM6_IRQn)                                     // 对应周期中断的中断编号
 #define SERVO_LOWPASS            (0.9f)                                          // 弯道舵机互补滤波系数
-#define STRAIGHT_BLEND            (0.5f)                                          // 直道中线50%滤波系数
+#define STRAIGHT_BLEND            (0.8f)                                          // 直道中线50%滤波系数
 #define SERVO_CLIP_MAX            (11.0f)                                         // 舵机限幅上界
 #define SERVO_CLIP_MIN            (-11.0f)                                        // 舵机限幅下界
 #define SERVO_RATE_LIMIT          (4.0f)                                          // 舵机速率限制（°/帧）
-#define STRAIGHT_FUSION_ALPHA     (0.7f)                                          // 直道 servo_fusion_alpha
-#define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
+#define STRAIGHT_FUSION_ALPHA     (0.8f)                                          // 直道 servo_fusion_alpha
+#define TURN_FUSION_ALPHA         (0.1f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（120×5ms=0.6s）
 #define DUTY_LOWPASS              (0.2f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
 
@@ -693,6 +693,7 @@ int main(void)
 
                     // ---- 速度决策：直道全速，弯道降速 ----
                     float v_target;
+                    uint8 curve_stage2 = 0;                                       // 弯道第二阶段标志（RING_FAR_ROW 黑色占比 > 2/3）
 
                     // 0→1跳变检测
                     static uint8 prev_straight = 0;
@@ -730,9 +731,15 @@ int main(void)
                             for(fc = 0; fc < IMG_W; fc++)
                                 if(binary_image[RING_FAR_ROW][fc] == BLACK) far_black_cnt++;
                             if(far_black_cnt * 3 > IMG_W * 2)                  // 黑色占比 > 2/3
+                            {
+                                curve_stage2 = 1;
                                 v_target = v_max_turn_start;
+                            }
                             else
+                            {
+                                curve_stage2 = 0;
                                 v_target = speed_min;
+                            }
                         }
                     }
 
@@ -785,8 +792,8 @@ int main(void)
                         if(gain_state == 0)
                         {
                             // ---- 直道：无差速（左右轮等速） ----
-                            // raw_gain = 0.0f + 0.05f * abs((abs(final_servo) - 1.0f));
-                            raw_gain = 0.0f;
+                            raw_gain = 0.0f + 0.05f * abs((abs(final_servo) - 1.0f));
+                            // raw_gain = 0.0f;
                         }
                         else
                         {
@@ -808,7 +815,7 @@ int main(void)
                         ackermann_gain = filt_gain;
                     }
 
-                    ackermann_differential(final_servo, v_target, &target_L, &target_R);
+                    ackermann_differential(final_servo, v_target, curve_stage2 ? 0.7f : 1.0f, &target_L, &target_R);
 
                     // 左右轮目标速度传入全局变量（PID + 占空比输出由 PIT 5ms 中断执行）
                     g_target_L = zebra_stop_flag ? 0.0f : target_L;
