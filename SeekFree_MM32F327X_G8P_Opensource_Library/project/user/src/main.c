@@ -509,10 +509,16 @@ int main(void)
                     float weight_position = get_weight_position(center_line, is_straight);
 
                     // 直道时中线与图像中心混合滤波，减小不必要的转向修正
+                    // 中线偏离图像中心超过 20 时跳过滤波（保留真实偏差，防止误拉回中心）
                     if(is_straight)
                     {
-                        weight_position = STRAIGHT_BLEND * ((float)IMG_W / 2.0f)
-                                        + (1.0f - STRAIGHT_BLEND) * weight_position;
+                        float wp_dev = weight_position - (float)IMG_W / 2.0f;
+                        if(wp_dev < 0.0f) wp_dev = -wp_dev;
+                        if(wp_dev <= 20.0f)
+                        {
+                            weight_position = STRAIGHT_BLEND * ((float)IMG_W / 2.0f)
+                                            + (1.0f - STRAIGHT_BLEND) * weight_position;
+                        }
                     }
 
                     // ---- 十字路口强制打角（crossroad_fix 输出） ----
@@ -792,12 +798,12 @@ int main(void)
                         else if(gain_state == 1)
                         {
                             // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.11f * (abs(final_servo) - 4.0f);;
+                            raw_gain = 0.0f + 0.13f * (abs(final_servo) - 4.0f);;
                         }
                         else // gain_state == 2
                         {
                             // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
-                            raw_gain = 0.0f + 0.11f * (abs(final_servo) - 4.0f);;
+                            raw_gain = 0.0f + 0.13f * (abs(final_servo) - 4.0f);;
                         }
 
                         // // 中端警告时增大差速，增强修正能力防止出界

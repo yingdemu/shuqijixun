@@ -311,11 +311,6 @@ int16 calc_deviation(uint8 look_ahead_rows)
     return (int16)mid_x - (int16)(IMG_W / 2);
 }
 
-// ---- 中线位置低通滤波状态（发车时需重置） ----
-static float g_filtered_pos = 0.0f;
-static uint8 g_weight_first_run = 1;
-static uint8 g_weight_need_reset = 0;
-
 float get_weight_position(uint8 *center_line, uint8 is_straight)
 {
     const uint8 *w = is_straight ? weight : weight2;
@@ -339,19 +334,7 @@ float get_weight_position(uint8 *center_line, uint8 is_straight)
     else
         raw_pos = (float)(IMG_W / 2);   // 中线全不可用时返回图像中心
 
-    // 一阶低通滤波：滤除中线位置的帧间抖动
-    #define POS_LOWPASS 0.3f
-    if(g_weight_need_reset) { g_weight_first_run = 1; g_filtered_pos = 0.0f; g_weight_need_reset = 0; }
-    if(g_weight_first_run)
-    {
-        g_filtered_pos = raw_pos;
-        g_weight_first_run = 0;
-    }
-    else
-    {
-        g_filtered_pos = POS_LOWPASS * raw_pos + (1.0f - POS_LOWPASS) * g_filtered_pos;
-    }
-    return g_filtered_pos;
+    return raw_pos;
 }
 
 //-------------------------------------------------------------------------------------------------------------------
@@ -785,8 +768,6 @@ float speed_pid_set(uint8 channel, float target, float actual)
 //-------------------------------------------------------------------------------------------------------------------
 void control_state_reset(void)
 {
-    // ---- 中线低通滤波 ----
-    g_weight_need_reset = 1;
     // ---- 图像 PID ----
     g_image_pid_need_reset = 1;
     // ---- IMU PID ----
