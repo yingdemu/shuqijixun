@@ -81,8 +81,6 @@
 #define STRAIGHT_FUSION_ALPHA     (0.2f)                                          // 直道 servo_fusion_alpha
 #define TURN_FUSION_ALPHA         (0.0f)                                         // 弯道 servo_fusion_alpha
 #define STRAIGHT_RECOVERY_TICKS   (60)                                            // 直道恢复计时（120×5ms=0.6s）
-#define TURN_TIMER_THRESH1        (80)                                            // 弯道第一阶段
-#define TURN_TIMER_THRESH2        (150)                                           // 弯道第二阶段
 #define DUTY_LOWPASS              (0.2f)                                          // 电机占空比低通（固定5ms PIT，可用较轻滤波）
 
 #define CURVE_LOCK_TICKS          (60)                                            // 弯道锁定计时（60×5ms=0.3s），进入弯道后0.3s内不能变直道
@@ -93,7 +91,6 @@
 float target_L=0, target_R=0;                                                     // 阿克曼输出的左右轮目标速度（编码器单位）
 float g_target_L = 0, g_target_R = 0;                                             // PIT 电机 PID 目标速度（主循环写入，PIT读取）
 uint8  g_motor_run = 0;                                                           // PIT 电机 PID 使能标志（1=运行）
-uint8 turn_timer_cnt = 0;                                                         // 弯道状态1计时：PIT累加，0=空闲
 uint8 straight_rec_cnt = 0;                                                       // 直道恢复计时：PIT递减，0=已恢复
 uint8 curve_lock_cnt = 0;                                                         // 弯道锁定计时：PIT递减，0=未锁定（锁定期间不判定为直道）
 uint8 zebra_stop_flag = 0;                                                        // 斑马线停车标志：1=停车
@@ -653,7 +650,6 @@ int main(void)
                         if(prev_lost_side != 0 && lost_side != 0
                            && lost_side != prev_lost_side)
                         {
-                            turn_timer_cnt = 0;                                 // 丢线侧翻转→重新从第一阶段开始
                             reset_servo_filt = 1;                               // 跳过舵机滤波+速率限制
                         }
                         if(lost_side != 0) prev_lost_side = lost_side;
@@ -705,7 +701,6 @@ int main(void)
                     if(is_straight)
                     {
                         servo_fusion_alpha = STRAIGHT_FUSION_ALPHA;                 // 直道：20%角度+80%IMU
-                        turn_timer_cnt = 0;
 
                         if(!prev_straight){
                             straight_rec_cnt = STRAIGHT_RECOVERY_TICKS;            // ×5ms = 0.2s
@@ -728,18 +723,16 @@ int main(void)
                         straight_rec_cnt = 0;                                      // 弯道清零
                         prev_straight = 0;
 
-                        // 弯道分档速度：第一阶段降到 speed_min，第二阶段 v_max_turn_start，之后 v_max_turn_cancel
-                        if(turn_timer_cnt < TURN_TIMER_THRESH1){
-                            if(turn_timer_cnt == 0) turn_timer_cnt = 1;
-                            v_target = speed_min;
-                        }
-                        else if(turn_timer_cnt < TURN_TIMER_THRESH2)
+                        // 弯道分档速度：RING_FAR_ROW 行黑色占比 > 2/3 进第二阶段，否则回第一阶段
                         {
-                            v_target = v_max_turn_start;
-                        }
-                        else
-                        {
-                            v_target = v_max_turn_cancel;
+                            uint16 far_black_cnt = 0;
+                            int16 fc;
+                            for(fc = 0; fc < IMG_W; fc++)
+                                if(binary_image[RING_FAR_ROW][fc] == BLACK) far_black_cnt++;
+                            if(far_black_cnt * 3 > IMG_W * 2)                  // 黑色占比 > 2/3
+                                v_target = v_max_turn_start;
+                            else
+                                v_target = speed_min;
                         }
                     }
 
@@ -784,9 +777,8 @@ int main(void)
                         float raw_gain;
                         float abs_angle = (final_servo > 0.0f) ? final_servo : -final_servo;
 
-                        // 增益状态编码：0=直道, 1=弯道第一阶段, 2=弯道后期
-                        uint8 gain_state = is_straight ? 0
-                                         : (turn_timer_cnt < TURN_TIMER_THRESH1 ? 1 : 2);
+                        // 增益状态编码：0=直道, 1=弯道
+                        uint8 gain_state = is_straight ? 0 : 1;
 
                         float actual_speed = (encoder_speed_filt_1 + encoder_speed_filt_2) / 2.0f;
 
@@ -795,14 +787,9 @@ int main(void)
                             // ---- 直道：无差速（左右轮等速） ----
                             raw_gain = 0.0f;
                         }
-                        else if(gain_state == 1)
+                        else
                         {
-                            // ---- 弯道第一阶段：大差速，以舵角为主，快速入弯 ----
-                            raw_gain = 0.0f + 0.13f * (abs(final_servo) - 4.0f);;
-                        }
-                        else // gain_state == 2
-                        {
-                            // ---- 弯道后期：与第一阶段相同公式（后续可独立调参） ----
+                            // ---- 弯道：大差速，以舵角为主 ----
                             raw_gain = 0.0f + 0.13f * (abs(final_servo) - 4.0f);;
                         }
 
@@ -859,7 +846,6 @@ void pit_handler (void)
     menu_key_process();
     encoder_update();                                                               // 读取编码器速度
     atti_update();                                                                  // 姿态解算（替代 imu963ra_get_gyro，内部已同时读取加速度计+陀螺仪）
-    if(turn_timer_cnt > 0 && turn_timer_cnt < TURN_TIMER_THRESH2) turn_timer_cnt++;  // 弯道状态1计时
     if(straight_rec_cnt > 0) straight_rec_cnt--;                                    // 直道恢复计时（5ms/次）
     if(curve_lock_cnt > 0) curve_lock_cnt--;                                        // 弯道锁定计时（5ms/次）
     if(zebra_cooldown > 0) zebra_cooldown--;                                        // 斑马线冷却计时（5ms/次）
