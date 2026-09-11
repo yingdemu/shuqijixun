@@ -202,12 +202,15 @@ void ackermann_differential(float servo_angle_deg, float base_duty, float *left_
     float diff = tan_angle * ACKERMANN_TRACK / ACKERMANN_WHEELBASE * ackermann_gain;
 
     if(diff >0.0f){
-    *left_duty  = base_duty * (1.0f + diff)*0.8f;
-    *right_duty = base_duty * (1.0f - diff)*0.7f;
-  
-    }else{
-    *left_duty  = base_duty * (1.0f + diff)*0.7f;
-    *right_duty = base_duty * (1.0f - diff)*0.8f;
+    *left_duty  = base_duty * (1.0f + diff)*1.0f;
+    *right_duty = base_duty * (1.0f - diff)*0.9f;
 
+    }else{
+    *left_duty  = base_duty * (1.0f + diff)*0.9f;
+    *right_duty = base_duty * (1.0f - diff)*1.0f;
+    
     }
+    //  *left_duty  = base_duty * (1.0f + diff)*1.0f;
+    //  *right_duty = base_duty * (1.0f - diff)*1.0f;
+
 }
